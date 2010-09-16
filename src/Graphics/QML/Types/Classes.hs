@@ -169,41 +169,33 @@ mkMethod3 name f = MetaMethod name
 
 -- | Represents a named property which can be accessed from QML on an object
 -- of type @a@.
-data MetaProperty a
-  = PropertyRO {
-      propertyName :: String,
-      propertyType :: TypeName,
-      propertyReadFunc :: UniformFunc
-    }
-  | PropertyRW {
-      propertyName :: String,
-      propertyType :: TypeName,
-      propertyReadFunc :: UniformFunc,
-      propertyWriteFunc_ :: UniformFunc
-    }
-
-propertyWriteFunc :: MetaProperty a -> Maybe UniformFunc
-propertyWriteFunc (PropertyRW _ _ _ wf) = Just wf
-propertyWriteFunc _ = Nothing
+data MetaProperty a = MetaProperty {
+  -- | Gets the name of a 'MetaProperty'.
+  propertyName :: String,
+  propertyType :: TypeName,
+  propertyReadFunc :: UniformFunc,
+  propertyWriteFunc :: Maybe UniformFunc
+}
 
 -- | Creates a 'MetaProperty' for a named read-only property using an impure
 -- accessor function.
 mkPropertyRO ::
   forall a tr. (Marshallable a, Marshallable tr) =>
   String -> (a -> IO tr) -> MetaProperty a
-mkPropertyRO name g = PropertyRO name
+mkPropertyRO name g = MetaProperty name
   (mTypeOf (undefined :: tr))
   (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= g >>= marshal pr)
+  Nothing
 
 -- | Creates a 'MetaProperty' for a named read-write property using a pair of 
 -- impure accessor and mutator functions.
 mkPropertyRW ::
   forall a tr. (Marshallable a, Marshallable tr) =>
   String -> (a -> IO tr) -> (a -> tr -> IO ()) -> MetaProperty a
-mkPropertyRW name g s = PropertyRW name
+mkPropertyRW name g s = MetaProperty name
   (mTypeOf (undefined :: tr))
   (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= g >>= marshal pr)
-  (marshalFunc1 $ \p0 p1 _ -> do
+  (Just $ marshalFunc1 $ \p0 p1 _ -> do
     v0 <- unmarshal p0
     v1 <- unmarshal p1
     s v0 v1)
