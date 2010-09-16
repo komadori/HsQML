@@ -167,24 +167,23 @@ mkMethod3 name f = MetaMethod name
 -- MetaProperty
 --
 
-data MetaPropertyDesc
-  = PropertyRO TypeName UniformFunc
-  | PropertyRW TypeName UniformFunc UniformFunc
-
 -- | Represents a named property which can be accessed from QML on an object
 -- of type @a@.
-data MetaProperty a = MetaProperty {
-  -- | Gets the name of a 'MetaProperty'.
-  propertyName :: String,
-  propertyDesc :: MetaPropertyDesc
-}
-
-propertyReadFunc :: MetaProperty a -> UniformFunc
-propertyReadFunc (MetaProperty _ (PropertyRO _ rf)) = rf
-propertyReadFunc (MetaProperty _ (PropertyRW _ rf _)) = rf
+data MetaProperty a
+  = PropertyRO {
+      propertyName :: String,
+      propertyType :: TypeName,
+      propertyReadFunc :: UniformFunc
+    }
+  | PropertyRW {
+      propertyName :: String,
+      propertyType :: TypeName,
+      propertyReadFunc :: UniformFunc,
+      propertyWriteFunc_ :: UniformFunc
+    }
 
 propertyWriteFunc :: MetaProperty a -> Maybe UniformFunc
-propertyWriteFunc (MetaProperty _ (PropertyRW _ _ wf)) = Just wf
+propertyWriteFunc (PropertyRW _ _ _ wf) = Just wf
 propertyWriteFunc _ = Nothing
 
 -- | Creates a 'MetaProperty' for a named read-only property using an impure
@@ -192,7 +191,7 @@ propertyWriteFunc _ = Nothing
 mkPropertyRO ::
   forall a tr. (Marshallable a, Marshallable tr) =>
   String -> (a -> IO tr) -> MetaProperty a
-mkPropertyRO name g = MetaProperty name $ PropertyRO
+mkPropertyRO name g = PropertyRO name
   (mTypeOf (undefined :: tr))
   (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= g >>= marshal pr)
 
@@ -201,19 +200,13 @@ mkPropertyRO name g = MetaProperty name $ PropertyRO
 mkPropertyRW ::
   forall a tr. (Marshallable a, Marshallable tr) =>
   String -> (a -> IO tr) -> (a -> tr -> IO ()) -> MetaProperty a
-mkPropertyRW name g s = MetaProperty name $ PropertyRW
+mkPropertyRW name g s = PropertyRW name
   (mTypeOf (undefined :: tr))
   (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= g >>= marshal pr)
   (marshalFunc1 $ \p0 p1 _ -> do
     v0 <- unmarshal p0
     v1 <- unmarshal p1
     s v0 v1)
-
--- | Gets the 'TypeName' of the values accessible through a given
--- 'MetaProperty'.
-propertyType :: MetaProperty a -> TypeName
-propertyType (MetaProperty _ (PropertyRO name _)) = name
-propertyType (MetaProperty _ (PropertyRW name _ _)) = name
 
 --
 -- ???
