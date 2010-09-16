@@ -53,7 +53,7 @@ data EngineConfig = EngineConfig {
 data EmptyObject = EmptyObject ()
 
 instance MetaObject EmptyObject where
-  metaClass = mkClass "EmptyObject" [] []
+  metaClass = mkClass "EmptyObject" []
 
 -- | Default engine configuration. Loads @\"main.qml\"@ from the current
 -- working directory into a visible window.
