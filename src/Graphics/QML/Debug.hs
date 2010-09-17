@@ -3,5 +3,5 @@ module Graphics.QML.Debug (
 
 import Graphics.QML.Types.Classes
 
-debugGetClassType :: (MetaObject a) => a -> IO String
-debugGetClassType = undefined
+--debugGetClassType :: (MetaObject tt) => tt -> IO String
+--debugGetClassType = undefined

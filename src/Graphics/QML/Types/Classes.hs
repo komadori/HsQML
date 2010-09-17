@@ -1,6 +1,8 @@
 {-# LANGUAGE
-    RankNTypes,
+    Rank2Types,
     ScopedTypeVariables,
+    MultiParamTypeClasses,
+    FunctionalDependencies,
     FlexibleInstances,
     UndecidableInstances,
     OverlappingInstances
@@ -10,21 +12,19 @@
 -- Haskell and QML.
 module Graphics.QML.Types.Classes (
   -- * Classes
-  MetaClass,
-  mkClass,
-  MetaObject(
-    metaClass),
-  MetaMember,
+  MetaObject,
+  DefClass,
+  defClass,
 
   -- * Methods
-  mkMethod0,
-  mkMethod1,
-  mkMethod2,
-  mkMethod3,
+  defMethod0,
+  defMethod1,
+  defMethod2,
+  defMethod3,
 
   -- * Properties
-  mkPropertyRO,
-  mkPropertyRW,
+  defPropertyRO,
+  defPropertyRW,
 ) where
 
 import Graphics.QML.Internal.Core
@@ -35,7 +35,11 @@ import Control.Monad.Trans.State
 import Data.Char
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IntMap
 import Data.Maybe
+import Data.IORef
+import Data.Typeable
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Ptr
@@ -45,22 +49,67 @@ import Foreign.Marshal.Array
 import System.IO.Unsafe
 
 --
--- MetaClass
+-- MetaObject
 --
 
--- | Represents a QML class which wraps the type @a@.
-data MetaClass a = MetaClass {
+-- | The class 'MetaObject' allows Haskell types to be accessed as objects
+-- from within QML.
+--
+-- A 'Marshallable' instance is provided automatically for all instances of
+-- this class, however, 'defClass' must be used to define an object's class
+-- members before marshalling any values.
+class (Typeable tt) => MetaObject tt where
+  -- Empty
+
+instance (MetaObject tt) => Marshallable tt where
+  marshal ptr obj = do
+    (HsQMLObjectHandle hndl) <-
+      hsqmlCreateObject obj $ classData $ (metaClass :: MetaClass tt)
+    poke (castPtr ptr) hndl
+  unmarshal ptr =
+    hsqmlGetHaskell $ HsQMLObjectHandle $ castPtr ptr
+  mSizeOf _ = sizeOf nullPtr
+  mTypeOf _ = classType (metaClass :: MetaClass tt)
+
+--
+-- DefClass
+--
+
+-- | Represents a QML class which wraps the type @tt@.
+data MetaClass tt = MetaClass {
   classType :: TypeName,
   classData :: HsQMLClassHandle
 }
+
+{-# NOINLINE metaClassDb #-}
+metaClassDb :: forall a. IORef (IntMap (MetaClass a))
+metaClassDb = unsafePerformIO $ newIORef IntMap.empty
+
+metaClass :: forall a. (MetaObject a) => MetaClass a
+metaClass = unsafePerformIO $ do
+  let typ  = typeOf (undefined :: a)
+  key <- typeRepKey typ
+  db  <- readIORef metaClassDb
+  return $ case IntMap.lookup key db of
+    Just clas -> clas
+    Nothing   -> error $ "Attempt to marshal an object of type '" ++
+                   (show typ) ++ "' without a defined class."
 
 interleave :: [a] -> [a] -> [a]
 interleave [] ys = ys
 interleave (x:xs) ys = x : ys `interleave` xs 
 
-mkClassIO :: (Marshallable a) =>
-  String -> [Method a] -> [Property a] -> IO (MetaClass a)
-mkClassIO name methods properties = do
+data DefClass tt a = DefClass [Method tt] [Property tt] a
+
+instance Monad (DefClass tt) where
+  (DefClass ms ps v) >>= f =
+    let (DefClass ms' ps' v') = f v in DefClass (ms'++ms) (ps'++ps) v'
+  return v = DefClass [] [] v
+
+-- | Defines a class given a description of its members.
+defClass :: forall tt a. (MetaObject tt) =>
+  String -> DefClass tt a -> IO a
+defClass name dc@(DefClass methods properties user) = do
   let (MOCOutput metaData metaStrData) = compileClass name methods properties
   metaDataPtr <- newArray metaData
   metaStrDataPtr <- newArray metaStrData
@@ -71,59 +120,21 @@ mkClassIO name methods properties = do
   propertiesPtr <- newArray $ interleave pReads pWrites
   hndl <- hsqmlCreateClass metaDataPtr metaStrDataPtr methodsPtr propertiesPtr
   case hndl of 
-    Just hndl' -> return (MetaClass (TypeName name) hndl')
-    Nothing    -> mkClassIO (name++"_1") methods properties
-
--- | Creates a 'MetaClass' given a description of its methods and properties.
-mkClass :: (Marshallable a) =>
-  String -> [MetaMember a] -> MetaClass a
-mkClass name members =
-  unsafePerformIO $ mkClassIO name methods properties
-  where methods = mapMaybe toMethod members
-        properties = mapMaybe toProperty members
-
-
--- | The class 'MetaObject' allows Haskell types to be accessed as objects
--- from within QML. A 'Marshallable' instance is provided automatically
--- for all instances of this class.
-class MetaObject a where
-  -- | Gets the 'MetaClass' corresponding to the 'MetaObject' type @a@.
-  metaClass :: MetaClass a
-
-instance (MetaObject a) => Marshallable a where
-  marshal ptr obj = do
-    (HsQMLObjectHandle hndl) <-
-      hsqmlCreateObject obj $ classData $ (metaClass :: MetaClass a)
-    poke (castPtr ptr) hndl
-  unmarshal ptr =
-    hsqmlGetHaskell $ HsQMLObjectHandle $ castPtr ptr
-  mSizeOf _ = sizeOf nullPtr
-  mTypeOf _ = classType (metaClass :: MetaClass a) 
-
---
--- MetaMember
---
-
--- | Represents a member of the QML class which wraps the type @a@.
-data MetaMember a
-  = MethodMember (Method a)
-  | PropertyMember (Property a)
-
-toMethod :: MetaMember a -> Maybe (Method a)
-toMethod (MethodMember m) = Just m
-toMethod _                = Nothing
-
-toProperty :: MetaMember a -> Maybe (Property a)
-toProperty (PropertyMember p) = Just p
-toProperty _                  = Nothing
+    Just hndl' -> do
+      key <- typeRepKey $ typeOf (undefined :: tt)
+      modifyIORef metaClassDb $
+        IntMap.insert key (MetaClass (TypeName name) hndl')
+      return user 
+    Nothing    -> defClass (name++"_1") dc
+  return user
 
 --
 -- Method
 --
 
 -- | Represents a named method which can be invoked from QML on an object of
--- type @a@.
-data Method a = Method {
+-- type @tt@.
+data Method tt = Method {
   -- | Gets the name of a 'Method'.
   methodName  :: String,
   -- | Gets the 'TypeName's which comprise the signature of a 'Method'.
@@ -132,31 +143,34 @@ data Method a = Method {
   methodFunc  :: UniformFunc
 }
 
--- | Creates a 'MetaMember' for a named impure nullary function.
-mkMethod0 ::
-  forall a tr. (Marshallable a, Marshallable tr) =>
-  String -> (a -> IO tr) -> MetaMember a
-mkMethod0 name f = MethodMember $ Method name
+defMethod :: Method tt -> DefClass tt ()
+defMethod m = DefClass [m] [] ()
+
+-- | Defines a named method using an impure nullary function.
+defMethod0 ::
+  forall tt tr. (MetaObject tt, Marshallable tr) =>
+  String -> (tt -> IO tr) -> DefClass tt ()
+defMethod0 name f = defMethod $ Method name
   [mTypeOf (undefined :: tr)]
   (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= f >>= marshalRet pr)
 
--- | Creates a 'MetaMember' for a named impure unary function.
-mkMethod1 ::
-  forall a t1 tr. (Marshallable a, Marshallable t1, Marshallable tr) =>
-  String -> (a -> t1 -> IO tr) -> MetaMember a
-mkMethod1 name f = MethodMember $ Method name
+-- | Defines a named method using an impure unary function.
+defMethod1 ::
+  forall tt t1 tr. (MetaObject tt, Marshallable t1, Marshallable tr) =>
+  String -> (tt -> t1 -> IO tr) -> DefClass tt ()
+defMethod1 name f = defMethod $ Method name
   [mTypeOf (undefined :: tr), mTypeOf (undefined :: t1)]
   (marshalFunc1 $ \p0 p1 pr -> do
     v0 <- unmarshal p0
     v1 <- unmarshal p1
     f v0 v1 >>= marshalRet pr)
 
--- | Creates a 'MetaMember' for a named impure binary function.
-mkMethod2 ::
-  forall a t1 t2 tr.
-  (Marshallable a, Marshallable t1, Marshallable t2, Marshallable tr) =>
-  String -> (a -> t1 -> t2 -> IO tr) -> MetaMember a
-mkMethod2 name f = MethodMember $ Method name
+-- | Defines a named method using an impure binary function.
+defMethod2 ::
+  forall tt t1 t2 tr.
+  (MetaObject tt, Marshallable t1, Marshallable t2, Marshallable tr) =>
+  String -> (tt -> t1 -> t2 -> IO tr) -> DefClass tt ()
+defMethod2 name f = defMethod $ Method name
   [mTypeOf (undefined :: tr), mTypeOf (undefined :: t1),
    mTypeOf (undefined :: t2)]
   (marshalFunc2 $ \p0 p1 p2 pr -> do
@@ -165,14 +179,13 @@ mkMethod2 name f = MethodMember $ Method name
     v2 <- unmarshal p2
     f v0 v1 v2 >>= marshalRet pr)
 
--- | Creates a 'MetaMember' for a named impure function which takes 3
--- arguments.
-mkMethod3 ::
-  forall a t1 t2 t3 tr.
-  (Marshallable a, Marshallable t1, Marshallable t2, Marshallable t3,
+-- | Defines a named method using an impure function taking 3 arguments.
+defMethod3 ::
+  forall tt t1 t2 t3 tr.
+  (MetaObject tt, Marshallable t1, Marshallable t2, Marshallable t3,
    Marshallable tr) =>
-  String -> (a -> t1 -> t2 -> t3 -> IO tr) -> MetaMember a
-mkMethod3 name f = MethodMember $ Method name
+  String -> (tt -> t1 -> t2 -> t3 -> IO tr) -> DefClass tt ()
+defMethod3 name f = defMethod $ Method name
   [mTypeOf (undefined :: tr), mTypeOf (undefined :: t1),
    mTypeOf (undefined :: t2), mTypeOf (undefined :: t3)]
   (marshalFunc3 $ \p0 p1 p2 p3 pr -> do
@@ -187,8 +200,8 @@ mkMethod3 name f = MethodMember $ Method name
 --
 
 -- | Represents a named property which can be accessed from QML on an object
--- of type @a@.
-data Property a = Property {
+-- of type @tt@.
+data Property tt = Property {
   -- | Gets the name of a 'Property'.
   propertyName :: String,
   propertyType :: TypeName,
@@ -196,22 +209,25 @@ data Property a = Property {
   propertyWriteFunc :: Maybe UniformFunc
 }
 
--- | Creates a 'MetaMember' for a named read-only property using an impure
+defProperty :: Property tt -> DefClass tt ()
+defProperty p = DefClass [] [p] ()
+
+-- | Defines a named read-only property using an impure
 -- accessor function.
-mkPropertyRO ::
-  forall a tr. (Marshallable a, Marshallable tr) =>
-  String -> (a -> IO tr) -> MetaMember a
-mkPropertyRO name g = PropertyMember $ Property name
+defPropertyRO ::
+  forall tt tr. (MetaObject tt, Marshallable tr) =>
+  String -> (tt -> IO tr) -> DefClass tt ()
+defPropertyRO name g = defProperty $ Property name
   (mTypeOf (undefined :: tr))
   (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= g >>= marshal pr)
   Nothing
 
--- | Creates a 'MetaMember' for a named read-write property using a pair of 
+-- | Defines a named read-write property using a pair of 
 -- impure accessor and mutator functions.
-mkPropertyRW ::
-  forall a tr. (Marshallable a, Marshallable tr) =>
-  String -> (a -> IO tr) -> (a -> tr -> IO ()) -> MetaMember a
-mkPropertyRW name g s = PropertyMember $ Property name
+defPropertyRW ::
+  forall tt tr. (MetaObject tt, Marshallable tr) =>
+  String -> (tt -> IO tr) -> (tt -> tr -> IO ()) -> DefClass tt ()
+defPropertyRW name g s = defProperty $ Property name
   (mTypeOf (undefined :: tr))
   (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= g >>= marshal pr)
   (Just $ marshalFunc1 $ \p0 p1 _ -> do
@@ -251,7 +267,7 @@ marshalFunc3 f p0 pv = do
   p3 <- peekElemOff pv 3
   f p0 p1 p2 p3 pr
 
-marshalRet :: (Marshallable a) => Ptr () -> a -> IO ()
+marshalRet :: (Marshallable tt) => Ptr () -> tt -> IO ()
 marshalRet ptr obj
   | ptr == nullPtr = return ()
   | otherwise      = marshal ptr obj
@@ -298,7 +314,7 @@ writeString str = do
         mStrDataMap = msdMap'}
       writeInt idx
 
-writeMethod :: Method a -> State MOCState ()
+writeMethod :: Method tt -> State MOCState ()
 writeMethod m = do
   idx <- get >>= return . mDataLen
   writeString $ methodSignature m
@@ -309,7 +325,7 @@ writeMethod m = do
   put $ state {mDataMethodsIdx = mplus (mDataMethodsIdx state) (Just idx)}
   return ()
 
-writeProperty :: Property a -> State MOCState ()
+writeProperty :: Property tt -> State MOCState ()
 writeProperty p = do
   idx <- get >>= return . mDataLen
   writeString $ propertyName p
@@ -319,7 +335,7 @@ writeProperty p = do
   put $ state {mDataPropsIdx = mplus (mDataPropsIdx state) (Just idx)}
   return ()
 
-compileClass :: String -> [Method a] -> [Property a] -> MOCOutput
+compileClass :: String -> [Method tt] -> [Property tt] -> MOCOutput
 compileClass name ms ps = 
   let enc = flip execState newMOCState $ do
         writeInt 5                           -- Revision
@@ -344,13 +360,13 @@ foldr0 :: (a -> a -> a) -> a -> [a] -> a
 foldr0 _ x [] = x
 foldr0 f _ xs = foldr1 f xs
 
-methodSignature :: Method a -> String
+methodSignature :: Method tt -> String
 methodSignature method =
   let paramTypes = tail $ methodTypes method
   in (showString (methodName method) . showChar '(' .
        foldr0 (\l r -> l . showChar ',' . r) id
          (map (showString . typeName) paramTypes) . showChar ')') ""
 
-methodParameters :: Method a -> String
+methodParameters :: Method tt -> String
 methodParameters method =
   replicate (flip (-) 2 $ length $ methodTypes method) ','

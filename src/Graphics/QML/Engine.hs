@@ -13,7 +13,8 @@ module Graphics.QML.Engine (
     EngineConfig,
     baseURL,
     initialWindowState,
-    initialURL),
+    initialURL,
+    contextObject),
   defaultEngineConfig,
   createEngine,
   runEngines
@@ -23,6 +24,8 @@ import Graphics.QML.Internal.Core
 import Graphics.QML.Internal.Engine
 import Graphics.QML.Types.Classes
 
+import Data.Maybe
+import Data.Typeable
 import Foreign.Storable
 import Network.URI (URI, nullURI, uriPath, uriToString)
 
@@ -41,33 +44,31 @@ data InitialWindowState
   | NoWindow
 
 -- | Holds parameters for configuring a QML runtime engine.
-data EngineConfig = EngineConfig {
+data EngineConfig a = EngineConfig {
   -- | Absolute URL against which relative URLs can be resolved.
   baseURL            :: Maybe URI,
   -- | Window state for the initial QML document.
   initialWindowState :: InitialWindowState,
   -- | URL for the first QML document to be loaded.
-  initialURL         :: URI
+  initialURL         :: URI,
+  -- | Context 'MetaObject' made available to QML script code.
+  contextObject      :: Maybe a
 }
 
-data EmptyObject = EmptyObject ()
-
-instance MetaObject EmptyObject where
-  metaClass = mkClass "EmptyObject" []
-
 -- | Default engine configuration. Loads @\"main.qml\"@ from the current
--- working directory into a visible window.
-defaultEngineConfig :: EngineConfig
+-- working directory into a visible window with no context object.
+defaultEngineConfig :: EngineConfig a
 defaultEngineConfig = EngineConfig {
   baseURL            = Nothing,
   initialWindowState = ShowWindow,
-  initialURL         = nullURI {uriPath = "main.qml"}
+  initialURL         = nullURI {uriPath = "main.qml"},
+  contextObject      = Nothing
 }
 
 -- | Create a QML engine from a specification of its configuration.
-createEngine :: forall a. (MetaObject a) => a -> EngineConfig -> IO ()
-createEngine obj config = do
-  objPtr <- withMarshal obj peek
+createEngine :: (MetaObject a) => EngineConfig a -> IO ()
+createEngine config = do
+  objPtr <- withMarshal (fromJust $ contextObject config) peek
   hsqmlCreateEngine
     objPtr
     (uriToString id (initialURL config) "")
