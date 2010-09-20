@@ -36,8 +36,20 @@ Library
     Graphics.QML.Internal.Intrinsics
     Graphics.QML.Internal.Classes
   Hs-source-dirs: src
+  Cc-options: -std=c++0x
+  C-sources:
+    cbits/HsQMLClass.cpp
+    cbits/HsQMLEngine.cpp
+    cbits/HsQMLIntrinsics.cpp
+    cbits/HsQMLManager.cpp
+    cbits/HsQMLObject.cpp
+    cbits/HsQMLWindow.cpp
   Include-dirs: cbits
-  --Includes: hsqml.h
+  X-moc-headers:
+    cbits/HsQMLEngine.h
+    cbits/HsQMLManager.h
+    cbits/HsQMLWindow.h
+  X-separate-cbits: True
   Build-tools: c2hs
   Pkgconfig-depends:
     QtDeclarative >= 4.7
