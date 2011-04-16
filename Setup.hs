@@ -140,7 +140,7 @@ regWithQt pkg@PackageDescription { library       = Just lib  }
   let verb    = fromFlag $ regVerbosity flags
       inplace = fromFlag $ regInPlace flags
       dist    = fromFlag $ regDistPref flags
-      pkgDb   = registrationPackageDB $ withPackageDB lbi
+      pkgDb   = withPackageDB lbi
   instPkgInfo <- generateRegistrationInfo
     verb pkg lib lbi clbi inplace dist
   let instPkgInfo' = if (needsGHCiFix pkg lbi)
