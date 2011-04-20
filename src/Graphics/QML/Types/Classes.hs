@@ -1,8 +1,6 @@
 {-# LANGUAGE
-    Rank2Types,
     ScopedTypeVariables,
-    MultiParamTypeClasses,
-    FunctionalDependencies,
+    TypeFamilies,
     FlexibleInstances,
     UndecidableInstances,
     OverlappingInstances
@@ -12,9 +10,10 @@
 -- Haskell and QML.
 module Graphics.QML.Types.Classes (
   -- * Classes
-  MetaObject,
+  MetaObject (
+    classDef),
+  UserData,
   DefClass,
-  defClass,
 
   -- * Methods
   defMethod0,
@@ -47,6 +46,7 @@ import Foreign.StablePtr
 import Foreign.Storable
 import Foreign.Marshal.Array
 import System.IO.Unsafe
+import Numeric
 
 --
 -- MetaObject
@@ -59,7 +59,8 @@ import System.IO.Unsafe
 -- this class, however, 'defClass' must be used to define an object's class
 -- members before marshalling any values.
 class (Typeable tt) => MetaObject tt where
-  -- Empty
+  type UserData tt
+  classDef :: DefClass tt (UserData tt)
 
 instance (MetaObject tt) => Marshallable tt where
   marshal ptr obj = do
@@ -85,15 +86,35 @@ data MetaClass tt = MetaClass {
 metaClassDb :: forall a. IORef (IntMap (MetaClass a))
 metaClassDb = unsafePerformIO $ newIORef IntMap.empty
 
-metaClass :: forall a. (MetaObject a) => MetaClass a
+metaClass :: forall tt. (MetaObject tt) => MetaClass tt
 metaClass = unsafePerformIO $ do
-  let typ  = typeOf (undefined :: a)
+  let typ  = typeOf (undefined :: tt)
+      name = tyConString $ typeRepTyCon typ
+      def  = classDef :: DefClass tt (UserData tt)
   key <- typeRepKey typ
   db  <- readIORef metaClassDb
-  return $ case IntMap.lookup key db of
-    Just clas -> clas
-    Nothing   -> error $ "Attempt to marshal an object of type '" ++
-                   (show typ) ++ "' without a defined class."
+  case IntMap.lookup key db of
+    Just mClass -> return mClass
+    Nothing     -> do
+      mClass <- createClass (name ++ showInt key "") def
+      writeIORef metaClassDb $ IntMap.insert key mClass db
+      return mClass
+
+createClass :: forall tt a. (MetaObject tt) =>
+  String -> DefClass tt a -> IO (MetaClass tt)
+createClass name dc@(DefClass methods properties user) = do
+  let (MOCOutput metaData metaStrData) = compileClass name methods properties
+  metaDataPtr <- newArray metaData
+  metaStrDataPtr <- newArray metaStrData
+  methodsPtr <- mapM (marshalFunc . methodFunc) methods >>= newArray
+  pReads <- mapM (marshalFunc . propertyReadFunc) properties
+  pWrites <- mapM (fromMaybe (return nullFunPtr) . fmap marshalFunc .
+    propertyWriteFunc) properties
+  propertiesPtr <- newArray $ interleave pReads pWrites
+  hndl <- hsqmlCreateClass metaDataPtr metaStrDataPtr methodsPtr propertiesPtr
+  return $ case hndl of 
+    Just hndl' -> MetaClass (TypeName name) hndl'
+    Nothing    -> error "Failed to create QML class."
 
 interleave :: [a] -> [a] -> [a]
 interleave [] ys = ys
@@ -105,28 +126,6 @@ instance Monad (DefClass tt) where
   (DefClass ms ps v) >>= f =
     let (DefClass ms' ps' v') = f v in DefClass (ms'++ms) (ps'++ps) v'
   return v = DefClass [] [] v
-
--- | Defines a class given a description of its members.
-defClass :: forall tt a. (MetaObject tt) =>
-  String -> DefClass tt a -> IO a
-defClass name dc@(DefClass methods properties user) = do
-  let (MOCOutput metaData metaStrData) = compileClass name methods properties
-  metaDataPtr <- newArray metaData
-  metaStrDataPtr <- newArray metaStrData
-  methodsPtr <- mapM (marshalFunc . methodFunc) methods >>= newArray
-  pReads <- mapM (marshalFunc . propertyReadFunc) properties
-  pWrites <- mapM (fromMaybe (return nullFunPtr) . fmap marshalFunc .
-    propertyWriteFunc) properties
-  propertiesPtr <- newArray $ interleave pReads pWrites
-  hndl <- hsqmlCreateClass metaDataPtr metaStrDataPtr methodsPtr propertiesPtr
-  case hndl of 
-    Just hndl' -> do
-      key <- typeRepKey $ typeOf (undefined :: tt)
-      modifyIORef metaClassDb $
-        IntMap.insert key (MetaClass (TypeName name) hndl')
-      return user 
-    Nothing    -> defClass (name++"_1") dc
-  return user
 
 --
 -- Method
