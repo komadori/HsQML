@@ -3,6 +3,7 @@
 
 #include "HsQMLObject.h"
 #include "HsQMLClass.h"
+#include "HsQMLManager.h"
 
 HsQMLObject::HsQMLObject(void* haskell, HsQMLClass* klass)
   : mHaskell(haskell)
@@ -13,7 +14,7 @@ HsQMLObject::HsQMLObject(void* haskell, HsQMLClass* klass)
 
 HsQMLObject::~HsQMLObject()
 {
-  hs_free_stable_ptr((HsStablePtr)mHaskell);
+  gManager->freeStable((HsStablePtr)mHaskell);
   mKlass->deref();
 }
 

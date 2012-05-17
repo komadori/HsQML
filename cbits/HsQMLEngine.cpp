@@ -33,7 +33,7 @@ extern "C" void hsqml_create_engine(
   config.globalObject = (QObject*)globalObject;
   config.initialURL = QUrl(QString(initialURL));
 
-  HsQMLInit();
+  Q_ASSERT (gManager);
   QMetaObject::invokeMethod(
     gManager, "createEngine", Qt::QueuedConnection,
     Q_ARG(HsQMLEngineConfig, config));

@@ -8,6 +8,7 @@
 
 #include "hsqml.h"
 #include "HsQMLClass.h"
+#include "HsQMLManager.h"
 
 static QMutex gClassSetMutex;
 static QSet<QString> gClassSet;
@@ -41,11 +42,11 @@ HsQMLClass::~HsQMLClass()
   gClassSet.remove(className);
   gClassSetMutex.unlock();
   for (int i=0; i<mMethodCount; i++) {
-    hs_free_fun_ptr((HsFunPtr)mMethods[i]);
+    gManager->freeFun((HsFunPtr)mMethods[i]);
   }
   for (unsigned int i=0; i<2*mPropertyCount; i++) {
     if (mProperties[i]) {
-      hs_free_fun_ptr((HsFunPtr)mProperties[i]);
+      gManager->freeFun((HsFunPtr)mProperties[i]);
     }
   }
   std::free(mMetaData);
@@ -88,11 +89,11 @@ extern "C" HsQMLClassHandle* hsqml_create_class(
   if (gClassSet.contains(className)) {
     gClassSetMutex.unlock();
     for (unsigned int i=0; i<metaData[MD_METHOD_COUNT]; i++) {
-      hs_free_fun_ptr((HsFunPtr)methods[i]);
+      gManager->freeFun((HsFunPtr)methods[i]);
     }
     for (unsigned int i=0; i<2*metaData[MD_PROPERTY_COUNT]; i++) {
       if (properties[i]) {
-        hs_free_fun_ptr((HsFunPtr)properties[i]);
+        gManager->freeFun((HsFunPtr)properties[i]);
       }
     }
     std::free(metaData);

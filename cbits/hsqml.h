@@ -6,8 +6,13 @@ extern "C" {
 #endif
 
 #include <wchar.h>
+#include <HsFFI.h>
 
 /* Manager */
+extern void hsqml_init(
+  void (*)(HsFunPtr),
+  void (*)(HsStablePtr));
+
 extern void hsqml_run();
 
 /* Engine */

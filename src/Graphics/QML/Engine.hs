@@ -68,6 +68,7 @@ defaultEngineConfig = EngineConfig {
 -- | Create a QML engine from a specification of its configuration.
 createEngine :: (MetaObject a) => EngineConfig a -> IO ()
 createEngine config = do
+  hsqmlInit
   objPtr <- withMarshal (fromJust $ contextObject config) peek
   hsqmlCreateEngine
     objPtr
@@ -75,5 +76,6 @@ createEngine config = do
 
 -- | Enters the Qt event loop and runs until all engines have terminated.
 runEngines :: IO ()
-runEngines =
+runEngines = do
+  hsqmlInit
   hsqmlRun
