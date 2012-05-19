@@ -12,8 +12,9 @@ module Graphics.QML.Types.Classes (
   -- * Classes
   MetaObject (
     classDef),
-  UserData,
-  DefClass,
+  ClassDef,
+  Member,
+  defClass,
 
   -- * Methods
   defMethod0,
@@ -34,10 +35,7 @@ import Control.Monad.Trans.State
 import Data.Char
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.IntMap (IntMap)
-import qualified Data.IntMap as IntMap
 import Data.Maybe
-import Data.IORef
 import Data.Typeable
 import Foreign.C.Types
 import Foreign.C.String
@@ -58,52 +56,44 @@ import Numeric
 -- A 'Marshallable' instance is provided automatically for all instances of
 -- this class, however, 'defClass' must be used to define an object's class
 -- members before marshalling any values.
+{-# NOINLINE classDef #-}
 class (Typeable tt) => MetaObject tt where
-  type UserData tt
-  classDef :: DefClass tt (UserData tt)
+  classDef :: ClassDef tt
 
 instance (MetaObject tt) => Marshallable tt where
   marshal ptr obj = do
     (HsQMLObjectHandle hndl) <-
-      hsqmlCreateObject obj $ classData $ (metaClass :: MetaClass tt)
+      hsqmlCreateObject obj $ classHndl $ (classDef :: ClassDef tt)
     poke (castPtr ptr) hndl
   unmarshal ptr =
     hsqmlGetHaskell $ HsQMLObjectHandle $ castPtr ptr
   mSizeOf _ = sizeOf nullPtr
-  mTypeOf _ = classType (metaClass :: MetaClass tt)
+  mTypeOf _ = classType (classDef :: ClassDef tt)
 
 --
--- DefClass
+-- ClassDef
 --
 
 -- | Represents a QML class which wraps the type @tt@.
-data MetaClass tt = MetaClass {
+data ClassDef tt = ClassDef {
   classType :: TypeName,
-  classData :: HsQMLClassHandle
+  classHndl :: HsQMLClassHandle
 }
 
-{-# NOINLINE metaClassDb #-}
-metaClassDb :: forall a. IORef (IntMap (MetaClass a))
-metaClassDb = unsafePerformIO $ newIORef IntMap.empty
-
-metaClass :: forall tt. (MetaObject tt) => MetaClass tt
-metaClass = unsafePerformIO $ do
+-- | Generates a 'ClassDef' from a list of 'Member's.
+defClass :: forall tt. (MetaObject tt) => [Member tt] -> ClassDef tt
+defClass ms = unsafePerformIO $ do
   let typ  = typeOf (undefined :: tt)
       name = tyConString $ typeRepTyCon typ
-      def  = classDef :: DefClass tt (UserData tt)
   key <- typeRepKey typ
-  db  <- readIORef metaClassDb
-  case IntMap.lookup key db of
-    Just mClass -> return mClass
-    Nothing     -> do
-      mClass <- createClass (name ++ showInt key "") def
-      writeIORef metaClassDb $ IntMap.insert key mClass db
-      return mClass
+  createClass (name ++ showInt key "") ms
 
-createClass :: forall tt a. (MetaObject tt) =>
-  String -> DefClass tt a -> IO (MetaClass tt)
-createClass name dc@(DefClass methods properties user) = do
-  let (MOCOutput metaData metaStrData) = compileClass name methods properties
+createClass :: forall tt. (MetaObject tt) =>
+  String -> [Member tt] -> IO (ClassDef tt)
+createClass name ms = do
+  let methods = methodMembers ms
+      properties = propertyMembers ms
+      (MOCOutput metaData metaStrData) = compileClass name methods properties
   metaDataPtr <- newArray metaData
   metaStrDataPtr <- newArray metaStrData
   methodsPtr <- mapM (marshalFunc . methodFunc) methods >>= newArray
@@ -113,19 +103,35 @@ createClass name dc@(DefClass methods properties user) = do
   propertiesPtr <- newArray $ interleave pReads pWrites
   hndl <- hsqmlCreateClass metaDataPtr metaStrDataPtr methodsPtr propertiesPtr
   return $ case hndl of 
-    Just hndl' -> MetaClass (TypeName name) hndl'
-    Nothing    -> error "Failed to create QML class."
+    Just hndl' -> ClassDef (TypeName name) hndl'
+    Nothing    -> error ("Failed to create QML class '"++name++"'.")
 
 interleave :: [a] -> [a] -> [a]
 interleave [] ys = ys
 interleave (x:xs) ys = x : ys `interleave` xs 
 
-data DefClass tt a = DefClass [Method tt] [Property tt] a
+--
+-- Member
+--
 
-instance Monad (DefClass tt) where
-  (DefClass ms ps v) >>= f =
-    let (DefClass ms' ps' v') = f v in DefClass (ms'++ms) (ps'++ps) v'
-  return v = DefClass [] [] v
+-- | Represents a named member of the QML class which wraps type @tt@.
+data Member tt
+  -- | Constructs a 'Member' from a 'Method'.
+  = MethodMember (Method tt)
+  -- | Constructs a 'Member' from a 'Property'.
+  | PropertyMember (Property tt)
+
+-- | Returns the methods in a list of members.
+methodMembers :: [Member tt] -> [Method tt]
+methodMembers = mapMaybe f
+  where f (MethodMember m) = Just m
+        f _ = Nothing
+
+-- | Returns the properties in a list of members.
+propertyMembers :: [Member tt] -> [Property tt]
+propertyMembers = mapMaybe f
+  where f (PropertyMember m) = Just m
+        f _ = Nothing
 
 --
 -- Method
@@ -142,22 +148,19 @@ data Method tt = Method {
   methodFunc  :: UniformFunc
 }
 
-defMethod :: Method tt -> DefClass tt ()
-defMethod m = DefClass [m] [] ()
-
 -- | Defines a named method using an impure nullary function.
 defMethod0 ::
   forall tt tr. (MetaObject tt, Marshallable tr) =>
-  String -> (tt -> IO tr) -> DefClass tt ()
-defMethod0 name f = defMethod $ Method name
+  String -> (tt -> IO tr) -> Member tt
+defMethod0 name f = MethodMember $ Method name
   [mTypeOf (undefined :: tr)]
   (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= f >>= marshalRet pr)
 
 -- | Defines a named method using an impure unary function.
 defMethod1 ::
   forall tt t1 tr. (MetaObject tt, Marshallable t1, Marshallable tr) =>
-  String -> (tt -> t1 -> IO tr) -> DefClass tt ()
-defMethod1 name f = defMethod $ Method name
+  String -> (tt -> t1 -> IO tr) -> Member tt
+defMethod1 name f = MethodMember $ Method name
   [mTypeOf (undefined :: tr), mTypeOf (undefined :: t1)]
   (marshalFunc1 $ \p0 p1 pr -> do
     v0 <- unmarshal p0
@@ -168,8 +171,8 @@ defMethod1 name f = defMethod $ Method name
 defMethod2 ::
   forall tt t1 t2 tr.
   (MetaObject tt, Marshallable t1, Marshallable t2, Marshallable tr) =>
-  String -> (tt -> t1 -> t2 -> IO tr) -> DefClass tt ()
-defMethod2 name f = defMethod $ Method name
+  String -> (tt -> t1 -> t2 -> IO tr) -> Member tt
+defMethod2 name f = MethodMember $ Method name
   [mTypeOf (undefined :: tr), mTypeOf (undefined :: t1),
    mTypeOf (undefined :: t2)]
   (marshalFunc2 $ \p0 p1 p2 pr -> do
@@ -183,8 +186,8 @@ defMethod3 ::
   forall tt t1 t2 t3 tr.
   (MetaObject tt, Marshallable t1, Marshallable t2, Marshallable t3,
    Marshallable tr) =>
-  String -> (tt -> t1 -> t2 -> t3 -> IO tr) -> DefClass tt ()
-defMethod3 name f = defMethod $ Method name
+  String -> (tt -> t1 -> t2 -> t3 -> IO tr) -> Member tt
+defMethod3 name f = MethodMember $ Method name
   [mTypeOf (undefined :: tr), mTypeOf (undefined :: t1),
    mTypeOf (undefined :: t2), mTypeOf (undefined :: t3)]
   (marshalFunc3 $ \p0 p1 p2 p3 pr -> do
@@ -208,15 +211,12 @@ data Property tt = Property {
   propertyWriteFunc :: Maybe UniformFunc
 }
 
-defProperty :: Property tt -> DefClass tt ()
-defProperty p = DefClass [] [p] ()
-
 -- | Defines a named read-only property using an impure
 -- accessor function.
 defPropertyRO ::
   forall tt tr. (MetaObject tt, Marshallable tr) =>
-  String -> (tt -> IO tr) -> DefClass tt ()
-defPropertyRO name g = defProperty $ Property name
+  String -> (tt -> IO tr) -> Member tt
+defPropertyRO name g = PropertyMember $ Property name
   (mTypeOf (undefined :: tr))
   (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= g >>= marshal pr)
   Nothing
@@ -225,8 +225,8 @@ defPropertyRO name g = defProperty $ Property name
 -- impure accessor and mutator functions.
 defPropertyRW ::
   forall tt tr. (MetaObject tt, Marshallable tr) =>
-  String -> (tt -> IO tr) -> (tt -> tr -> IO ()) -> DefClass tt ()
-defPropertyRW name g s = defProperty $ Property name
+  String -> (tt -> IO tr) -> (tt -> tr -> IO ()) -> Member tt
+defPropertyRW name g s = PropertyMember $ Property name
   (mTypeOf (undefined :: tr))
   (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= g >>= marshal pr)
   (Just $ marshalFunc1 $ \p0 p1 _ -> do
