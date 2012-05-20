@@ -52,7 +52,7 @@ data EngineConfig a = EngineConfig {
   -- | URL for the first QML document to be loaded.
   initialURL         :: URI,
   -- | Context 'MetaObject' made available to QML script code.
-  contextObject      :: Maybe a
+  contextObject      :: Maybe (ObjRef a)
 }
 
 -- | Default engine configuration. Loads @\"main.qml\"@ from the current

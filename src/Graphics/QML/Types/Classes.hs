@@ -1,14 +1,16 @@
 {-# LANGUAGE
     ScopedTypeVariables,
-    TypeFamilies,
-    FlexibleInstances,
-    UndecidableInstances,
-    OverlappingInstances
+    TypeFamilies
   #-}
 
 -- | Facilities for defining new object types which can be marshalled between
 -- Haskell and QML.
 module Graphics.QML.Types.Classes (
+  -- * Objects
+  ObjRef,
+  newObject,
+  fromObjRef,
+
   -- * Classes
   MetaObject (
     classDef),
@@ -48,34 +50,51 @@ import System.IO.Unsafe
 import Numeric
 
 --
+-- ObjRef
+--
+
+-- | Represents an instance of the QML class which wraps the type @tt@.
+data ObjRef tt = ObjRef {
+  objHndl :: HsQMLObjectHandle
+}
+
+instance (MetaObject tt) => Marshallable (ObjRef tt) where
+  marshal ptr obj = do
+    let (HsQMLObjectHandle hndl) = objHndl obj
+    poke (castPtr ptr) hndl
+  unmarshal ptr =
+    return $ ObjRef $ HsQMLObjectHandle $ castPtr ptr
+  mSizeOf _ = sizeOf nullPtr
+  mTypeOf _ = classType (classDef :: ClassDef tt)
+
+-- | Creates an instance of a QML class given a value of the underlying Haskell 
+-- type @tt@.
+newObject :: forall tt. (MetaObject tt) => tt -> IO (ObjRef tt)
+newObject obj = do
+  hndl <- hsqmlCreateObject obj $ classHndl (classDef :: ClassDef tt)
+  return $ ObjRef hndl
+
+-- | Returns the associated value of the underlying Haskell type @tt@ from an
+-- instance of the QML class which wraps it.
+fromObjRef :: ObjRef tt -> tt
+fromObjRef =
+    unsafePerformIO . hsqmlGetHaskell . objHndl
+
+--
 -- MetaObject
 --
 
--- | The class 'MetaObject' allows Haskell types to be accessed as objects
--- from within QML.
---
--- A 'Marshallable' instance is provided automatically for all instances of
--- this class, however, 'defClass' must be used to define an object's class
--- members before marshalling any values.
+-- | The class 'MetaObject' allows Haskell types to expose an object-oriented
+-- interface to QML. 
 {-# NOINLINE classDef #-}
 class (Typeable tt) => MetaObject tt where
   classDef :: ClassDef tt
-
-instance (MetaObject tt) => Marshallable tt where
-  marshal ptr obj = do
-    (HsQMLObjectHandle hndl) <-
-      hsqmlCreateObject obj $ classHndl $ (classDef :: ClassDef tt)
-    poke (castPtr ptr) hndl
-  unmarshal ptr =
-    hsqmlGetHaskell $ HsQMLObjectHandle $ castPtr ptr
-  mSizeOf _ = sizeOf nullPtr
-  mTypeOf _ = classType (classDef :: ClassDef tt)
 
 --
 -- ClassDef
 --
 
--- | Represents a QML class which wraps the type @tt@.
+-- | Represents the API of the QML class which wraps the type @tt@.
 data ClassDef tt = ClassDef {
   classType :: TypeName,
   classHndl :: HsQMLClassHandle
@@ -152,7 +171,7 @@ data Method tt = Method {
 -- | Defines a named method using an impure nullary function.
 defMethod0 ::
   forall tt tr. (MetaObject tt, Marshallable tr) =>
-  String -> (tt -> IO tr) -> Member tt
+  String -> (ObjRef tt -> IO tr) -> Member tt
 defMethod0 name f = MethodMember $ Method name
   [mTypeOf (undefined :: tr)]
   (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= f >>= marshalRet pr)
@@ -160,7 +179,7 @@ defMethod0 name f = MethodMember $ Method name
 -- | Defines a named method using an impure unary function.
 defMethod1 ::
   forall tt t1 tr. (MetaObject tt, Marshallable t1, Marshallable tr) =>
-  String -> (tt -> t1 -> IO tr) -> Member tt
+  String -> (ObjRef tt -> t1 -> IO tr) -> Member tt
 defMethod1 name f = MethodMember $ Method name
   [mTypeOf (undefined :: tr), mTypeOf (undefined :: t1)]
   (marshalFunc1 $ \p0 p1 pr -> do
@@ -172,7 +191,7 @@ defMethod1 name f = MethodMember $ Method name
 defMethod2 ::
   forall tt t1 t2 tr.
   (MetaObject tt, Marshallable t1, Marshallable t2, Marshallable tr) =>
-  String -> (tt -> t1 -> t2 -> IO tr) -> Member tt
+  String -> (ObjRef tt -> t1 -> t2 -> IO tr) -> Member tt
 defMethod2 name f = MethodMember $ Method name
   [mTypeOf (undefined :: tr), mTypeOf (undefined :: t1),
    mTypeOf (undefined :: t2)]
@@ -187,7 +206,7 @@ defMethod3 ::
   forall tt t1 t2 t3 tr.
   (MetaObject tt, Marshallable t1, Marshallable t2, Marshallable t3,
    Marshallable tr) =>
-  String -> (tt -> t1 -> t2 -> t3 -> IO tr) -> Member tt
+  String -> (ObjRef tt -> t1 -> t2 -> t3 -> IO tr) -> Member tt
 defMethod3 name f = MethodMember $ Method name
   [mTypeOf (undefined :: tr), mTypeOf (undefined :: t1),
    mTypeOf (undefined :: t2), mTypeOf (undefined :: t3)]
@@ -216,7 +235,7 @@ data Property tt = Property {
 -- accessor function.
 defPropertyRO ::
   forall tt tr. (MetaObject tt, Marshallable tr) =>
-  String -> (tt -> IO tr) -> Member tt
+  String -> (ObjRef tt -> IO tr) -> Member tt
 defPropertyRO name g = PropertyMember $ Property name
   (mTypeOf (undefined :: tr))
   (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= g >>= marshal pr)
@@ -226,7 +245,7 @@ defPropertyRO name g = PropertyMember $ Property name
 -- impure accessor and mutator functions.
 defPropertyRW ::
   forall tt tr. (MetaObject tt, Marshallable tr) =>
-  String -> (tt -> IO tr) -> (tt -> tr -> IO ()) -> Member tt
+  String -> (ObjRef tt -> IO tr) -> (ObjRef tt -> tr -> IO ()) -> Member tt
 defPropertyRW name g s = PropertyMember $ Property name
   (mTypeOf (undefined :: tr))
   (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= g >>= marshal pr)
