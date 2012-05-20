@@ -11,6 +11,7 @@ import Graphics.QML.Internal.Core
 import Graphics.QML.Internal.Intrinsics
 
 import Data.Maybe
+import Data.Tagged
 import Foreign.C.Types
 import Foreign.Ptr
 import Foreign.Storable
@@ -25,8 +26,8 @@ instance Marshallable () where
     error "Cannot marshal void."
   unmarshal _ =
     return ()
-  mSizeOf _ = 0
-  mTypeOf _ = TypeName ""
+  mSizeOf = Tagged 0
+  mTypeOf = Tagged $ TypeName ""
 
 --
 -- Int/int built-in type
@@ -37,8 +38,8 @@ instance Marshallable Int where
     poke (castPtr ptr :: Ptr CInt) (fromIntegral value)
   unmarshal ptr =
     peek (castPtr ptr :: Ptr CInt) >>= return . fromIntegral
-  mSizeOf _ = sizeOf (0 :: CInt)
-  mTypeOf _ = TypeName "int"
+  mSizeOf = Tagged $ sizeOf (0 :: CInt)
+  mTypeOf = Tagged $ TypeName "int"
 
 --
 -- String/QString built-in type
@@ -49,8 +50,8 @@ instance Marshallable String where
     hsqmlMarshalString str (HsQMLStringHandle $ castPtr ptr)
   unmarshal ptr =
     hsqmlUnmarshalString (HsQMLStringHandle $ castPtr ptr)
-  mSizeOf _ = hsqmlStringSize
-  mTypeOf _ = TypeName "QString"
+  mSizeOf = Tagged $ hsqmlStringSize
+  mTypeOf = Tagged $ TypeName "QString"
 
 --
 -- URI/QUrl built-in type
@@ -62,5 +63,5 @@ instance Marshallable URI where
   unmarshal ptr =
     hsqmlUnmarshalUrl (HsQMLUrlHandle $ castPtr ptr) >>=
       return . fromJust . parseURIReference
-  mSizeOf _ = hsqmlUrlSize
-  mTypeOf _ = TypeName "QUrl"
+  mSizeOf = Tagged $ hsqmlUrlSize
+  mTypeOf = Tagged $ TypeName "QUrl"

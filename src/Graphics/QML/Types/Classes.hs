@@ -39,6 +39,7 @@ import Data.Char
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
+import Data.Tagged
 import Data.Typeable
 import Foreign.C.Types
 import Foreign.C.String
@@ -64,8 +65,8 @@ instance (MetaObject tt) => Marshallable (ObjRef tt) where
     poke (castPtr ptr) hndl
   unmarshal ptr =
     return $ ObjRef $ HsQMLObjectHandle $ castPtr ptr
-  mSizeOf _ = sizeOf nullPtr
-  mTypeOf _ = classType (classDef :: ClassDef tt)
+  mSizeOf = Tagged $ sizeOf nullPtr
+  mTypeOf = Tagged $ classType (classDef :: ClassDef tt)
 
 -- | Creates an instance of a QML class given a value of the underlying Haskell 
 -- type @tt@.
@@ -173,7 +174,7 @@ defMethod0 ::
   forall tt tr. (MetaObject tt, Marshallable tr) =>
   String -> (ObjRef tt -> IO tr) -> Member tt
 defMethod0 name f = MethodMember $ Method name
-  [mTypeOf (undefined :: tr)]
+  [untag (mTypeOf :: Tagged tr TypeName)]
   (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= f >>= marshalRet pr)
 
 -- | Defines a named method using an impure unary function.
@@ -181,7 +182,8 @@ defMethod1 ::
   forall tt t1 tr. (MetaObject tt, Marshallable t1, Marshallable tr) =>
   String -> (ObjRef tt -> t1 -> IO tr) -> Member tt
 defMethod1 name f = MethodMember $ Method name
-  [mTypeOf (undefined :: tr), mTypeOf (undefined :: t1)]
+  [untag (mTypeOf :: Tagged tr TypeName),
+   untag (mTypeOf :: Tagged t1 TypeName)]
   (marshalFunc1 $ \p0 p1 pr -> do
     v0 <- unmarshal p0
     v1 <- unmarshal p1
@@ -193,8 +195,9 @@ defMethod2 ::
   (MetaObject tt, Marshallable t1, Marshallable t2, Marshallable tr) =>
   String -> (ObjRef tt -> t1 -> t2 -> IO tr) -> Member tt
 defMethod2 name f = MethodMember $ Method name
-  [mTypeOf (undefined :: tr), mTypeOf (undefined :: t1),
-   mTypeOf (undefined :: t2)]
+  [untag (mTypeOf :: Tagged tr TypeName),
+   untag (mTypeOf :: Tagged t1 TypeName),
+   untag (mTypeOf :: Tagged t2 TypeName)]
   (marshalFunc2 $ \p0 p1 p2 pr -> do
     v0 <- unmarshal p0
     v1 <- unmarshal p1
@@ -208,8 +211,10 @@ defMethod3 ::
    Marshallable tr) =>
   String -> (ObjRef tt -> t1 -> t2 -> t3 -> IO tr) -> Member tt
 defMethod3 name f = MethodMember $ Method name
-  [mTypeOf (undefined :: tr), mTypeOf (undefined :: t1),
-   mTypeOf (undefined :: t2), mTypeOf (undefined :: t3)]
+  [untag (mTypeOf :: Tagged tr TypeName),
+   untag (mTypeOf :: Tagged t1 TypeName),
+   untag (mTypeOf :: Tagged t2 TypeName),
+   untag (mTypeOf :: Tagged t3 TypeName)]
   (marshalFunc3 $ \p0 p1 p2 p3 pr -> do
     v0 <- unmarshal p0
     v1 <- unmarshal p1
@@ -237,7 +242,7 @@ defPropertyRO ::
   forall tt tr. (MetaObject tt, Marshallable tr) =>
   String -> (ObjRef tt -> IO tr) -> Member tt
 defPropertyRO name g = PropertyMember $ Property name
-  (mTypeOf (undefined :: tr))
+  (untag (mTypeOf :: Tagged tr TypeName))
   (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= g >>= marshal pr)
   Nothing
 
@@ -247,7 +252,7 @@ defPropertyRW ::
   forall tt tr. (MetaObject tt, Marshallable tr) =>
   String -> (ObjRef tt -> IO tr) -> (ObjRef tt -> tr -> IO ()) -> Member tt
 defPropertyRW name g s = PropertyMember $ Property name
-  (mTypeOf (undefined :: tr))
+  (untag (mTypeOf :: Tagged tr TypeName))
   (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= g >>= marshal pr)
   (Just $ marshalFunc1 $ \p0 p1 _ -> do
     v0 <- unmarshal p0
