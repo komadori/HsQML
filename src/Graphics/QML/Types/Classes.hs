@@ -32,6 +32,7 @@ import Graphics.QML.Internal.Classes
 
 import Control.Monad
 import Control.Monad.Trans.State
+import Data.Bits
 import Data.Char
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -319,7 +320,7 @@ writeMethod m = do
   writeString $ methodSignature m
   writeString $ methodParameters m
   writeString $ typeName $ head $ methodTypes m
-  writeInt mfAccessPublic
+  writeInt (mfAccessPublic .|. mfMethodScriptable)
   state <- get
   put $ state {mDataMethodsIdx = mplus (mDataMethodsIdx state) (Just idx)}
   return ()
@@ -329,7 +330,8 @@ writeProperty p = do
   idx <- get >>= return . mDataLen
   writeString $ propertyName p
   writeString $ typeName $ propertyType p
-  writeInt 0 -- FIXME
+  writeInt (pfReadable .|. pfScriptable .|.
+    if (isJust $ propertyWriteFunc p) then pfWritable else 0)
   state <- get
   put $ state {mDataPropsIdx = mplus (mDataPropsIdx state) (Just idx)}
   return ()
