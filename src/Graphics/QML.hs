@@ -32,8 +32,10 @@ this context, and finally destroys the context.
 This module imports the entire package excepting 'Graphics.QML.Debug'.
  -}
   module Graphics.QML.Engine,
-  module Graphics.QML.Types
+  module Graphics.QML.Marshal,
+  module Graphics.QML.Objects
 ) where
 
 import Graphics.QML.Engine
-import Graphics.QML.Types
+import Graphics.QML.Marshal
+import Graphics.QML.Objects

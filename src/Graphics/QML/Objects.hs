@@ -5,7 +5,7 @@
 
 -- | Facilities for defining new object types which can be marshalled between
 -- Haskell and QML.
-module Graphics.QML.Types.Classes (
+module Graphics.QML.Objects (
   -- * Objects
   ObjRef,
   newObject,

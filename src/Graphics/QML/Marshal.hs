@@ -3,7 +3,7 @@
   #-}
 
 -- | Intrinsic types which can marshalled between Haskell and QML.
-module Graphics.QML.Types.Intrinsics (
+module Graphics.QML.Marshal (
   Marshallable,
 ) where
 

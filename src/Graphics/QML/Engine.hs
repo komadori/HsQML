@@ -22,7 +22,7 @@ module Graphics.QML.Engine (
 
 import Graphics.QML.Internal.Core
 import Graphics.QML.Internal.Engine
-import Graphics.QML.Types.Classes
+import Graphics.QML.Objects
 
 import Data.Maybe
 import Data.Typeable

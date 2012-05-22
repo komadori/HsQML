@@ -28,9 +28,8 @@ Library
     Graphics.QML
     Graphics.QML.Debug
     Graphics.QML.Engine
-    Graphics.QML.Types
-    Graphics.QML.Types.Intrinsics
-    Graphics.QML.Types.Classes
+    Graphics.QML.Marshal
+    Graphics.QML.Objects
   Other-modules:
     Graphics.QML.Internal.Core
     Graphics.QML.Internal.Engine
