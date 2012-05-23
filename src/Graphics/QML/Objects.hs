@@ -30,7 +30,7 @@ module Graphics.QML.Objects (
 ) where
 
 import Graphics.QML.Internal.Core
-import Graphics.QML.Internal.Classes
+import Graphics.QML.Internal.Objects
 
 import Control.Monad
 import Control.Monad.Trans.State

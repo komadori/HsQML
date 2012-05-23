@@ -8,7 +8,7 @@ module Graphics.QML.Marshal (
 ) where
 
 import Graphics.QML.Internal.Core
-import Graphics.QML.Internal.Intrinsics
+import Graphics.QML.Internal.PrimValues
 
 import Data.Maybe
 import Data.Tagged

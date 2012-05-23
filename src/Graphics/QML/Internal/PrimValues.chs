@@ -2,9 +2,7 @@
     ForeignFunctionInterface
   #-}
 
-module Graphics.QML.Internal.Intrinsics where
-
-import Graphics.QML.Internal.Core
+module Graphics.QML.Internal.PrimValues where
 
 import Foreign.C.Types
 import Foreign.C.String

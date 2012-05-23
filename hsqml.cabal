@@ -33,8 +33,8 @@ Library
   Other-modules:
     Graphics.QML.Internal.Core
     Graphics.QML.Internal.Engine
-    Graphics.QML.Internal.Intrinsics
-    Graphics.QML.Internal.Classes
+    Graphics.QML.Internal.Objects
+    Graphics.QML.Internal.PrimValues
   Hs-source-dirs: src
   Cc-options: -std=c++0x
   C-sources:

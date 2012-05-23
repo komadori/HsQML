@@ -2,7 +2,7 @@
     ForeignFunctionInterface
   #-}
 
-module Graphics.QML.Internal.Classes where
+module Graphics.QML.Internal.Objects where
 
 import Foreign.C.Types
 import Foreign.Ptr
