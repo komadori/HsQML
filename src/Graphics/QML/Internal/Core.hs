@@ -17,9 +17,3 @@ class Marshallable a where
   unmarshal :: Ptr () -> IO a
   mSizeOf   :: Tagged a Int
   mTypeOf   :: Tagged a TypeName
-
-withMarshal :: forall a b c. (Marshallable a) => a -> (Ptr b -> IO c) -> IO c
-withMarshal m f =
-  allocaBytes
-    (untag (mSizeOf :: Tagged a Int))
-    (\ptr -> marshal (castPtr ptr) m >> f ptr)

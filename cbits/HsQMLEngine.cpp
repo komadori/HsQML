@@ -26,7 +26,7 @@ QDeclarativeEngine* HsQMLEngine::engine()
 }
 
 extern "C" void hsqml_create_engine(
-  void* globalObject,
+  HsQMLObjectHandle* globalObject,
   const char* initialURL)
 {
   HsQMLEngineConfig config;

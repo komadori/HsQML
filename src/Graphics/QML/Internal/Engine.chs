@@ -5,6 +5,8 @@
 
 module Graphics.QML.Internal.Engine where
 
+{#import Graphics.QML.Internal.Objects #}
+
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Ptr
@@ -31,7 +33,7 @@ hsqmlInit :: IO ()
 hsqmlInit = hsqmlInit_ hsFreeFunPtr hsFreeStablePtr
 
 {#fun unsafe hsqml_create_engine as ^
-  {id `Ptr ()',
+  {id `HsQMLObjectHandle',
    `String'} ->
   `()' #}
 

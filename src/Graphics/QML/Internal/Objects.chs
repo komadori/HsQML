@@ -38,6 +38,11 @@ newClassHandle p =
 
 {#pointer *HsQMLObjectHandle as ^ newtype #}
 
+-- | Represents an instance of the QML class which wraps the type @tt@.
+data ObjRef tt = ObjRef {
+  objHndl :: HsQMLObjectHandle
+}
+
 objToPtr :: a -> (Ptr () -> IO b) -> IO b
 objToPtr obj f = do
   sPtr <- newStablePtr obj

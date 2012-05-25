@@ -15,11 +15,6 @@ extern void hsqml_init(
 
 extern void hsqml_run();
 
-/* Engine */
-extern void hsqml_create_engine(
-  void*,
-  const char*);
-
 /* String */
 typedef char HsQMLStringHandle;
 
@@ -76,6 +71,11 @@ extern HsQMLObjectHandle* hsqml_create_object(
 
 extern void* hsqml_get_haskell(
   HsQMLObjectHandle*);
+
+/* Engine */
+extern void hsqml_create_engine(
+  HsQMLObjectHandle*,
+  const char*);
 
 #ifdef __cplusplus
 }

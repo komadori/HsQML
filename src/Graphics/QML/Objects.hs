@@ -54,11 +54,6 @@ import Numeric
 -- ObjRef
 --
 
--- | Represents an instance of the QML class which wraps the type @tt@.
-data ObjRef tt = ObjRef {
-  objHndl :: HsQMLObjectHandle
-}
-
 instance (MetaObject tt) => Marshallable (ObjRef tt) where
   marshal ptr obj = do
     let (HsQMLObjectHandle hndl) = objHndl obj

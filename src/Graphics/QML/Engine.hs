@@ -21,6 +21,7 @@ module Graphics.QML.Engine (
 ) where
 
 import Graphics.QML.Internal.Core
+import Graphics.QML.Internal.Objects
 import Graphics.QML.Internal.Engine
 import Graphics.QML.Objects
 
@@ -69,9 +70,9 @@ defaultEngineConfig = EngineConfig {
 createEngine :: (MetaObject a) => EngineConfig a -> IO ()
 createEngine config = do
   hsqmlInit
-  objPtr <- withMarshal (fromJust $ contextObject config) peek
+  let (ObjRef hndl) = fromJust $ contextObject config
   hsqmlCreateEngine
-    objPtr
+    hndl
     (uriToString id (initialURL config) "")
 
 -- | Enters the Qt event loop and runs until all engines have terminated.
