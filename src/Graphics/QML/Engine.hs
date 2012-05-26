@@ -52,7 +52,7 @@ data EngineConfig a = EngineConfig {
   initialWindowState :: InitialWindowState,
   -- | URL for the first QML document to be loaded.
   initialURL         :: URI,
-  -- | Context 'MetaObject' made available to QML script code.
+  -- | Context 'Object' made available to QML script code.
   contextObject      :: Maybe (ObjRef a)
 }
 
@@ -67,7 +67,7 @@ defaultEngineConfig = EngineConfig {
 }
 
 -- | Create a QML engine from a specification of its configuration.
-createEngine :: (MetaObject a) => EngineConfig a -> IO ()
+createEngine :: (Object a) => EngineConfig a -> IO ()
 createEngine config = do
   hsqmlInit
   let (ObjRef hndl) = fromJust $ contextObject config

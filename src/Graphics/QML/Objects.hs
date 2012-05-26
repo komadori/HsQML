@@ -12,7 +12,7 @@ module Graphics.QML.Objects (
   fromObjRef,
 
   -- * Classes
-  MetaObject (
+  Object (
     classDef),
   ClassDef,
   Member,
@@ -54,13 +54,13 @@ import Numeric
 -- ObjRef
 --
 
-instance (MetaObject tt) => MarshalOut (ObjRef tt) where
+instance (Object tt) => MarshalOut (ObjRef tt) where
   mOutFunc ptr obj = do
     let (HsQMLObjectHandle hndl) = objHndl obj
     poke (castPtr ptr) hndl
   mOutSize = Tagged $ sizeOf nullPtr
 
-instance (MetaObject tt) => MarshalIn (ObjRef tt) where
+instance (Object tt) => MarshalIn (ObjRef tt) where
   mIn = InMarshaller {
     mInFuncFld = \ptr ->
       return $ ObjRef $ HsQMLObjectHandle $ castPtr ptr,
@@ -69,7 +69,7 @@ instance (MetaObject tt) => MarshalIn (ObjRef tt) where
 
 -- | Creates an instance of a QML class given a value of the underlying Haskell 
 -- type @tt@.
-newObject :: forall tt. (MetaObject tt) => tt -> IO (ObjRef tt)
+newObject :: forall tt. (Object tt) => tt -> IO (ObjRef tt)
 newObject obj = do
   hndl <- hsqmlCreateObject obj $ classHndl (classDef :: ClassDef tt)
   return $ ObjRef hndl
@@ -81,13 +81,13 @@ fromObjRef =
     unsafePerformIO . hsqmlGetHaskell . objHndl
 
 --
--- MetaObject
+-- Object
 --
 
--- | The class 'MetaObject' allows Haskell types to expose an object-oriented
+-- | The class 'Object' allows Haskell types to expose an object-oriented
 -- interface to QML. 
 {-# NOINLINE classDef #-}
-class (Typeable tt) => MetaObject tt where
+class (Typeable tt) => Object tt where
   classDef :: ClassDef tt
 
 --
@@ -101,14 +101,14 @@ data ClassDef tt = ClassDef {
 }
 
 -- | Generates a 'ClassDef' from a list of 'Member's.
-defClass :: forall tt. (MetaObject tt) => [Member tt] -> ClassDef tt
+defClass :: forall tt. (Object tt) => [Member tt] -> ClassDef tt
 defClass ms = unsafePerformIO $ do
   let typ  = typeOf (undefined :: tt)
       name = tyConString $ typeRepTyCon typ
   key <- typeRepKey typ
   createClass (name ++ showInt key "") ms
 
-createClass :: forall tt. (MetaObject tt) =>
+createClass :: forall tt. (Object tt) =>
   String -> [Member tt] -> IO (ClassDef tt)
 createClass name ms = do
   let methods = methodMembers ms
@@ -170,7 +170,7 @@ data Method tt = Method {
 
 -- | Defines a named method using an impure nullary function.
 defMethod0 ::
-  forall tt tr. (MetaObject tt, MarshalOut tr) =>
+  forall tt tr. (Object tt, MarshalOut tr) =>
   String -> (ObjRef tt -> IO tr) -> Member tt
 defMethod0 name f = MethodMember $ Method name
   [untag (mIOType :: Tagged tr TypeName)]
@@ -178,7 +178,7 @@ defMethod0 name f = MethodMember $ Method name
 
 -- | Defines a named method using an impure unary function.
 defMethod1 ::
-  forall tt t1 tr. (MetaObject tt, MarshalIn t1, MarshalOut tr) =>
+  forall tt t1 tr. (Object tt, MarshalIn t1, MarshalOut tr) =>
   String -> (ObjRef tt -> t1 -> IO tr) -> Member tt
 defMethod1 name f = MethodMember $ Method name
   [untag (mIOType :: Tagged tr TypeName),
@@ -191,7 +191,7 @@ defMethod1 name f = MethodMember $ Method name
 -- | Defines a named method using an impure binary function.
 defMethod2 ::
   forall tt t1 t2 tr.
-  (MetaObject tt, MarshalIn t1, MarshalIn t2, MarshalOut tr) =>
+  (Object tt, MarshalIn t1, MarshalIn t2, MarshalOut tr) =>
   String -> (ObjRef tt -> t1 -> t2 -> IO tr) -> Member tt
 defMethod2 name f = MethodMember $ Method name
   [untag (mIOType :: Tagged tr TypeName),
@@ -206,7 +206,7 @@ defMethod2 name f = MethodMember $ Method name
 -- | Defines a named method using an impure function taking 3 arguments.
 defMethod3 ::
   forall tt t1 t2 t3 tr.
-  (MetaObject tt, MarshalIn t1, MarshalIn t2, MarshalIn t3,
+  (Object tt, MarshalIn t1, MarshalIn t2, MarshalIn t3,
    MarshalOut tr) =>
   String -> (ObjRef tt -> t1 -> t2 -> t3 -> IO tr) -> Member tt
 defMethod3 name f = MethodMember $ Method name
@@ -238,7 +238,7 @@ data Property tt = Property {
 -- | Defines a named read-only property using an impure
 -- accessor function.
 defPropertyRO ::
-  forall tt tr. (MetaObject tt, MarshalOut tr) =>
+  forall tt tr. (Object tt, MarshalOut tr) =>
   String -> (ObjRef tt -> IO tr) -> Member tt
 defPropertyRO name g = PropertyMember $ Property name
   (untag (mIOType :: Tagged tr TypeName))
@@ -248,7 +248,7 @@ defPropertyRO name g = PropertyMember $ Property name
 -- | Defines a named read-write property using a pair of 
 -- impure accessor and mutator functions.
 defPropertyRW ::
-  forall tt tr. (MetaObject tt, MarshalOut tr) =>
+  forall tt tr. (Object tt, MarshalOut tr) =>
   String -> (ObjRef tt -> IO tr) -> (ObjRef tt -> tr -> IO ()) -> Member tt
 defPropertyRW name g s = PropertyMember $ Property name
   (untag (mIOType :: Tagged tr TypeName))
