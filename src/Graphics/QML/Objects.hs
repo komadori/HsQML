@@ -29,7 +29,7 @@ module Graphics.QML.Objects (
   defPropertyRW,
 ) where
 
-import Graphics.QML.Internal.Core
+import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.Objects
 
 import Control.Monad
@@ -54,14 +54,18 @@ import Numeric
 -- ObjRef
 --
 
-instance (MetaObject tt) => Marshallable (ObjRef tt) where
-  marshal ptr obj = do
+instance (MetaObject tt) => MarshalOut (ObjRef tt) where
+  mOutFunc ptr obj = do
     let (HsQMLObjectHandle hndl) = objHndl obj
     poke (castPtr ptr) hndl
-  unmarshal ptr =
-    return $ ObjRef $ HsQMLObjectHandle $ castPtr ptr
-  mSizeOf = Tagged $ sizeOf nullPtr
-  mTypeOf = Tagged $ classType (classDef :: ClassDef tt)
+  mOutSize = Tagged $ sizeOf nullPtr
+
+instance (MetaObject tt) => MarshalIn (ObjRef tt) where
+  mIn = InMarshaller {
+    mInFuncFld = \ptr ->
+      return $ ObjRef $ HsQMLObjectHandle $ castPtr ptr,
+    mIOTypeFld = Tagged $ classType (classDef :: ClassDef tt)
+  }
 
 -- | Creates an instance of a QML class given a value of the underlying Haskell 
 -- type @tt@.
@@ -166,55 +170,55 @@ data Method tt = Method {
 
 -- | Defines a named method using an impure nullary function.
 defMethod0 ::
-  forall tt tr. (MetaObject tt, Marshallable tr) =>
+  forall tt tr. (MetaObject tt, MarshalOut tr) =>
   String -> (ObjRef tt -> IO tr) -> Member tt
 defMethod0 name f = MethodMember $ Method name
-  [untag (mTypeOf :: Tagged tr TypeName)]
-  (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= f >>= marshalRet pr)
+  [untag (mIOType :: Tagged tr TypeName)]
+  (marshalFunc0 $ \p0 pr -> mInFunc p0 >>= f >>= marshalRet pr)
 
 -- | Defines a named method using an impure unary function.
 defMethod1 ::
-  forall tt t1 tr. (MetaObject tt, Marshallable t1, Marshallable tr) =>
+  forall tt t1 tr. (MetaObject tt, MarshalIn t1, MarshalOut tr) =>
   String -> (ObjRef tt -> t1 -> IO tr) -> Member tt
 defMethod1 name f = MethodMember $ Method name
-  [untag (mTypeOf :: Tagged tr TypeName),
-   untag (mTypeOf :: Tagged t1 TypeName)]
+  [untag (mIOType :: Tagged tr TypeName),
+   untag (mIOType :: Tagged t1 TypeName)]
   (marshalFunc1 $ \p0 p1 pr -> do
-    v0 <- unmarshal p0
-    v1 <- unmarshal p1
+    v0 <- mInFunc p0
+    v1 <- mInFunc p1
     f v0 v1 >>= marshalRet pr)
 
 -- | Defines a named method using an impure binary function.
 defMethod2 ::
   forall tt t1 t2 tr.
-  (MetaObject tt, Marshallable t1, Marshallable t2, Marshallable tr) =>
+  (MetaObject tt, MarshalIn t1, MarshalIn t2, MarshalOut tr) =>
   String -> (ObjRef tt -> t1 -> t2 -> IO tr) -> Member tt
 defMethod2 name f = MethodMember $ Method name
-  [untag (mTypeOf :: Tagged tr TypeName),
-   untag (mTypeOf :: Tagged t1 TypeName),
-   untag (mTypeOf :: Tagged t2 TypeName)]
+  [untag (mIOType :: Tagged tr TypeName),
+   untag (mIOType :: Tagged t1 TypeName),
+   untag (mIOType :: Tagged t2 TypeName)]
   (marshalFunc2 $ \p0 p1 p2 pr -> do
-    v0 <- unmarshal p0
-    v1 <- unmarshal p1
-    v2 <- unmarshal p2
+    v0 <- mInFunc p0
+    v1 <- mInFunc p1
+    v2 <- mInFunc p2
     f v0 v1 v2 >>= marshalRet pr)
 
 -- | Defines a named method using an impure function taking 3 arguments.
 defMethod3 ::
   forall tt t1 t2 t3 tr.
-  (MetaObject tt, Marshallable t1, Marshallable t2, Marshallable t3,
-   Marshallable tr) =>
+  (MetaObject tt, MarshalIn t1, MarshalIn t2, MarshalIn t3,
+   MarshalOut tr) =>
   String -> (ObjRef tt -> t1 -> t2 -> t3 -> IO tr) -> Member tt
 defMethod3 name f = MethodMember $ Method name
-  [untag (mTypeOf :: Tagged tr TypeName),
-   untag (mTypeOf :: Tagged t1 TypeName),
-   untag (mTypeOf :: Tagged t2 TypeName),
-   untag (mTypeOf :: Tagged t3 TypeName)]
+  [untag (mIOType :: Tagged tr TypeName),
+   untag (mIOType :: Tagged t1 TypeName),
+   untag (mIOType :: Tagged t2 TypeName),
+   untag (mIOType :: Tagged t3 TypeName)]
   (marshalFunc3 $ \p0 p1 p2 p3 pr -> do
-    v0 <- unmarshal p0
-    v1 <- unmarshal p1
-    v2 <- unmarshal p2
-    v3 <- unmarshal p3
+    v0 <- mInFunc p0
+    v1 <- mInFunc p1
+    v2 <- mInFunc p2
+    v3 <- mInFunc p3
     f v0 v1 v2 v3 >>= marshalRet pr)
 
 --
@@ -234,24 +238,24 @@ data Property tt = Property {
 -- | Defines a named read-only property using an impure
 -- accessor function.
 defPropertyRO ::
-  forall tt tr. (MetaObject tt, Marshallable tr) =>
+  forall tt tr. (MetaObject tt, MarshalOut tr) =>
   String -> (ObjRef tt -> IO tr) -> Member tt
 defPropertyRO name g = PropertyMember $ Property name
-  (untag (mTypeOf :: Tagged tr TypeName))
-  (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= g >>= marshal pr)
+  (untag (mIOType :: Tagged tr TypeName))
+  (marshalFunc0 $ \p0 pr -> mInFunc p0 >>= g >>= mOutFunc pr)
   Nothing
 
 -- | Defines a named read-write property using a pair of 
 -- impure accessor and mutator functions.
 defPropertyRW ::
-  forall tt tr. (MetaObject tt, Marshallable tr) =>
+  forall tt tr. (MetaObject tt, MarshalOut tr) =>
   String -> (ObjRef tt -> IO tr) -> (ObjRef tt -> tr -> IO ()) -> Member tt
 defPropertyRW name g s = PropertyMember $ Property name
-  (untag (mTypeOf :: Tagged tr TypeName))
-  (marshalFunc0 $ \p0 pr -> unmarshal p0 >>= g >>= marshal pr)
+  (untag (mIOType :: Tagged tr TypeName))
+  (marshalFunc0 $ \p0 pr -> mInFunc p0 >>= g >>= mOutFunc pr)
   (Just $ marshalFunc1 $ \p0 p1 _ -> do
-    v0 <- unmarshal p0
-    v1 <- unmarshal p1
+    v0 <- mInFunc p0
+    v1 <- mInFunc p1
     s v0 v1)
 
 --
@@ -286,10 +290,10 @@ marshalFunc3 f p0 pv = do
   p3 <- peekElemOff pv 3
   f p0 p1 p2 p3 pr
 
-marshalRet :: (Marshallable tt) => Ptr () -> tt -> IO ()
+marshalRet :: (MarshalOut tt) => Ptr () -> tt -> IO ()
 marshalRet ptr obj
   | ptr == nullPtr = return ()
-  | otherwise      = marshal ptr obj
+  | otherwise      = mOutFunc ptr obj
 
 data MOCState = MOCState {
   mData            :: [CUInt],

@@ -2,12 +2,15 @@
     TypeSynonymInstances
   #-}
 
--- | Intrinsic types which can marshalled between Haskell and QML.
+-- | Type classs and instances for marshalling values between Haskell and QML.
 module Graphics.QML.Marshal (
-  Marshallable,
+  MarshalIn (
+    mIn),
+  InMarshaller,
+  MarshalOut
 ) where
 
-import Graphics.QML.Internal.Core
+import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.PrimValues
 
 import Data.Maybe
@@ -21,47 +24,61 @@ import Network.URI (URI, parseURIReference, uriToString)
 -- ()/void built-in type
 --
 
-instance Marshallable () where
-  marshal _ _ =
-    error "Cannot marshal void."
-  unmarshal _ =
-    return ()
-  mSizeOf = Tagged 0
-  mTypeOf = Tagged $ TypeName ""
+instance MarshalOut () where
+  mOutFunc _ _ = return ()
+  mOutSize     = Tagged 0
+
+instance MarshalIn () where
+  mIn = InMarshaller {
+    mInFuncFld = \_ -> return (),
+    mIOTypeFld = Tagged $ TypeName ""
+  }
 
 --
 -- Int/int built-in type
 --
 
-instance Marshallable Int where
-  marshal ptr value =
-    poke (castPtr ptr :: Ptr CInt) (fromIntegral value)
-  unmarshal ptr =
-    peek (castPtr ptr :: Ptr CInt) >>= return . fromIntegral
-  mSizeOf = Tagged $ sizeOf (0 :: CInt)
-  mTypeOf = Tagged $ TypeName "int"
+instance MarshalOut Int where
+  mOutFunc ptr int =
+    poke (castPtr ptr :: Ptr CInt) (fromIntegral int)
+  mOutSize = Tagged $ sizeOf (0 :: CInt)
+
+instance MarshalIn Int where
+  mIn = InMarshaller {
+    mInFuncFld = \ptr ->
+      peek (castPtr ptr :: Ptr CInt) >>= return . fromIntegral,
+    mIOTypeFld = Tagged $ TypeName "int"
+  }
 
 --
 -- String/QString built-in type
 --
 
-instance Marshallable String where
-  marshal ptr str =
+instance MarshalOut String where
+  mOutFunc ptr str =
     hsqmlMarshalString str (HsQMLStringHandle $ castPtr ptr)
-  unmarshal ptr =
-    hsqmlUnmarshalString (HsQMLStringHandle $ castPtr ptr)
-  mSizeOf = Tagged $ hsqmlStringSize
-  mTypeOf = Tagged $ TypeName "QString"
+  mOutSize = Tagged hsqmlStringSize
+
+instance MarshalIn String where
+  mIn = InMarshaller {
+    mInFuncFld = \ptr ->
+      hsqmlUnmarshalString (HsQMLStringHandle $ castPtr ptr),
+    mIOTypeFld = Tagged $ TypeName "QString"
+  }
 
 --
 -- URI/QUrl built-in type
 --
 
-instance Marshallable URI where
-  marshal ptr uri =
+instance MarshalOut URI where
+  mOutFunc ptr uri =
     hsqmlMarshalUrl (uriToString id uri "") (HsQMLUrlHandle $ castPtr ptr)
-  unmarshal ptr =
-    hsqmlUnmarshalUrl (HsQMLUrlHandle $ castPtr ptr) >>=
-      return . fromJust . parseURIReference
-  mSizeOf = Tagged $ hsqmlUrlSize
-  mTypeOf = Tagged $ TypeName "QUrl"
+  mOutSize = Tagged hsqmlUrlSize
+
+instance MarshalIn URI where
+  mIn = InMarshaller {
+    mInFuncFld = \ptr ->
+      hsqmlUnmarshalUrl (HsQMLUrlHandle $ castPtr ptr) >>=
+        return . fromJust . parseURIReference,
+    mIOTypeFld = Tagged $ TypeName "QUrl"
+  }

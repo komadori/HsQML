@@ -20,7 +20,7 @@ module Graphics.QML.Engine (
   runEngines
 ) where
 
-import Graphics.QML.Internal.Core
+import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.Objects
 import Graphics.QML.Internal.Engine
 import Graphics.QML.Objects

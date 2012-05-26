@@ -31,7 +31,7 @@ Library
     Graphics.QML.Marshal
     Graphics.QML.Objects
   Other-modules:
-    Graphics.QML.Internal.Core
+    Graphics.QML.Internal.Marshal
     Graphics.QML.Internal.Objects
     Graphics.QML.Internal.PrimValues
     Graphics.QML.Internal.Engine
