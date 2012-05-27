@@ -343,6 +343,7 @@ writeMethod m = do
   writeString $ methodSignature m
   writeString $ methodParameters m
   writeString $ typeName $ head $ methodTypes m
+  writeString ""
   writeInt (mfAccessPublic .|. mfMethodScriptable)
   state <- get
   put $ state {mDataMethodsIdx = mplus (mDataMethodsIdx state) (Just idx)}
