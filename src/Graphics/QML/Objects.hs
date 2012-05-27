@@ -44,7 +44,6 @@ import Data.Typeable
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Ptr
-import Foreign.StablePtr
 import Foreign.Storable
 import Foreign.Marshal.Array
 import System.IO.Unsafe
@@ -56,14 +55,15 @@ import Numeric
 
 instance (Object tt) => MarshalOut (ObjRef tt) where
   mOutFunc ptr obj = do
-    let (HsQMLObjectHandle hndl) = objHndl obj
-    poke (castPtr ptr) hndl
+    objPtr <- hsqmlObjectGetPointer $ objHndl obj
+    poke (castPtr ptr) objPtr
   mOutSize = Tagged $ sizeOf nullPtr
 
 instance (Object tt) => MarshalIn (ObjRef tt) where
   mIn = InMarshaller {
-    mInFuncFld = \ptr ->
-      return $ ObjRef $ HsQMLObjectHandle $ castPtr ptr,
+    mInFuncFld = \ptr -> do
+      hndl <- hsqmlGetObjectHandle ptr
+      return $ ObjRef hndl,
     mIOTypeFld = Tagged $ classType (classDef :: ClassDef tt)
   }
 
@@ -78,7 +78,7 @@ newObject obj = do
 -- instance of the QML class which wraps it.
 fromObjRef :: ObjRef tt -> tt
 fromObjRef =
-    unsafePerformIO . hsqmlGetHaskell . objHndl
+    unsafePerformIO . hsqmlObjectGetHaskell . objHndl
 
 --
 -- Object

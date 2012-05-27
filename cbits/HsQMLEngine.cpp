@@ -3,12 +3,12 @@
 #include "hsqml.h"
 #include "HsQMLManager.h"
 #include "HsQMLEngine.h"
+#include "HsQMLObject.h"
 #include "HsQMLWindow.h"
 
 HsQMLEngine::HsQMLEngine(HsQMLEngineConfig& config)
 {
-qDebug() << config.globalObject;
-  mEngine.rootContext()->setContextObject(config.globalObject);
+  mEngine.rootContext()->setContextObject(config.globalObject->object());
 
   HsQMLWindow* win = new HsQMLWindow(this);
   win->setSource(config.initialURL);
@@ -30,7 +30,7 @@ extern "C" void hsqml_create_engine(
   const char* initialURL)
 {
   HsQMLEngineConfig config;
-  config.globalObject = (QObject*)globalObject;
+  config.globalObject = (HsQMLObjectProxy*)globalObject;
   config.initialURL = QUrl(QString(initialURL));
 
   Q_ASSERT (gManager);

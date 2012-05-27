@@ -36,7 +36,15 @@ newClassHandle p =
    id `Ptr (FunPtr UniformFunc)'} ->
   `Maybe HsQMLClassHandle' newClassHandle* #}
 
-{#pointer *HsQMLObjectHandle as ^ newtype #}
+{#pointer *HsQMLObjectHandle as ^ foreign newtype #}
+
+foreign import ccall "hsqml.h &hsqml_finalise_object_handle"
+  hsqmlFinaliseObjectHandlePtr :: FunPtr (Ptr (HsQMLObjectHandle) -> IO ())
+
+newObjectHandle :: Ptr HsQMLObjectHandle -> IO HsQMLObjectHandle
+newObjectHandle p = do
+  fp <- newForeignPtr hsqmlFinaliseObjectHandlePtr p
+  return $ HsQMLObjectHandle fp
 
 -- | Represents an instance of the QML class which wraps the type @tt@.
 data ObjRef tt = ObjRef {
@@ -52,15 +60,23 @@ objToPtr obj f = do
 {#fun unsafe hsqml_create_object as ^
   {objToPtr* `a',
    withHsQMLClassHandle* `HsQMLClassHandle'} ->
-  `HsQMLObjectHandle' id #}
+  `HsQMLObjectHandle' newObjectHandle* #}
 
 ptrToObj :: Ptr () -> IO a
 ptrToObj =
   deRefStablePtr . castPtrToStablePtr
 
-{#fun unsafe hsqml_get_haskell as ^
-  {id `HsQMLObjectHandle'} ->
+{#fun unsafe hsqml_object_get_haskell as ^
+  {withHsQMLObjectHandle* `HsQMLObjectHandle'} ->
   `a' ptrToObj* #}
+
+{#fun unsafe hsqml_object_get_pointer as ^
+  {withHsQMLObjectHandle* `HsQMLObjectHandle'} ->
+  `Ptr ()' id #}
+
+{#fun unsafe hsqml_get_object_handle as ^
+  {id `Ptr ()'} ->
+  `HsQMLObjectHandle' newObjectHandle* #}
 
 ofDynamicMetaObject :: CUInt
 ofDynamicMetaObject = 0x01

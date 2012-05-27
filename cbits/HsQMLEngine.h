@@ -6,11 +6,12 @@
 #include <QUrl>
 #include <QDeclarativeEngine>
 
+class HsQMLObjectProxy;
 class HsQMLWindow;
 
 struct HsQMLEngineConfig
 {
-  QObject* globalObject;
+  HsQMLObjectProxy* globalObject;
   QUrl initialURL;
 };
 

@@ -33,7 +33,7 @@ hsqmlInit :: IO ()
 hsqmlInit = hsqmlInit_ hsFreeFunPtr hsFreeStablePtr
 
 {#fun unsafe hsqml_create_engine as ^
-  {id `HsQMLObjectHandle',
+  {withHsQMLObjectHandle* `HsQMLObjectHandle',
    `String'} ->
   `()' #}
 

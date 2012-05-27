@@ -5,17 +5,69 @@
 #include "HsQMLClass.h"
 #include "HsQMLManager.h"
 
-HsQMLObject::HsQMLObject(void* haskell, HsQMLClass* klass)
+HsQMLObjectProxy::HsQMLObjectProxy(HsStablePtr haskell, HsQMLClass* klass)
   : mHaskell(haskell)
   , mKlass(klass)
+  , mObject(NULL)
+  , mRefCount(1)
 {
   mKlass->ref();
 }
 
+HsQMLObjectProxy::~HsQMLObjectProxy()
+{
+  mKlass->deref();
+}
+
+HsStablePtr HsQMLObjectProxy::haskell() const
+{
+  return mHaskell;
+}
+
+HsQMLClass* HsQMLObjectProxy::klass() const
+{
+  return mKlass;
+}
+
+HsQMLObject* HsQMLObjectProxy::object()
+{
+  if (!mObject) {
+    mObject = new HsQMLObject(this);
+  }
+  return mObject;
+}
+
+void HsQMLObjectProxy::clearObject()
+{
+  mObject = NULL;
+}
+
+void HsQMLObjectProxy::ref()
+{
+  mRefCount.ref();
+}
+
+void HsQMLObjectProxy::deref()
+{
+  if (!mRefCount.deref()) {
+    delete this;
+  }
+}
+
+HsQMLObject::HsQMLObject(HsQMLObjectProxy* proxy)
+  : mProxy(proxy)
+  , mHaskell(proxy->haskell())
+  , mKlass(proxy->klass())
+{
+  QDeclarativeEngine::setObjectOwnership(
+    this, QDeclarativeEngine::JavaScriptOwnership);
+  mProxy->ref();
+}
+
 HsQMLObject::~HsQMLObject()
 {
-  gManager->freeStable((HsStablePtr)mHaskell);
-  mKlass->deref();
+  mProxy->clearObject();
+  mProxy->deref();
 }
 
 const QMetaObject* HsQMLObject::metaObject() const
@@ -68,24 +120,44 @@ int HsQMLObject::qt_metacall(QMetaObject::Call c, int id, void** a)
   return id;
 }
 
-void* HsQMLObject::haskell() const
+HsQMLObjectProxy* HsQMLObject::proxy() const
 {
-  return mHaskell;
+  return mProxy;
 }
 
 extern "C" HsQMLObjectHandle* hsqml_create_object(
-  void* haskell, HsQMLClassHandle* kHndl)
+  HsStablePtr haskell, HsQMLClassHandle* kHndl)
 {
-  HsQMLObject* obj = new HsQMLObject(haskell, (HsQMLClass*)kHndl);
-  QDeclarativeEngine::setObjectOwnership(
-    obj, QDeclarativeEngine::JavaScriptOwnership);
-  return (HsQMLObjectHandle*)obj;
+  HsQMLObjectProxy* proxy = new HsQMLObjectProxy(haskell, (HsQMLClass*)kHndl);
+  return (HsQMLObjectHandle*)proxy;
 }
 
-extern void* hsqml_get_haskell(
+extern HsStablePtr hsqml_object_get_haskell(
   HsQMLObjectHandle* hndl)
 {
-  HsQMLObject* obj = (HsQMLObject*)hndl;
-  return  obj->haskell();
+  HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
+  return proxy->haskell();
 }
 
+extern void* hsqml_object_get_pointer(
+  HsQMLObjectHandle* hndl)
+{
+  HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
+  return (void*)proxy->object();
+}
+
+extern HsQMLObjectHandle* hsqml_get_object_handle(
+  void* ptr)
+{
+  HsQMLObject* object = (HsQMLObject*)ptr;
+  HsQMLObjectProxy* proxy = object->proxy();
+  proxy->ref();
+  return (HsQMLObjectHandle*)proxy;
+}
+
+extern void hsqml_finalise_object_handle(
+  HsQMLObjectHandle* hndl)
+{
+  HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
+  proxy->deref();
+}

@@ -67,9 +67,18 @@ extern void hsqml_finalise_class_handle(
 typedef char HsQMLObjectHandle;
 
 extern HsQMLObjectHandle* hsqml_create_object(
-  void*, HsQMLClassHandle*);
+  HsStablePtr, HsQMLClassHandle*);
 
-extern void* hsqml_get_haskell(
+extern HsStablePtr hsqml_object_get_haskell(
+  HsQMLObjectHandle*);
+
+extern void* hsqml_object_get_pointer(
+  HsQMLObjectHandle*);
+
+extern HsQMLObjectHandle* hsqml_get_object_handle(
+  void*);
+
+extern void hsqml_finalise_object_handle(
   HsQMLObjectHandle*);
 
 /* Engine */
