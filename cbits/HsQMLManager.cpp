@@ -23,6 +23,13 @@ HsQMLManager::~HsQMLManager()
 void HsQMLManager::run()
 {
     mApp.exec();
+
+    // Delete engines once the event loop returns
+    for (QVector<HsQMLEngine*>::iterator it = mEngines.begin();
+         it != mEngines.end(); ++it) {
+        delete *it;
+    }
+    mEngines.clear();
 }
 
 void HsQMLManager::freeFun(HsFunPtr funPtr)
