@@ -31,6 +31,7 @@ module Graphics.QML.Objects (
 
 import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.Objects
+import Graphics.QML.Internal.Engine
 
 import Control.Monad
 import Control.Monad.Trans.State
@@ -121,6 +122,7 @@ createClass name ms = do
   pWrites <- mapM (fromMaybe (return nullFunPtr) . fmap marshalFunc .
     propertyWriteFunc) properties
   propertiesPtr <- newArray $ interleave pReads pWrites
+  hsqmlInit
   hndl <- hsqmlCreateClass metaDataPtr metaStrDataPtr methodsPtr propertiesPtr
   return $ case hndl of 
     Just hndl' -> ClassDef (TypeName name) hndl'
