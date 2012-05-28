@@ -8,8 +8,12 @@
 
 HsQMLEngine::HsQMLEngine(HsQMLEngineConfig& config)
 {
-  mEngine.rootContext()->setContextObject(config.globalObject->object());
+  // Obtain, re-parent, and set QML global object
+  QObject* globalObject = config.globalObject->object();
+  globalObject->setParent(this);
+  mEngine.rootContext()->setContextObject(globalObject);
 
+  // Create window
   HsQMLWindow* win = new HsQMLWindow(this);
   win->setSource(config.initialURL);
   win->setVisible(true);
