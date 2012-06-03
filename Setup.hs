@@ -13,6 +13,7 @@ import System.Directory
 import System.FilePath
 
 import Control.Monad
+import Data.Char
 import Data.Maybe
 import qualified Distribution.ModuleName as ModuleName
 import Distribution.Simple.BuildPaths
@@ -23,7 +24,6 @@ import Distribution.Simple.Utils
 import Distribution.Text
 import Distribution.Version
 import Distribution.Verbosity
-import Text.Regex.Posix
 import System.FilePath
 
 main :: IO ()
@@ -66,10 +66,13 @@ fixQtBuild verb lbi build = do
         customFieldsBI build
       bDir = buildDir lbi
       cpps = map (\inc ->
-        bDir </> ("moc_" ++ (takeBaseName inc) ++ ".cpp")) incs
-  createDirectoryIfMissingVerbose verb True bDir
-  mapM_ (\(i,o) -> runProgram verb moc [i,"-o",o]) $ zip incs cpps
-  return build {cSources = cpps ++ cSources build}
+        bDir </> (takeDirectory inc) </>
+        ("moc_" ++ (takeBaseName inc) ++ ".cpp")) incs
+  mapM_ (\(i,o) -> do
+      createDirectoryIfMissingVerbose verb True (takeDirectory o)
+      runProgram verb moc [i,"-o",o]) $ zip incs cpps
+  return build {cSources = cpps ++ cSources build,
+                ccOptions = "-fPIC" : ccOptions build}
 
 needsGHCiFix :: PackageDescription -> LocalBuildInfo -> Bool
 needsGHCiFix pkgDesc lbi =
@@ -78,9 +81,15 @@ needsGHCiFix pkgDesc lbi =
     str <- lookup "x-separate-cbits" $ customFieldsBI $ libBuildInfo lib
     simpleParse str
 
+mkGHCiFixLibPkgId :: PackageDescription -> PackageIdentifier
+mkGHCiFixLibPkgId pkgDesc =
+  let id = packageId pkgDesc
+      (PackageName name) = pkgName id
+  in id {pkgName = PackageName $ "cbits-" ++ name}
+
 mkGHCiFixLibName :: PackageDescription -> String
 mkGHCiFixLibName pkgDesc =
-  ("libcbits-" ++ display (packageId pkgDesc)) <.> dllExtension
+  ("lib" ++ display (mkGHCiFixLibPkgId pkgDesc)) <.> dllExtension
 
 buildGHCiFix ::
   Verbosity -> PackageDescription -> LocalBuildInfo -> Library -> IO ()
@@ -92,18 +101,16 @@ buildGHCiFix verb pkgDesc lbi lib = do
     mapM (findFileWithExtension ["o"] [bDir]) $ map (++ "_stub") ms
   (ld,_) <- requireProgram verb ldProgram (withPrograms lbi)
   combineObjectFiles verb ld
-    (bDir </> (("HS" ++) $ display $ packageId pkgDesc) <.> ".o")
+    (bDir </> (("HS" ++) $ display $ packageId pkgDesc) <.> "o")
     (stubObjs ++ hsObjs)
   (ghc,_) <- requireProgram verb ghcProgram (withPrograms lbi)
   let bi = libBuildInfo lib
+      bDir = buildDir lbi
   runProgram verb ghc (
-    ["-shared","-fPIC","-o",bDir </> (mkGHCiFixLibName pkgDesc)] ++
-    (map ("-optc" ++) $ ccOptions bi) ++
-    (map ("-optc" ++) $ cppOptions bi) ++
-    (map ("-I" ++) $ includeDirs bi) ++
+    ["-shared","-o",bDir </> (mkGHCiFixLibName pkgDesc)] ++
     (ldOptions bi) ++ (map ("-l" ++) $ extraLibs bi) ++
-    (map ("-L"++) $ extraLibDirs bi) ++
-    (cSources bi))
+    (map ("-L" ++) $ extraLibDirs bi) ++
+    (map ((bDir </>) . flip replaceExtension objExtension) $ cSources bi))
   return ()
 
 mocProgram :: Program
@@ -112,9 +119,10 @@ mocProgram = Program {
   programFindLocation = flip findProgramLocation "moc",
   programFindVersion = \verbosity path -> do
     (_,line,_) <- rawSystemStdInOut verbosity path ["-v"] Nothing False
-    return $ case line =~ "\\(Qt ([0-9.]+)\\)" of
-      (_:ver:_):_ -> simpleParse ver
-      _           -> Nothing,
+    return $
+      findSubseq (stripPrefix "(Qt ") line >>=
+      Just . takeWhile (\c -> isDigit c || c == '.') >>=
+      simpleParse,
   programPostConf = \_ _ -> return []
 }
 
@@ -145,7 +153,7 @@ regWithQt pkg@PackageDescription { library       = Just lib  }
     verb pkg lib lbi clbi inplace dist
   let instPkgInfo' = if (needsGHCiFix pkg lbi)
         then instPkgInfo {I.extraGHCiLibraries =
-          (drop 3 $ takeBaseName $ mkGHCiFixLibName pkg) :
+          (display $ mkGHCiFixLibPkgId pkg) :
           I.extraGHCiLibraries instPkgInfo}
         else instPkgInfo
   case flagToMaybe $ regGenPkgConf flags of
@@ -179,3 +187,10 @@ instWithQt pkgDesc lbi hooks flags = do
 
 maybeMapM :: (Monad m) => (a -> m b) -> (Maybe a) -> m (Maybe b)
 maybeMapM f = maybe (return Nothing) $ liftM Just . f
+
+findSubseq :: ([a] -> Maybe b) -> [a] -> Maybe b
+findSubseq f [] = f []
+findSubseq f xs@(_:ys) =
+  case f xs of
+    Nothing -> findSubseq f ys
+    Just r  -> Just r
