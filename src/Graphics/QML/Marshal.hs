@@ -51,6 +51,22 @@ instance MarshalIn Int where
   }
 
 --
+-- Double/double built-in type
+--
+
+instance MarshalOut Double where
+  mOutFunc ptr num =
+    poke (castPtr ptr :: Ptr CDouble) (realToFrac num)
+  mOutSize = Tagged $ sizeOf (0 :: CDouble)
+
+instance MarshalIn Double where
+  mIn = InMarshaller {
+    mInFuncFld = \ptr ->
+      peek (castPtr ptr :: Ptr CDouble) >>= return . realToFrac,
+    mIOTypeFld = Tagged $ TypeName "double"
+  }
+
+--
 -- String/QString built-in type
 --
 
