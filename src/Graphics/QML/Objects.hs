@@ -106,8 +106,8 @@ defClass :: forall tt. (Object tt) => [Member tt] -> ClassDef tt
 defClass ms = unsafePerformIO $ do
   let typ  = typeOf (undefined :: tt)
       name = tyConString $ typeRepTyCon typ
-  key <- typeRepKey typ
-  createClass (name ++ showInt key "") ms
+  id <- hsqmlGetNextClassId
+  createClass (showString name $ showChar '_' $ showInt id "") ms
 
 createClass :: forall tt. (Object tt) =>
   String -> [Member tt] -> IO (ClassDef tt)

@@ -57,6 +57,8 @@ typedef char HsQMLClassHandle;
 
 typedef void (*HsQMLUniformFunc)(void*, void**);
 
+extern int hsqml_get_next_class_id();
+
 extern HsQMLClassHandle* hsqml_create_class(
   unsigned int*, char*, HsQMLUniformFunc*, HsQMLUniformFunc*);
 

@@ -11,6 +11,10 @@ import Foreign.StablePtr
 
 #include "hsqml.h"
 
+{#fun unsafe hsqml_get_next_class_id as ^
+  {} ->
+  `CInt' id #}
+
 type UniformFunc = Ptr () -> Ptr (Ptr ()) -> IO ()
 
 foreign import ccall "wrapper"  

@@ -1,17 +1,15 @@
 #include <cstdlib>
 #include <HsFFI.h>
+#include <QAtomicInt>
 #include <QMetaObject>
 #include <QString>
-#include <QMutex>
-#include <QMap>
 #include <QDebug>
 
 #include "hsqml.h"
 #include "HsQMLClass.h"
 #include "HsQMLManager.h"
 
-static QMutex gClassSetMutex;
-static QSet<QString> gClassSet;
+QAtomicInt gClassId;
 
 HsQMLClass::HsQMLClass(
   unsigned int*  metaData,
@@ -38,9 +36,6 @@ HsQMLClass::HsQMLClass(
 HsQMLClass::~HsQMLClass()
 {
   QString className = QString(&mMetaStrData[mMetaData[1]]);
-  gClassSetMutex.lock();
-  gClassSet.remove(className);
-  gClassSetMutex.unlock();
   for (int i=0; i<mMethodCount; i++) {
     gManager->freeFun((HsFunPtr)mMethods[i]);
   }
@@ -78,32 +73,17 @@ void HsQMLClass::deref()
   }
 }
 
+extern "C" int hsqml_get_next_class_id()
+{
+  return gClassId.fetchAndAddRelaxed(1);
+}
+
 extern "C" HsQMLClassHandle* hsqml_create_class(
   unsigned int*  metaData,
   char*          metaStrData,
   HsQMLUniformFunc* methods,
   HsQMLUniformFunc* properties)
 {
-  QString className = QString(&metaStrData[metaData[MD_CLASS_NAME]]);
-  gClassSetMutex.lock();
-  if (gClassSet.contains(className)) {
-    gClassSetMutex.unlock();
-    for (unsigned int i=0; i<metaData[MD_METHOD_COUNT]; i++) {
-      gManager->freeFun((HsFunPtr)methods[i]);
-    }
-    for (unsigned int i=0; i<2*metaData[MD_PROPERTY_COUNT]; i++) {
-      if (properties[i]) {
-        gManager->freeFun((HsFunPtr)properties[i]);
-      }
-    }
-    std::free(metaData);
-    std::free(metaStrData);
-    std::free(methods);
-    std::free(properties);
-    return NULL;
-  }
-  gClassSet.insert(className);
-  gClassSetMutex.unlock();
   HsQMLClass* klass = new HsQMLClass(
     metaData, metaStrData, methods, properties);
   return (HsQMLClassHandle*)klass;
