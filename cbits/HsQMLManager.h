@@ -9,8 +9,6 @@
 #include "hsqml.h"
 #include "HsQMLEngine.h"
 
-class HsQMLWindow;
-
 class HsQMLManager : public QObject
 {
     Q_OBJECT
@@ -32,7 +30,6 @@ private:
     HsQMLManager& operator=(const HsQMLManager&);
 
     QApplication mApp;
-    QMutex mMutex;
     QVector<HsQMLEngine*> mEngines;
     void (*mFreeFun)(HsFunPtr);
     void (*mFreeStable)(HsStablePtr);
