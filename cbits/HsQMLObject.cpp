@@ -6,158 +6,158 @@
 #include "HsQMLManager.h"
 
 HsQMLObjectProxy::HsQMLObjectProxy(HsStablePtr haskell, HsQMLClass* klass)
-  : mHaskell(haskell)
-  , mKlass(klass)
-  , mObject(NULL)
-  , mRefCount(1)
+    : mHaskell(haskell)
+    , mKlass(klass)
+    , mObject(NULL)
+    , mRefCount(1)
 {
-  mKlass->ref();
+    mKlass->ref();
 }
 
 HsQMLObjectProxy::~HsQMLObjectProxy()
 {
-  mKlass->deref();
+    mKlass->deref();
 }
 
 HsStablePtr HsQMLObjectProxy::haskell() const
 {
-  return mHaskell;
+    return mHaskell;
 }
 
 HsQMLClass* HsQMLObjectProxy::klass() const
 {
-  return mKlass;
+    return mKlass;
 }
 
 HsQMLObject* HsQMLObjectProxy::object()
 {
-  if (!mObject) {
-    mObject = new HsQMLObject(this);
-  }
-  return mObject;
+    if (!mObject) {
+        mObject = new HsQMLObject(this);
+    }
+    return mObject;
 }
 
 void HsQMLObjectProxy::clearObject()
 {
-  mObject = NULL;
+    mObject = NULL;
 }
 
 void HsQMLObjectProxy::ref()
 {
-  mRefCount.ref();
+    mRefCount.ref();
 }
 
 void HsQMLObjectProxy::deref()
 {
-  if (!mRefCount.deref()) {
-    delete this;
-  }
+    if (!mRefCount.deref()) {
+        delete this;
+    }
 }
 
 HsQMLObject::HsQMLObject(HsQMLObjectProxy* proxy)
-  : mProxy(proxy)
-  , mHaskell(proxy->haskell())
-  , mKlass(proxy->klass())
+    : mProxy(proxy)
+    , mHaskell(proxy->haskell())
+    , mKlass(proxy->klass())
 {
-  QDeclarativeEngine::setObjectOwnership(
-    this, QDeclarativeEngine::JavaScriptOwnership);
-  mProxy->ref();
+    QDeclarativeEngine::setObjectOwnership(
+        this, QDeclarativeEngine::JavaScriptOwnership);
+    mProxy->ref();
 }
 
 HsQMLObject::~HsQMLObject()
 {
-  mProxy->clearObject();
-  mProxy->deref();
+    mProxy->clearObject();
+    mProxy->deref();
 }
 
 const QMetaObject* HsQMLObject::metaObject() const
 {
-  return QObject::d_ptr->metaObject ?
-    QObject::d_ptr->metaObject : &mKlass->mMetaObject;
+    return QObject::d_ptr->metaObject ?
+        QObject::d_ptr->metaObject : &mKlass->mMetaObject;
 }
 
 void* HsQMLObject::qt_metacast(const char* clname)
 {
-  if (!clname) {
-    return 0;
-  }
-  if (!strcmp(clname,
-        mKlass->mMetaObject.d.stringdata +
-        mKlass->mMetaObject.d.data[MD_CLASS_NAME])) {
-      return static_cast<void*>(const_cast<HsQMLObject*>(this));
-  }
-  return QObject::qt_metacast(clname);
+    if (!clname) {
+        return 0;
+    }
+    if (!strcmp(clname,
+            mKlass->mMetaObject.d.stringdata +
+            mKlass->mMetaObject.d.data[MD_CLASS_NAME])) {
+        return static_cast<void*>(const_cast<HsQMLObject*>(this));
+    }
+    return QObject::qt_metacast(clname);
 }
 
 int HsQMLObject::qt_metacall(QMetaObject::Call c, int id, void** a)
 {
-  id = QObject::qt_metacall(c, id, a);
-  if (id < 0) {
-    return id;
-  }
-  if (QMetaObject::InvokeMetaMethod == c) {
-    mKlass->methods()[id](this, a);
-    id -= mKlass->mMethodCount;
-  }
-  else if (QMetaObject::ReadProperty == c) {
-    mKlass->properties()[2*id](this, a);
-    id -= mKlass->mPropertyCount;
-  }
-  else if (QMetaObject::WriteProperty == c) {
-    HsQMLUniformFunc uf = mKlass->properties()[2*id+1];
-    if (uf) {
-      uf(this, a);
+    id = QObject::qt_metacall(c, id, a);
+    if (id < 0) {
+        return id;
     }
-    id -= mKlass->mPropertyCount;
-  }
-  else if (QMetaObject::QueryPropertyDesignable == c ||
-           QMetaObject::QueryPropertyScriptable == c ||
-           QMetaObject::QueryPropertyStored == c ||
-           QMetaObject::QueryPropertyEditable == c ||
-           QMetaObject::QueryPropertyUser == c) {
-    id -= mKlass->mPropertyCount;
-  }
-  return id;
+    if (QMetaObject::InvokeMetaMethod == c) {
+        mKlass->methods()[id](this, a);
+        id -= mKlass->mMethodCount;
+    }
+    else if (QMetaObject::ReadProperty == c) {
+        mKlass->properties()[2*id](this, a);
+        id -= mKlass->mPropertyCount;
+    }
+    else if (QMetaObject::WriteProperty == c) {
+        HsQMLUniformFunc uf = mKlass->properties()[2*id+1];
+        if (uf) {
+            uf(this, a);
+        }
+        id -= mKlass->mPropertyCount;
+    }
+    else if (QMetaObject::QueryPropertyDesignable == c ||
+             QMetaObject::QueryPropertyScriptable == c ||
+             QMetaObject::QueryPropertyStored == c ||
+             QMetaObject::QueryPropertyEditable == c ||
+             QMetaObject::QueryPropertyUser == c) {
+        id -= mKlass->mPropertyCount;
+    }
+    return id;
 }
 
 HsQMLObjectProxy* HsQMLObject::proxy() const
 {
-  return mProxy;
+    return mProxy;
 }
 
 extern "C" HsQMLObjectHandle* hsqml_create_object(
-  HsStablePtr haskell, HsQMLClassHandle* kHndl)
+    HsStablePtr haskell, HsQMLClassHandle* kHndl)
 {
-  HsQMLObjectProxy* proxy = new HsQMLObjectProxy(haskell, (HsQMLClass*)kHndl);
-  return (HsQMLObjectHandle*)proxy;
+    HsQMLObjectProxy* proxy = new HsQMLObjectProxy(haskell, (HsQMLClass*)kHndl);
+    return (HsQMLObjectHandle*)proxy;
 }
 
 extern HsStablePtr hsqml_object_get_haskell(
-  HsQMLObjectHandle* hndl)
+    HsQMLObjectHandle* hndl)
 {
-  HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
-  return proxy->haskell();
+    HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
+    return proxy->haskell();
 }
 
 extern void* hsqml_object_get_pointer(
-  HsQMLObjectHandle* hndl)
+    HsQMLObjectHandle* hndl)
 {
-  HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
-  return (void*)proxy->object();
+    HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
+    return (void*)proxy->object();
 }
 
 extern HsQMLObjectHandle* hsqml_get_object_handle(
-  void* ptr)
+    void* ptr)
 {
-  HsQMLObject* object = (HsQMLObject*)ptr;
-  HsQMLObjectProxy* proxy = object->proxy();
-  proxy->ref();
-  return (HsQMLObjectHandle*)proxy;
+    HsQMLObject* object = (HsQMLObject*)ptr;
+    HsQMLObjectProxy* proxy = object->proxy();
+    proxy->ref();
+    return (HsQMLObjectHandle*)proxy;
 }
 
 extern void hsqml_finalise_object_handle(
-  HsQMLObjectHandle* hndl)
+    HsQMLObjectHandle* hndl)
 {
-  HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
-  proxy->deref();
+    HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
+    proxy->deref();
 }

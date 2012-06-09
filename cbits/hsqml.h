@@ -9,8 +9,8 @@ extern "C" {
 
 /* Manager */
 extern void hsqml_init(
-  void (*)(HsFunPtr),
-  void (*)(HsStablePtr));
+    void (*)(HsFunPtr),
+    void (*)(HsStablePtr));
 
 extern void hsqml_run();
 
@@ -22,16 +22,16 @@ typedef unsigned short UTF16;
 extern const int hsqml_string_size;
 
 extern void hsqml_init_string(
-  HsQMLStringHandle*);
+    HsQMLStringHandle*);
 
 extern void hsqml_deinit_string(
-  HsQMLStringHandle*);
+    HsQMLStringHandle*);
 
 extern UTF16* hsqml_marshal_string(
-  int, HsQMLStringHandle*);
+    int, HsQMLStringHandle*);
 
 extern int hsqml_unmarshal_string(
-  HsQMLStringHandle*, UTF16**);
+    HsQMLStringHandle*, UTF16**);
 
 /* URL */
 typedef char HsQMLUrlHandle;
@@ -39,16 +39,16 @@ typedef char HsQMLUrlHandle;
 extern const int hsqml_url_size;
 
 extern void hsqml_init_url(
-  HsQMLUrlHandle*);
+    HsQMLUrlHandle*);
 
 extern void hsqml_deinit_url(
-  HsQMLUrlHandle*);
+    HsQMLUrlHandle*);
 
 extern void hsqml_marshal_url(
-  char*, int, HsQMLUrlHandle*);
+    char*, int, HsQMLUrlHandle*);
 
 extern int hsqml_unmarshal_url(
-  HsQMLUrlHandle*, char**);
+    HsQMLUrlHandle*, char**);
 
 /* Class */
 typedef char HsQMLClassHandle;
@@ -58,33 +58,33 @@ typedef void (*HsQMLUniformFunc)(void*, void**);
 extern int hsqml_get_next_class_id();
 
 extern HsQMLClassHandle* hsqml_create_class(
-  unsigned int*, char*, HsQMLUniformFunc*, HsQMLUniformFunc*);
+    unsigned int*, char*, HsQMLUniformFunc*, HsQMLUniformFunc*);
 
 extern void hsqml_finalise_class_handle(
-  HsQMLClassHandle* hndl);
+    HsQMLClassHandle* hndl);
 
 /* Object */
 typedef char HsQMLObjectHandle;
 
 extern HsQMLObjectHandle* hsqml_create_object(
-  HsStablePtr, HsQMLClassHandle*);
+    HsStablePtr, HsQMLClassHandle*);
 
 extern HsStablePtr hsqml_object_get_haskell(
-  HsQMLObjectHandle*);
+    HsQMLObjectHandle*);
 
 extern void* hsqml_object_get_pointer(
-  HsQMLObjectHandle*);
+    HsQMLObjectHandle*);
 
 extern HsQMLObjectHandle* hsqml_get_object_handle(
-  void*);
+    void*);
 
 extern void hsqml_finalise_object_handle(
-  HsQMLObjectHandle*);
+    HsQMLObjectHandle*);
 
 /* Engine */
 extern void hsqml_create_engine(
-  HsQMLObjectHandle*,
-  const char*);
+    HsQMLObjectHandle*,
+    const char*);
 
 #ifdef __cplusplus
 }

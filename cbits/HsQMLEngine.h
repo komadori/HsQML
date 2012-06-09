@@ -11,23 +11,22 @@ class HsQMLWindow;
 
 struct HsQMLEngineConfig
 {
-  HsQMLObjectProxy* globalObject;
-  QUrl initialURL;
+    HsQMLObjectProxy* globalObject;
+    QUrl initialURL;
 };
 
 class HsQMLEngine : public QObject
 {
-  Q_OBJECT
+    Q_OBJECT
 
 public:
-  HsQMLEngine(HsQMLEngineConfig&);
-  ~HsQMLEngine();
-  QDeclarativeEngine* engine();
+    HsQMLEngine(HsQMLEngineConfig&);
+    ~HsQMLEngine();
+    QDeclarativeEngine* engine();
 
 private:
-  QDeclarativeEngine mEngine;
-  QSet<HsQMLWindow*> mWindows;
+    QDeclarativeEngine mEngine;
+    QSet<HsQMLWindow*> mWindows;
 };
-
 
 #endif /*HSQML_ENGINE_H*/
