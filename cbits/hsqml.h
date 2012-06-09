@@ -5,7 +5,6 @@
 extern "C" {
 #endif
 
-#include <wchar.h>
 #include <HsFFI.h>
 
 /* Manager */
@@ -18,6 +17,8 @@ extern void hsqml_run();
 /* String */
 typedef char HsQMLStringHandle;
 
+typedef unsigned short UTF16;
+
 extern const int hsqml_string_size;
 
 extern void hsqml_init_string(
@@ -26,14 +27,11 @@ extern void hsqml_init_string(
 extern void hsqml_deinit_string(
   HsQMLStringHandle*);
 
-extern void hsqml_marshal_string(
-  const wchar_t*, int, HsQMLStringHandle*);
-
-extern int hsqml_unmarshal_string_maxlen(
-  HsQMLStringHandle*);
+extern UTF16* hsqml_marshal_string(
+  int, HsQMLStringHandle*);
 
 extern int hsqml_unmarshal_string(
-  HsQMLStringHandle*, wchar_t*);
+  HsQMLStringHandle*, UTF16**);
 
 /* URL */
 typedef char HsQMLUrlHandle;
@@ -46,11 +44,11 @@ extern void hsqml_init_url(
 extern void hsqml_deinit_url(
   HsQMLUrlHandle*);
 
-extern void hsqml_string_to_url(
-  HsQMLStringHandle*, HsQMLUrlHandle*);
+extern void hsqml_marshal_url(
+  char*, int, HsQMLUrlHandle*);
 
-extern void hsqml_url_to_string(
-  HsQMLUrlHandle*, HsQMLStringHandle*);
+extern int hsqml_unmarshal_url(
+  HsQMLUrlHandle*, char**);
 
 /* Class */
 typedef char HsQMLClassHandle;

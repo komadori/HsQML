@@ -37,27 +37,15 @@ hsqmlStringSize = fromIntegral $ unsafePerformIO $ peek hsqmlStringSizePtr
   {id `HsQMLStringHandle'} ->
   `()' #}
 
-hsqmlMarshalString :: String -> HsQMLStringHandle -> IO ()
-hsqmlMarshalString str hndl =
-  withCWStringLen str $ \(cStr, cStrLen) -> 
-  hsqmlMarshalString_ cStr (cIntConv cStrLen) hndl >>= \res ->
-  return ()
+{#fun unsafe hsqml_marshal_string as ^
+  {`Int',
+   id `HsQMLStringHandle'} ->
+  `Ptr CUShort' id #}
 
-foreign import ccall unsafe "hsqml.h hsqml_marshal_string"
-  hsqmlMarshalString_ :: Ptr CWchar -> CInt -> HsQMLStringHandle -> IO ()
-
-{#fun unsafe hsqml_unmarshal_string_maxlen as ^
-  {id `HsQMLStringHandle'} ->
+{#fun unsafe hsqml_unmarshal_string as ^
+  {id `HsQMLStringHandle',
+   id `Ptr (Ptr CUShort)'} ->
   `Int' #}
-
-hsqmlUnmarshalString :: HsQMLStringHandle -> IO String
-hsqmlUnmarshalString hndl = do
-  hsqmlUnmarshalStringMaxlen hndl >>= flip allocaArray (\cStr ->
-    hsqmlUnmarshalString_ hndl cStr >>= \cStrLen ->
-      peekCWStringLen (cStr, cIntConv cStrLen))
-
-foreign import ccall unsafe "hsqml.h hsqml_unmarshal_string"
-  hsqmlUnmarshalString_ :: HsQMLStringHandle -> Ptr CWchar -> IO CInt
 
 --
 -- URL
@@ -78,31 +66,13 @@ hsqmlUrlSize = fromIntegral $ unsafePerformIO $ peek hsqmlUrlSizePtr
   {id `HsQMLUrlHandle'} ->
   `()' #}
 
-{#fun unsafe hsqml_string_to_url as ^
-  {id `HsQMLStringHandle',
+{#fun unsafe hsqml_marshal_url as ^
+  {id `Ptr CChar',
+   `Int',
    id `HsQMLUrlHandle'} ->
   `()' #}
 
-{#fun unsafe hsqml_url_to_string as ^
+{#fun unsafe hsqml_unmarshal_url as ^
   {id `HsQMLUrlHandle',
-   id `HsQMLStringHandle'} ->
-  `()' #}
-
-hsqmlMarshalUrl :: String -> HsQMLUrlHandle -> IO ()
-hsqmlMarshalUrl str url =
-  allocaBytes hsqmlStringSize $ \hndlPtr -> do
-    let hndl = HsQMLStringHandle hndlPtr
-    hsqmlInitString hndl
-    hsqmlMarshalString str hndl
-    hsqmlStringToUrl hndl url
-    hsqmlDeinitString hndl
-    
-hsqmlUnmarshalUrl :: HsQMLUrlHandle -> IO String
-hsqmlUnmarshalUrl url =
-  allocaBytes hsqmlStringSize $ \hndlPtr -> do
-    let hndl = HsQMLStringHandle hndlPtr
-    hsqmlInitString hndl
-    hsqmlUrlToString url hndl
-    str <- hsqmlUnmarshalString hndl
-    hsqmlDeinitString hndl
-    return str
+   id `Ptr (Ptr CChar)'} ->
+  `Int' #}

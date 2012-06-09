@@ -63,9 +63,10 @@ instance (Object tt) => MarshalOut (ObjRef tt) where
 instance (Object tt) => MarshalIn (ObjRef tt) where
   mIn = InMarshaller {
     mInFuncFld = \ptr -> do
-      hndl <- hsqmlGetObjectHandle ptr
+      objPtr <- peek (castPtr ptr)
+      hndl <- hsqmlGetObjectHandle objPtr
       return $ ObjRef hndl,
-    mIOTypeFld = Tagged $ classType (classDef :: ClassDef tt)
+    mIOTypeFld = Tagged $ TypeName "QObject*"
   }
 
 -- | Creates an instance of a QML class given a value of the underlying Haskell 
@@ -176,7 +177,7 @@ defMethod0 ::
   String -> (ObjRef tt -> IO tr) -> Member tt
 defMethod0 name f = MethodMember $ Method name
   [untag (mIOType :: Tagged tr TypeName)]
-  (marshalFunc0 $ \p0 pr -> mInFunc p0 >>= f >>= marshalRet pr)
+  (marshalFunc0 $ \p0 pr -> mInThis p0 >>= f >>= marshalRet pr)
 
 -- | Defines a named method using an impure unary function.
 defMethod1 ::
@@ -186,7 +187,7 @@ defMethod1 name f = MethodMember $ Method name
   [untag (mIOType :: Tagged tr TypeName),
    untag (mIOType :: Tagged t1 TypeName)]
   (marshalFunc1 $ \p0 p1 pr -> do
-    v0 <- mInFunc p0
+    v0 <- mInThis p0
     v1 <- mInFunc p1
     f v0 v1 >>= marshalRet pr)
 
@@ -200,7 +201,7 @@ defMethod2 name f = MethodMember $ Method name
    untag (mIOType :: Tagged t1 TypeName),
    untag (mIOType :: Tagged t2 TypeName)]
   (marshalFunc2 $ \p0 p1 p2 pr -> do
-    v0 <- mInFunc p0
+    v0 <- mInThis p0
     v1 <- mInFunc p1
     v2 <- mInFunc p2
     f v0 v1 v2 >>= marshalRet pr)
@@ -217,7 +218,7 @@ defMethod3 name f = MethodMember $ Method name
    untag (mIOType :: Tagged t2 TypeName),
    untag (mIOType :: Tagged t3 TypeName)]
   (marshalFunc3 $ \p0 p1 p2 p3 pr -> do
-    v0 <- mInFunc p0
+    v0 <- mInThis p0
     v1 <- mInFunc p1
     v2 <- mInFunc p2
     v3 <- mInFunc p3
@@ -244,7 +245,7 @@ defPropertyRO ::
   String -> (ObjRef tt -> IO tr) -> Member tt
 defPropertyRO name g = PropertyMember $ Property name
   (untag (mIOType :: Tagged tr TypeName))
-  (marshalFunc0 $ \p0 pr -> mInFunc p0 >>= g >>= mOutFunc pr)
+  (marshalFunc0 $ \p0 pr -> mInThis p0 >>= g >>= mOutFunc pr)
   Nothing
 
 -- | Defines a named read-write property using a pair of 
@@ -254,15 +255,20 @@ defPropertyRW ::
   String -> (ObjRef tt -> IO tr) -> (ObjRef tt -> tr -> IO ()) -> Member tt
 defPropertyRW name g s = PropertyMember $ Property name
   (untag (mIOType :: Tagged tr TypeName))
-  (marshalFunc0 $ \p0 pr -> mInFunc p0 >>= g >>= mOutFunc pr)
+  (marshalFunc0 $ \p0 pr -> mInThis p0 >>= g >>= mOutFunc pr)
   (Just $ marshalFunc1 $ \p0 p1 _ -> do
-    v0 <- mInFunc p0
+    v0 <- mInThis p0
     v1 <- mInFunc p1
     s v0 v1)
 
 --
 -- ???
 --
+
+mInThis :: forall a. Ptr () -> IO (ObjRef a)
+mInThis ptr = do
+  hndl <- hsqmlGetObjectHandle ptr
+  return $ ObjRef hndl
 
 marshalFunc0 :: (Ptr () -> Ptr () -> IO ()) -> UniformFunc
 marshalFunc0 f p0 pv = do

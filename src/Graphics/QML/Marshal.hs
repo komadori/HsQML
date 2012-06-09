@@ -13,12 +13,21 @@ module Graphics.QML.Marshal (
 import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.PrimValues
 
+import Data.Char
 import Data.Maybe
 import Data.Tagged
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Foreign as T
 import Foreign.C.Types
+import Foreign.C.String
+import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
-import Network.URI (URI, parseURIReference, uriToString)
+import Network.URI (
+    URI (URI), URIAuth (URIAuth),
+    parseURIReference, unEscapeString,
+    uriToString, escapeURIString, nullURI)
 
 --
 -- ()/void built-in type
@@ -67,18 +76,38 @@ instance MarshalIn Double where
   }
 
 --
+-- Text/QString built-in type
+--
+
+instance MarshalOut Text where
+  mOutFunc ptr txt = do
+    array <- hsqmlMarshalString
+        (T.lengthWord16 txt) (HsQMLStringHandle $ castPtr ptr)
+    T.unsafeCopyToPtr txt (castPtr array)
+  mOutSize = Tagged hsqmlStringSize
+
+instance MarshalIn Text where
+  mIn = InMarshaller {
+    mInFuncFld = \ptr -> do
+      pair <- alloca (\bufPtr -> do
+        len <- hsqmlUnmarshalString (HsQMLStringHandle $ castPtr ptr) bufPtr
+        buf <- peek bufPtr
+        return (castPtr buf, fromIntegral len))
+      uncurry T.fromPtr pair,
+    mIOTypeFld = Tagged $ TypeName "QString"
+  }
+
+--
 -- String/QString built-in type
 --
 
 instance MarshalOut String where
-  mOutFunc ptr str =
-    hsqmlMarshalString str (HsQMLStringHandle $ castPtr ptr)
+  mOutFunc ptr str = mOutFunc ptr $ T.pack str
   mOutSize = Tagged hsqmlStringSize
 
 instance MarshalIn String where
   mIn = InMarshaller {
-    mInFuncFld = \ptr ->
-      hsqmlUnmarshalString (HsQMLStringHandle $ castPtr ptr),
+    mInFuncFld = fmap T.unpack . mInFuncFld mIn,
     mIOTypeFld = Tagged $ TypeName "QString"
   }
 
@@ -86,15 +115,30 @@ instance MarshalIn String where
 -- URI/QUrl built-in type
 --
 
+mapURIStrings :: (String -> String) -> URI -> URI
+mapURIStrings f (URI scheme auth path query frag) =
+    URI (f scheme) (mapAuth auth) (f path) (f query) (f frag)
+    where mapAuth (Just (URIAuth user name port)) =
+              Just $ URIAuth (f user) (f name) (f port)
+          mapAuth Nothing = Nothing
+
 instance MarshalOut URI where
   mOutFunc ptr uri =
-    hsqmlMarshalUrl (uriToString id uri "") (HsQMLUrlHandle $ castPtr ptr)
+    let str = uriToString id (mapURIStrings (escapeURIString isLatin1) uri) ""
+    in withCStringLen str (\(buf, bufLen) ->
+         hsqmlMarshalUrl buf bufLen (HsQMLUrlHandle $ castPtr ptr))
   mOutSize = Tagged hsqmlUrlSize
 
 instance MarshalIn URI where
   mIn = InMarshaller {
-    mInFuncFld = \ptr ->
-      hsqmlUnmarshalUrl (HsQMLUrlHandle $ castPtr ptr) >>=
-        return . fromJust . parseURIReference,
+    mInFuncFld = \ptr -> do
+      pair <- alloca (\bufPtr -> do
+        len <- hsqmlUnmarshalUrl (HsQMLUrlHandle $ castPtr ptr) bufPtr
+        buf <- peek bufPtr
+        return (castPtr buf, fromIntegral len))
+      str <- peekCStringLen pair
+      free $ fst pair
+      return $ mapURIStrings unEscapeString $
+        fromMaybe nullURI $ parseURIReference str,
     mIOTypeFld = Tagged $ TypeName "QUrl"
   }

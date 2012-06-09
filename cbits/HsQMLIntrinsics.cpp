@@ -20,25 +20,20 @@ extern "C" void hsqml_deinit_string(HsQMLStringHandle* hndl)
   string->~QString();
 }
 
-extern "C" void hsqml_marshal_string(
-  const wchar_t* buf, int bufLen, HsQMLStringHandle* hndl)
+extern "C" UTF16* hsqml_marshal_string(
+  int bufLen, HsQMLStringHandle* hndl)
 {
   QString* string = (QString*)hndl;
-  *string = QString::fromWCharArray(buf, bufLen);
-}
-
-extern "C" int hsqml_unmarshal_string_maxlen(
-  HsQMLStringHandle* hndl)
-{
-  QString* string = (QString*)hndl;
-  return string->length();
+  string->resize(bufLen);
+  return reinterpret_cast<UTF16*>(string->data());
 }
 
 extern "C" int hsqml_unmarshal_string(
-  HsQMLStringHandle* hndl, wchar_t* buf)
+  HsQMLStringHandle* hndl, UTF16** bufPtr)
 {
   QString* string = (QString*)hndl;
-  return string->toWCharArray(buf);
+  *bufPtr = reinterpret_cast<UTF16*>(string->data());
+  return string->length();
 }
 
 /* URL */
@@ -55,18 +50,23 @@ extern "C" void hsqml_deinit_url(HsQMLUrlHandle* hndl)
   url->~QUrl();
 }
 
-extern "C" void hsqml_string_to_url(
-  HsQMLStringHandle* shndl, HsQMLUrlHandle* uhndl)
+extern "C" void hsqml_marshal_url(
+  char* buf, int bufLen, HsQMLUrlHandle* hndl)
 {
-  QString* string = (QString*)shndl;
-  QUrl* url = (QUrl*)uhndl;
-  *url = QUrl(*string);
+  QUrl* url = (QUrl*)hndl;
+  QByteArray cstr;
+  cstr.setRawData(buf, bufLen);
+  *url = QUrl::fromEncoded(cstr);
 }
 
-extern "C" void hsqml_url_to_string(
-  HsQMLUrlHandle* uhndl, HsQMLStringHandle* shndl)
+extern "C" int hsqml_unmarshal_url(
+  HsQMLUrlHandle* hndl, char** bufPtr)
 {
-  QUrl* url = (QUrl*)uhndl;
-  QString* string = (QString*)shndl;
-  *string = url->toString();
+  QUrl* url = (QUrl*)hndl;
+  QByteArray cstr = url->toEncoded();
+  int bufLen = cstr.length();
+  char* buf = reinterpret_cast<char*>(malloc(bufLen));
+  memcpy(buf, cstr.data(), bufLen);
+  *bufPtr = buf;
+  return bufLen;
 }
