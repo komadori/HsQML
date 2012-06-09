@@ -28,9 +28,11 @@ public:
     bool visible() const;
     void setVisible(bool);
     Q_PROPERTY(bool visible READ visible WRITE setVisible);
+    Q_SCRIPTABLE void close();
 
 private:
     Q_SLOT void completeSetSource();
+    Q_SLOT void completeClose();
     HsQMLEngine* mEngine;
     QDeclarativeContext mContext;
     QMainWindow mWindow;

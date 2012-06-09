@@ -88,3 +88,14 @@ void HsQMLWindow::setVisible(bool visible)
 {
   mWindow.setVisible(visible);
 }
+
+void HsQMLWindow::close()
+{
+  QMetaObject::invokeMethod(
+    this, "completeClose", Qt::QueuedConnection);
+}
+
+void HsQMLWindow::completeClose()
+{
+  delete this;
+}
