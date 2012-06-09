@@ -51,6 +51,9 @@ data TestObject = TestObject deriving (Eq, Typeable)
 instance Object TestObject where
     classDef = defClass []
 
+instance MarshalIn TestObject where
+    mIn = objectInMarshaller
+
 instance Object HarnessObject where
     classDef = defClass [
         defMethod0 "getInt" (\go -> do
@@ -90,7 +93,7 @@ instance Object HarnessObject where
             newObject TestObject),
         defMethod1 "setObject" (\go i -> do
             markTaskComplete (fromObjRef go) "setObject"
-            if (fromObjRef i == TestObject)
+            if (i == TestObject)
             then markTaskComplete (fromObjRef go) "setObjectCorrect"
             else return ())]
 

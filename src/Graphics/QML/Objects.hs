@@ -1,6 +1,7 @@
 {-# LANGUAGE
     ScopedTypeVariables,
-    TypeFamilies
+    TypeFamilies,
+    FlexibleContexts
   #-}
 
 -- | Facilities for defining new object types which can be marshalled between
@@ -10,6 +11,11 @@ module Graphics.QML.Objects (
   ObjRef,
   newObject,
   fromObjRef,
+  objectInMarshaller,
+  MarshalThis (
+    type ThisObj,
+    mThis),
+  objectThisMarshaller,
 
   -- * Classes
   Object (
@@ -54,6 +60,22 @@ import Numeric
 -- ObjRef
 --
 
+-- | The class 'MarshalThis' allows objects to be marshalled back into
+-- Haskell as the \"this\" value for callbacks.
+class (Object (ThisObj tt)) => MarshalThis tt where
+  type ThisObj tt
+  mThis :: ThisMarshaller tt
+
+-- | Encapsulates the functionality to needed to implement an instance of
+-- 'MarshalThis' so that such instances can be defined without access to
+-- implementation details.
+data ThisMarshaller tt = ThisMarshaller {
+  mThisFuncFld :: Ptr () -> IO tt
+}
+
+mThisFunc :: (MarshalThis tt) => Ptr () -> IO tt
+mThisFunc = mThisFuncFld mThis
+
 instance (Object tt) => MarshalOut (ObjRef tt) where
   mOutFunc ptr obj = do
     objPtr <- hsqmlObjectGetPointer $ objHndl obj
@@ -67,6 +89,53 @@ instance (Object tt) => MarshalIn (ObjRef tt) where
       hndl <- hsqmlGetObjectHandle objPtr
       return $ ObjRef hndl,
     mIOTypeFld = Tagged $ TypeName "QObject*"
+  }
+
+instance (Object tt) => MarshalThis (ObjRef tt) where
+  type ThisObj (ObjRef tt) = tt
+  mThis = ThisMarshaller {
+      mThisFuncFld = \ptr -> do
+      hndl <- hsqmlGetObjectHandle ptr
+      return $ ObjRef hndl
+  }
+
+retagType :: Tagged (ObjRef tt) TypeName -> Tagged tt TypeName
+retagType = retag
+
+-- | Provides an 'InMarshaller' which allows you to define instances of
+-- 'MarshalIn' for custom object types. For example:
+--
+-- @
+-- instance MarshalIn MyObjectType where
+--     mIn = objectInMarshaller
+-- @
+--
+-- This instance would allow @MyObjectType@ to be used as a parameter type
+-- in callbacks. An instance is provided for @'ObjRef' MyObjectType@ by
+-- default.
+objectInMarshaller :: (Object tt) => InMarshaller tt
+objectInMarshaller =
+  InMarshaller {
+    mInFuncFld = fmap fromObjRef . mInFunc,
+    mIOTypeFld = retagType mIOType
+  }
+
+-- | Provides an 'ThisMarshaller' which allows you to define instances of
+-- 'MarshalThis' for custom object types. For example:
+--
+-- @
+-- instance MarshalThis MyObjectType where
+--     type (ThisObj MyObjectType) = MyObjectType
+--     mIn = objectInMarshaller
+-- @
+--
+-- This instance would allow @MyObjectType@ to be used as the \"this\" type
+-- for callbacks. An instance is provided for @'ObjRef' MyObjectType@ by
+-- default.
+objectThisMarshaller :: (Object tt, (ThisObj tt) ~ tt) => ThisMarshaller tt
+objectThisMarshaller =
+  ThisMarshaller {
+    mThisFuncFld = fmap fromObjRef . mThisFunc
   }
 
 -- | Creates an instance of a QML class given a value of the underlying Haskell 
@@ -173,56 +242,56 @@ data Method tt = Method {
 
 -- | Defines a named method using an impure nullary function.
 defMethod0 ::
-  forall tt tr. (Object tt, MarshalOut tr) =>
-  String -> (ObjRef tt -> IO tr) -> Member tt
+  forall tt tr. (MarshalThis tt, MarshalOut tr) =>
+  String -> (tt -> IO tr) -> Member (ThisObj tt)
 defMethod0 name f = MethodMember $ Method name
   [untag (mIOType :: Tagged tr TypeName)]
-  (marshalFunc0 $ \p0 pr -> mInThis p0 >>= f >>= marshalRet pr)
+  (marshalFunc0 $ \pt pr -> mThisFunc pt >>= f >>= marshalRet pr)
 
 -- | Defines a named method using an impure unary function.
 defMethod1 ::
-  forall tt t1 tr. (Object tt, MarshalIn t1, MarshalOut tr) =>
-  String -> (ObjRef tt -> t1 -> IO tr) -> Member tt
+  forall tt t1 tr. (MarshalThis tt, MarshalIn t1, MarshalOut tr) =>
+  String -> (tt -> t1 -> IO tr) -> Member (ThisObj tt)
 defMethod1 name f = MethodMember $ Method name
   [untag (mIOType :: Tagged tr TypeName),
    untag (mIOType :: Tagged t1 TypeName)]
-  (marshalFunc1 $ \p0 p1 pr -> do
-    v0 <- mInThis p0
+  (marshalFunc1 $ \pt p1 pr -> do
+    vt <- mThisFunc pt
     v1 <- mInFunc p1
-    f v0 v1 >>= marshalRet pr)
+    f vt v1 >>= marshalRet pr)
 
 -- | Defines a named method using an impure binary function.
 defMethod2 ::
   forall tt t1 t2 tr.
-  (Object tt, MarshalIn t1, MarshalIn t2, MarshalOut tr) =>
-  String -> (ObjRef tt -> t1 -> t2 -> IO tr) -> Member tt
+  (MarshalThis tt, MarshalIn t1, MarshalIn t2, MarshalOut tr) =>
+  String -> (tt -> t1 -> t2 -> IO tr) -> Member (ThisObj tt)
 defMethod2 name f = MethodMember $ Method name
   [untag (mIOType :: Tagged tr TypeName),
    untag (mIOType :: Tagged t1 TypeName),
    untag (mIOType :: Tagged t2 TypeName)]
-  (marshalFunc2 $ \p0 p1 p2 pr -> do
-    v0 <- mInThis p0
+  (marshalFunc2 $ \pt p1 p2 pr -> do
+    vt <- mThisFunc pt
     v1 <- mInFunc p1
     v2 <- mInFunc p2
-    f v0 v1 v2 >>= marshalRet pr)
+    f vt v1 v2 >>= marshalRet pr)
 
 -- | Defines a named method using an impure function taking 3 arguments.
 defMethod3 ::
   forall tt t1 t2 t3 tr.
-  (Object tt, MarshalIn t1, MarshalIn t2, MarshalIn t3,
+  (MarshalThis tt, MarshalIn t1, MarshalIn t2, MarshalIn t3,
    MarshalOut tr) =>
-  String -> (ObjRef tt -> t1 -> t2 -> t3 -> IO tr) -> Member tt
+  String -> (tt -> t1 -> t2 -> t3 -> IO tr) -> Member (ThisObj tt)
 defMethod3 name f = MethodMember $ Method name
   [untag (mIOType :: Tagged tr TypeName),
    untag (mIOType :: Tagged t1 TypeName),
    untag (mIOType :: Tagged t2 TypeName),
    untag (mIOType :: Tagged t3 TypeName)]
-  (marshalFunc3 $ \p0 p1 p2 p3 pr -> do
-    v0 <- mInThis p0
+  (marshalFunc3 $ \pt p1 p2 p3 pr -> do
+    vt <- mThisFunc pt
     v1 <- mInFunc p1
     v2 <- mInFunc p2
     v3 <- mInFunc p3
-    f v0 v1 v2 v3 >>= marshalRet pr)
+    f vt v1 v2 v3 >>= marshalRet pr)
 
 --
 -- Property
@@ -241,62 +310,57 @@ data Property tt = Property {
 -- | Defines a named read-only property using an impure
 -- accessor function.
 defPropertyRO ::
-  forall tt tr. (Object tt, MarshalOut tr) =>
-  String -> (ObjRef tt -> IO tr) -> Member tt
+  forall tt tr. (MarshalThis tt, MarshalOut tr) =>
+  String -> (tt -> IO tr) -> Member (ThisObj tt)
 defPropertyRO name g = PropertyMember $ Property name
   (untag (mIOType :: Tagged tr TypeName))
-  (marshalFunc0 $ \p0 pr -> mInThis p0 >>= g >>= mOutFunc pr)
+  (marshalFunc0 $ \pt pr -> mThisFunc pt >>= g >>= mOutFunc pr)
   Nothing
 
 -- | Defines a named read-write property using a pair of 
 -- impure accessor and mutator functions.
 defPropertyRW ::
-  forall tt tr. (Object tt, MarshalOut tr) =>
-  String -> (ObjRef tt -> IO tr) -> (ObjRef tt -> tr -> IO ()) -> Member tt
+  forall tt tr. (MarshalThis tt, MarshalOut tr) =>
+  String -> (tt -> IO tr) -> (tt -> tr -> IO ()) -> Member (ThisObj tt)
 defPropertyRW name g s = PropertyMember $ Property name
   (untag (mIOType :: Tagged tr TypeName))
-  (marshalFunc0 $ \p0 pr -> mInThis p0 >>= g >>= mOutFunc pr)
-  (Just $ marshalFunc1 $ \p0 p1 _ -> do
-    v0 <- mInThis p0
+  (marshalFunc0 $ \pt pr -> mThisFunc pt >>= g >>= mOutFunc pr)
+  (Just $ marshalFunc1 $ \pt p1 _ -> do
+    vt <- mThisFunc pt
     v1 <- mInFunc p1
-    s v0 v1)
+    s vt v1)
 
 --
 -- ???
 --
 
-mInThis :: forall a. Ptr () -> IO (ObjRef a)
-mInThis ptr = do
-  hndl <- hsqmlGetObjectHandle ptr
-  return $ ObjRef hndl
-
 marshalFunc0 :: (Ptr () -> Ptr () -> IO ()) -> UniformFunc
-marshalFunc0 f p0 pv = do
+marshalFunc0 f pt pv = do
   pr <- peekElemOff pv 0
-  f p0 pr
+  f pt pr
 
 marshalFunc1 :: (Ptr () -> Ptr () -> Ptr () -> IO ()) -> UniformFunc
-marshalFunc1 f p0 pv = do
+marshalFunc1 f pt pv = do
   pr <- peekElemOff pv 0
   p1 <- peekElemOff pv 1
-  f p0 p1 pr
+  f pt p1 pr
 
 marshalFunc2 ::
   (Ptr () -> Ptr () -> Ptr () -> Ptr () -> IO ()) -> UniformFunc
-marshalFunc2 f p0 pv = do
+marshalFunc2 f pt pv = do
   pr <- peekElemOff pv 0
   p1 <- peekElemOff pv 1
   p2 <- peekElemOff pv 2
-  f p0 p1 p2 pr
+  f pt p1 p2 pr
 
 marshalFunc3 ::
   (Ptr () -> Ptr () -> Ptr () -> Ptr () -> Ptr () -> IO ()) -> UniformFunc
-marshalFunc3 f p0 pv = do
+marshalFunc3 f pt pv = do
   pr <- peekElemOff pv 0
   p1 <- peekElemOff pv 1
   p2 <- peekElemOff pv 2
   p3 <- peekElemOff pv 3
-  f p0 p1 p2 p3 pr
+  f pt p1 p2 p3 pr
 
 marshalRet :: (MarshalOut tt) => Ptr () -> tt -> IO ()
 marshalRet ptr obj
