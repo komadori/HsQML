@@ -13,48 +13,48 @@ Category:            Graphics
 Synopsis:            Haskell bindings for Qt Quick
 Extra-source-files:  cbits
 Description:
-  A Haskell binding for Qt Quick.
+    A Haskell binding for Qt Quick.
 
-  General documentation is present in the 'Graphics.QML' module.
+    General documentation is present in the 'Graphics.QML' module.
 
 Library
-  Default-language: Haskell2010
-  Build-depends:
-    base >= 4 && < 5,
-    containers >= 0.4 && < 0.5,
-    network >= 2.3 && < 2.4,
-    text >= 0.11 && < 0.12,
-    tagged >= 0.4 && < 0.5,
-    transformers >= 0.2 && < 0.4
-  Exposed-modules:
-    Graphics.QML
-    Graphics.QML.Debug
-    Graphics.QML.Engine
-    Graphics.QML.Marshal
-    Graphics.QML.Objects
-  Other-modules:
-    Graphics.QML.Internal.Marshal
-    Graphics.QML.Internal.Objects
-    Graphics.QML.Internal.PrimValues
-    Graphics.QML.Internal.Engine
-  Hs-source-dirs: src
-  Cc-options: -std=c++0x
-  C-sources:
-    cbits/HsQMLClass.cpp
-    cbits/HsQMLEngine.cpp
-    cbits/HsQMLIntrinsics.cpp
-    cbits/HsQMLManager.cpp
-    cbits/HsQMLObject.cpp
-    cbits/HsQMLWindow.cpp
-  Include-dirs: cbits
-  X-moc-headers:
-    cbits/HsQMLEngine.h
-    cbits/HsQMLManager.h
-    cbits/HsQMLWindow.h
-  X-separate-cbits: True
-  Build-tools: c2hs
-  Pkgconfig-depends:
-    QtDeclarative >= 4.7
+    Default-language: Haskell2010
+    Build-depends:
+        base         == 4.*,
+        containers   == 0.4.*,
+        network      == 2.3.*,
+        text         == 0.11.*,
+        tagged       == 0.4.*,
+        transformers >= 0.2 && < 0.4
+    Exposed-modules:
+        Graphics.QML
+        Graphics.QML.Debug
+        Graphics.QML.Engine
+        Graphics.QML.Marshal
+        Graphics.QML.Objects
+    Other-modules:
+        Graphics.QML.Internal.Marshal
+        Graphics.QML.Internal.Objects
+        Graphics.QML.Internal.PrimValues
+        Graphics.QML.Internal.Engine
+    Hs-source-dirs: src
+    Cc-options: -std=c++0x
+    C-sources:
+        cbits/HsQMLClass.cpp
+        cbits/HsQMLEngine.cpp
+        cbits/HsQMLIntrinsics.cpp
+        cbits/HsQMLManager.cpp
+        cbits/HsQMLObject.cpp
+        cbits/HsQMLWindow.cpp
+    Include-dirs: cbits
+    X-moc-headers:
+        cbits/HsQMLEngine.h
+        cbits/HsQMLManager.h
+        cbits/HsQMLWindow.h
+    X-separate-cbits: True
+    Build-tools: c2hs
+    Pkgconfig-depends:
+        QtDeclarative >= 4.7
 
 Test-Suite hsqml-test1
     Type: exitcode-stdio-1.0
