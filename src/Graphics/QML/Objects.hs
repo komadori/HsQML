@@ -40,6 +40,7 @@ import Graphics.QML.Internal.Objects
 import Graphics.QML.Internal.Engine
 
 import Control.Monad
+import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.State
 import Data.Bits
 import Data.Char
@@ -84,10 +85,12 @@ instance (Object tt) => MarshalOut (ObjRef tt) where
 
 instance (Object tt) => MarshalIn (ObjRef tt) where
   mIn = InMarshaller {
-    mInFuncFld = \ptr -> do
+    mInFuncFld = \ptr -> MaybeT $ do
       objPtr <- peek (castPtr ptr)
-      hndl <- hsqmlGetObjectHandle objPtr
-      return $ ObjRef hndl,
+      hndl <- hsqmlGetObjectHandle objPtr $
+        Just $ classHndl (classDef :: ClassDef tt)
+      return $ if isNullObjectHandle hndl
+        then Nothing else Just $ ObjRef hndl,
     mIOTypeFld = Tagged $ TypeName "QObject*"
   }
 
@@ -95,7 +98,7 @@ instance (Object tt) => MarshalThis (ObjRef tt) where
   type ThisObj (ObjRef tt) = tt
   mThis = ThisMarshaller {
       mThisFuncFld = \ptr -> do
-      hndl <- hsqmlGetObjectHandle ptr
+      hndl <- hsqmlGetObjectHandle ptr Nothing
       return $ ObjRef hndl
   }
 
@@ -255,10 +258,10 @@ defMethod1 ::
 defMethod1 name f = MethodMember $ Method name
   [untag (mIOType :: Tagged tr TypeName),
    untag (mIOType :: Tagged t1 TypeName)]
-  (marshalFunc1 $ \pt p1 pr -> do
-    vt <- mThisFunc pt
+  (marshalFunc1 $ \pt p1 pr -> runErrIO $ do
+    vt <- errIO $ mThisFunc pt
     v1 <- mInFunc p1
-    f vt v1 >>= marshalRet pr)
+    errIO $ f vt v1 >>= marshalRet pr)
 
 -- | Defines a named method using an impure binary function.
 defMethod2 ::
@@ -269,11 +272,11 @@ defMethod2 name f = MethodMember $ Method name
   [untag (mIOType :: Tagged tr TypeName),
    untag (mIOType :: Tagged t1 TypeName),
    untag (mIOType :: Tagged t2 TypeName)]
-  (marshalFunc2 $ \pt p1 p2 pr -> do
-    vt <- mThisFunc pt
+  (marshalFunc2 $ \pt p1 p2 pr -> runErrIO $ do
+    vt <- errIO $ mThisFunc pt
     v1 <- mInFunc p1
     v2 <- mInFunc p2
-    f vt v1 v2 >>= marshalRet pr)
+    errIO $ f vt v1 v2 >>= marshalRet pr)
 
 -- | Defines a named method using an impure function taking 3 arguments.
 defMethod3 ::
@@ -286,12 +289,12 @@ defMethod3 name f = MethodMember $ Method name
    untag (mIOType :: Tagged t1 TypeName),
    untag (mIOType :: Tagged t2 TypeName),
    untag (mIOType :: Tagged t3 TypeName)]
-  (marshalFunc3 $ \pt p1 p2 p3 pr -> do
-    vt <- mThisFunc pt
+  (marshalFunc3 $ \pt p1 p2 p3 pr -> runErrIO $ do
+    vt <- errIO $ mThisFunc pt
     v1 <- mInFunc p1
     v2 <- mInFunc p2
     v3 <- mInFunc p3
-    f vt v1 v2 v3 >>= marshalRet pr)
+    errIO $ f vt v1 v2 v3 >>= marshalRet pr)
 
 --
 -- Property
@@ -325,10 +328,10 @@ defPropertyRW ::
 defPropertyRW name g s = PropertyMember $ Property name
   (untag (mIOType :: Tagged tr TypeName))
   (marshalFunc0 $ \pt pr -> mThisFunc pt >>= g >>= mOutFunc pr)
-  (Just $ marshalFunc1 $ \pt p1 _ -> do
-    vt <- mThisFunc pt
+  (Just $ marshalFunc1 $ \pt p1 _ -> runErrIO $ do
+    vt <- errIO $ mThisFunc pt
     v1 <- mInFunc p1
-    s vt v1)
+    errIO $ s vt v1)
 
 --
 -- ???

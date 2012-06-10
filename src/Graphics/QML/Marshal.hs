@@ -55,7 +55,7 @@ instance MarshalOut Int where
 instance MarshalIn Int where
   mIn = InMarshaller {
     mInFuncFld = \ptr ->
-      peek (castPtr ptr :: Ptr CInt) >>= return . fromIntegral,
+      errIO $ peek (castPtr ptr :: Ptr CInt) >>= return . fromIntegral,
     mIOTypeFld = Tagged $ TypeName "int"
   }
 
@@ -71,7 +71,7 @@ instance MarshalOut Double where
 instance MarshalIn Double where
   mIn = InMarshaller {
     mInFuncFld = \ptr ->
-      peek (castPtr ptr :: Ptr CDouble) >>= return . realToFrac,
+      errIO $ peek (castPtr ptr :: Ptr CDouble) >>= return . realToFrac,
     mIOTypeFld = Tagged $ TypeName "double"
   }
 
@@ -88,7 +88,7 @@ instance MarshalOut Text where
 
 instance MarshalIn Text where
   mIn = InMarshaller {
-    mInFuncFld = \ptr -> do
+    mInFuncFld = \ptr -> errIO $ do
       pair <- alloca (\bufPtr -> do
         len <- hsqmlUnmarshalString (HsQMLStringHandle $ castPtr ptr) bufPtr
         buf <- peek bufPtr
@@ -131,7 +131,7 @@ instance MarshalOut URI where
 
 instance MarshalIn URI where
   mIn = InMarshaller {
-    mInFuncFld = \ptr -> do
+    mInFuncFld = \ptr -> errIO $ do
       pair <- alloca (\bufPtr -> do
         len <- hsqmlUnmarshalUrl (HsQMLUrlHandle $ castPtr ptr) bufPtr
         buf <- peek bufPtr

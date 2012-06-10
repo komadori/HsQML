@@ -50,6 +50,11 @@ newObjectHandle p = do
   fp <- newForeignPtr hsqmlFinaliseObjectHandlePtr p
   return $ HsQMLObjectHandle fp
 
+isNullObjectHandle :: HsQMLObjectHandle -> Bool
+isNullObjectHandle (HsQMLObjectHandle fp) =
+  let p = unsafeForeignPtrToPtr fp
+  in castPtr p == nullPtr
+
 -- | Represents an instance of the QML class which wraps the type @tt@.
 data ObjRef tt = ObjRef {
   objHndl :: HsQMLObjectHandle
@@ -78,8 +83,14 @@ ptrToObj =
   {withHsQMLObjectHandle* `HsQMLObjectHandle'} ->
   `Ptr ()' id #}
 
+withMaybeHsQMLClassHandle ::
+    Maybe HsQMLClassHandle -> (Ptr HsQMLClassHandle -> IO b) -> IO b
+withMaybeHsQMLClassHandle (Just (HsQMLClassHandle fptr)) = withForeignPtr fptr
+withMaybeHsQMLClassHandle Nothing = \f -> f nullPtr
+
 {#fun unsafe hsqml_get_object_handle as ^
-  {id `Ptr ()'} ->
+  {id `Ptr ()',
+   withMaybeHsQMLClassHandle* `Maybe HsQMLClassHandle'} ->
   `HsQMLObjectHandle' newObjectHandle* #}
 
 ofDynamicMetaObject :: CUInt

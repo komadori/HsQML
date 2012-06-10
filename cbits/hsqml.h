@@ -76,7 +76,7 @@ extern void* hsqml_object_get_pointer(
     HsQMLObjectHandle*);
 
 extern HsQMLObjectHandle* hsqml_get_object_handle(
-    void*);
+    void*, HsQMLClassHandle*);
 
 extern void hsqml_finalise_object_handle(
     HsQMLObjectHandle*);
