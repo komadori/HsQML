@@ -7,17 +7,7 @@
 -- | Facilities for defining new object types which can be marshalled between
 -- Haskell and QML.
 module Graphics.QML.Objects (
-  -- * Objects
-  ObjRef,
-  newObject,
-  fromObjRef,
-  objectInMarshaller,
-  MarshalThis (
-    type ThisObj,
-    mThis),
-  objectThisMarshaller,
-
-  -- * Classes
+  -- * Class Definition
   Object (
     classDef),
   ClassDef,
@@ -33,6 +23,18 @@ module Graphics.QML.Objects (
   -- * Properties
   defPropertyRO,
   defPropertyRW,
+
+  -- * Object References
+  ObjRef,
+  newObject,
+  fromObjRef,
+
+  -- * Marshalling Type-classes
+  objectInMarshaller,
+  MarshalThis (
+    type ThisObj,
+    mThis),
+  objectThisMarshaller
 ) where
 
 import Graphics.QML.Internal.Marshal
