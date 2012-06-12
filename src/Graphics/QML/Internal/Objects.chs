@@ -52,8 +52,7 @@ newObjectHandle p = do
 
 isNullObjectHandle :: HsQMLObjectHandle -> Bool
 isNullObjectHandle (HsQMLObjectHandle fp) =
-  let p = unsafeForeignPtrToPtr fp
-  in castPtr p == nullPtr
+  nullPtr == unsafeForeignPtrToPtr fp
 
 -- | Represents an instance of the QML class which wraps the type @tt@.
 data ObjRef tt = ObjRef {
