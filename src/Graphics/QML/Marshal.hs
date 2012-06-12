@@ -30,20 +30,6 @@ import Network.URI (
     uriToString, escapeURIString, nullURI)
 
 --
--- ()/void built-in type
---
-
-instance MarshalOut () where
-  mOutFunc _ _ = return ()
-  mOutSize     = Tagged 0
-
-instance MarshalIn () where
-  mIn = InMarshaller {
-    mInFuncFld = \_ -> return (),
-    mIOTypeFld = Tagged $ TypeName ""
-  }
-
---
 -- Int/int built-in type
 --
 

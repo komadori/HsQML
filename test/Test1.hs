@@ -56,42 +56,42 @@ instance MarshalIn TestObject where
 
 instance Object HarnessObject where
     classDef = defClass [
-        defMethod0 "getInt" (\go -> do
+        defMethod "getInt" (\go -> do
             markTaskComplete (fromObjRef go) "getInt"
             return testInt),
-        defMethod1 "setInt" (\go i -> do
+        defMethod "setInt" (\go i -> do
             markTaskComplete (fromObjRef go) "setInt"
             if (i == testInt)
             then markTaskComplete (fromObjRef go) "setIntCorrect"
             else return ()),
-        defMethod0 "getDouble" (\go -> do
+        defMethod "getDouble" (\go -> do
             markTaskComplete (fromObjRef go) "getDouble"
             return testDouble),
-        defMethod1 "setDouble" (\go i -> do
+        defMethod "setDouble" (\go i -> do
             markTaskComplete (fromObjRef go) "setDouble"
             if (i == testDouble)
             then markTaskComplete (fromObjRef go) "setDoubleCorrect"
             else return ()),
-        defMethod0 "getString" (\go -> do
+        defMethod "getString" (\go -> do
             markTaskComplete (fromObjRef go) "getString"
             return testString),
-        defMethod1 "setString" (\go i -> do
+        defMethod "setString" (\go i -> do
             markTaskComplete (fromObjRef go) "setString"
             if (i == testString)
             then markTaskComplete (fromObjRef go) "setStringCorrect"
             else return ()),
-        defMethod0 "getURI" (\go -> do
+        defMethod "getURI" (\go -> do
             markTaskComplete (fromObjRef go) "getURI"
             return testURI),
-        defMethod1 "setURI" (\go i -> do
+        defMethod "setURI" (\go i -> do
             markTaskComplete (fromObjRef go) "setURI"
             if (i == testURI)
             then markTaskComplete (fromObjRef go) "setURICorrect"
             else return ()),
-        defMethod0 "getObject" (\go -> do
+        defMethod "getObject" (\go -> do
             markTaskComplete (fromObjRef go) "getObject"
             newObject TestObject),
-        defMethod1 "setObject" (\go i -> do
+        defMethod "setObject" (\go i -> do
             markTaskComplete (fromObjRef go) "setObject"
             if (i == TestObject)
             then markTaskComplete (fromObjRef go) "setObjectCorrect"

@@ -15,10 +15,8 @@ module Graphics.QML.Objects (
   defClass,
 
   -- * Methods
-  defMethod0,
-  defMethod1,
-  defMethod2,
-  defMethod3,
+  defMethod,
+  MethodSuffix,
 
   -- * Properties
   defPropertyRO,
@@ -245,58 +243,63 @@ data Method tt = Method {
   methodFunc  :: UniformFunc
 }
 
--- | Defines a named method using an impure nullary function.
-defMethod0 ::
-  forall tt tr. (MarshalThis tt, MarshalOut tr) =>
-  String -> (tt -> IO tr) -> Member (ThisObj tt)
-defMethod0 name f = MethodMember $ Method name
-  [untag (mIOType :: Tagged tr TypeName)]
-  (marshalFunc0 $ \pt pr -> mThisFunc pt >>= f >>= marshalRet pr)
+data CrudeMethodTypes = CrudeMethodTypes {
+    methodParamTypes :: [TypeName],
+    methodReturnType :: TypeName
+  }
 
--- | Defines a named method using an impure unary function.
-defMethod1 ::
-  forall tt t1 tr. (MarshalThis tt, MarshalIn t1, MarshalOut tr) =>
-  String -> (tt -> t1 -> IO tr) -> Member (ThisObj tt)
-defMethod1 name f = MethodMember $ Method name
-  [untag (mIOType :: Tagged tr TypeName),
-   untag (mIOType :: Tagged t1 TypeName)]
-  (marshalFunc1 $ \pt p1 pr -> runErrIO $ do
-    vt <- errIO $ mThisFunc pt
-    v1 <- mInFunc p1
-    errIO $ f vt v1 >>= marshalRet pr)
+crudeTypesToList :: CrudeMethodTypes -> [TypeName]
+crudeTypesToList (CrudeMethodTypes p r) = r:p
 
--- | Defines a named method using an impure binary function.
-defMethod2 ::
-  forall tt t1 t2 tr.
-  (MarshalThis tt, MarshalIn t1, MarshalIn t2, MarshalOut tr) =>
-  String -> (tt -> t1 -> t2 -> IO tr) -> Member (ThisObj tt)
-defMethod2 name f = MethodMember $ Method name
-  [untag (mIOType :: Tagged tr TypeName),
-   untag (mIOType :: Tagged t1 TypeName),
-   untag (mIOType :: Tagged t2 TypeName)]
-  (marshalFunc2 $ \pt p1 p2 pr -> runErrIO $ do
-    vt <- errIO $ mThisFunc pt
-    v1 <- mInFunc p1
-    v2 <- mInFunc p2
-    errIO $ f vt v1 v2 >>= marshalRet pr)
+-- | Supports marshalling Haskell functions with an arbitrary number of
+-- arguments.
+class MethodSuffix a where
+  mkMethodFunc  :: Int -> a -> Ptr (Ptr ()) -> ErrIO ()
+  mkMethodTypes :: Tagged a CrudeMethodTypes
 
--- | Defines a named method using an impure function taking 3 arguments.
-defMethod3 ::
-  forall tt t1 t2 t3 tr.
-  (MarshalThis tt, MarshalIn t1, MarshalIn t2, MarshalIn t3,
-   MarshalOut tr) =>
-  String -> (tt -> t1 -> t2 -> t3 -> IO tr) -> Member (ThisObj tt)
-defMethod3 name f = MethodMember $ Method name
-  [untag (mIOType :: Tagged tr TypeName),
-   untag (mIOType :: Tagged t1 TypeName),
-   untag (mIOType :: Tagged t2 TypeName),
-   untag (mIOType :: Tagged t3 TypeName)]
-  (marshalFunc3 $ \pt p1 p2 p3 pr -> runErrIO $ do
-    vt <- errIO $ mThisFunc pt
-    v1 <- mInFunc p1
-    v2 <- mInFunc p2
-    v3 <- mInFunc p3
-    errIO $ f vt v1 v2 v3 >>= marshalRet pr)
+instance (MarshalIn a, MethodSuffix b) => MethodSuffix (a -> b) where
+  mkMethodFunc n f pv = do
+    ptr <- errIO $ peekElemOff pv n
+    val <- mInFunc ptr
+    mkMethodFunc (n+1) (f val) pv
+    return ()
+  mkMethodTypes =
+    let (CrudeMethodTypes p r) =
+          untag (mkMethodTypes :: Tagged b CrudeMethodTypes)
+        ty = untag (mIOType :: Tagged a TypeName)
+    in Tagged $ CrudeMethodTypes (ty:p) r
+
+instance (MarshalOut a) => MethodSuffix (IO a) where
+  mkMethodFunc _ f pv = errIO $ do
+    ptr <- peekElemOff pv 0
+    val <- f
+    if nullPtr == ptr
+    then return ()
+    else mOutFunc ptr val
+  mkMethodTypes =
+    let ty = untag (mIOType :: Tagged a TypeName)
+    in Tagged $ CrudeMethodTypes [] ty
+
+mkUniformFunc :: forall tt ms. (MarshalThis tt, MethodSuffix ms) =>
+  (tt -> ms) -> UniformFunc
+mkUniformFunc f = \pt pv -> do
+  this <- mThisFunc pt
+  runErrIO $ mkMethodFunc 1 (f this) pv
+
+-- | Defines a named method using a function @f@ in the IO monad.
+--
+-- The first argument to @f@ receives the \"this\" object and hence must match
+-- the type of the class on which the method is being defined. Subsequently,
+-- there may be zero or more parameter arguments followed by an optional return
+-- argument in the IO monad. These argument types must be members of the
+-- 'MarshalThis', 'MarshalIn', and 'MarshalOut' typeclasses respectively.
+
+defMethod ::
+  forall tt ms. (MarshalThis tt, MethodSuffix ms) =>
+  String -> (tt -> ms) -> Member (ThisObj tt)
+defMethod name f = MethodMember $ Method name
+  (crudeTypesToList $ untag (mkMethodTypes :: Tagged ms CrudeMethodTypes))
+  (mkUniformFunc f)
 
 --
 -- Property
@@ -312,65 +315,29 @@ data Property tt = Property {
   propertyWriteFunc :: Maybe UniformFunc
 }
 
--- | Defines a named read-only property using an impure
--- accessor function.
+-- | Defines a named read-only property using an accessor function in the IO
+-- monad.
 defPropertyRO ::
   forall tt tr. (MarshalThis tt, MarshalOut tr) =>
   String -> (tt -> IO tr) -> Member (ThisObj tt)
 defPropertyRO name g = PropertyMember $ Property name
   (untag (mIOType :: Tagged tr TypeName))
-  (marshalFunc0 $ \pt pr -> mThisFunc pt >>= g >>= mOutFunc pr)
+  (mkUniformFunc g)
   Nothing
 
--- | Defines a named read-write property using a pair of 
--- impure accessor and mutator functions.
+-- | Defines a named read-write property using a pair of accessor and mutator
+-- functions in the IO monad.
 defPropertyRW ::
   forall tt tr. (MarshalThis tt, MarshalOut tr) =>
   String -> (tt -> IO tr) -> (tt -> tr -> IO ()) -> Member (ThisObj tt)
 defPropertyRW name g s = PropertyMember $ Property name
   (untag (mIOType :: Tagged tr TypeName))
-  (marshalFunc0 $ \pt pr -> mThisFunc pt >>= g >>= mOutFunc pr)
-  (Just $ marshalFunc1 $ \pt p1 _ -> runErrIO $ do
-    vt <- errIO $ mThisFunc pt
-    v1 <- mInFunc p1
-    errIO $ s vt v1)
+  (mkUniformFunc g)
+  (Just $ mkUniformFunc s)
 
 --
--- ???
+-- Meta Object Compiler
 --
-
-marshalFunc0 :: (Ptr () -> Ptr () -> IO ()) -> UniformFunc
-marshalFunc0 f pt pv = do
-  pr <- peekElemOff pv 0
-  f pt pr
-
-marshalFunc1 :: (Ptr () -> Ptr () -> Ptr () -> IO ()) -> UniformFunc
-marshalFunc1 f pt pv = do
-  pr <- peekElemOff pv 0
-  p1 <- peekElemOff pv 1
-  f pt p1 pr
-
-marshalFunc2 ::
-  (Ptr () -> Ptr () -> Ptr () -> Ptr () -> IO ()) -> UniformFunc
-marshalFunc2 f pt pv = do
-  pr <- peekElemOff pv 0
-  p1 <- peekElemOff pv 1
-  p2 <- peekElemOff pv 2
-  f pt p1 p2 pr
-
-marshalFunc3 ::
-  (Ptr () -> Ptr () -> Ptr () -> Ptr () -> Ptr () -> IO ()) -> UniformFunc
-marshalFunc3 f pt pv = do
-  pr <- peekElemOff pv 0
-  p1 <- peekElemOff pv 1
-  p2 <- peekElemOff pv 2
-  p3 <- peekElemOff pv 3
-  f pt p1 p2 p3 pr
-
-marshalRet :: (MarshalOut tt) => Ptr () -> tt -> IO ()
-marshalRet ptr obj
-  | ptr == nullPtr = return ()
-  | otherwise      = mOutFunc ptr obj
 
 data MOCState = MOCState {
   mData            :: [CUInt],
