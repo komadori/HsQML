@@ -91,7 +91,7 @@ instance (Object tt) => MarshalIn (ObjRef tt) where
     mInFuncFld = \ptr -> MaybeT $ do
       objPtr <- peek (castPtr ptr)
       hndl <- hsqmlGetObjectHandle objPtr $
-        Just $ classHndl (classDef :: ClassDef tt)
+        Just $ classHndl (classDefCAF :: ClassDef tt)
       return $ if isNullObjectHandle hndl
         then Nothing else Just $ ObjRef hndl,
     mIOTypeFld = Tagged $ TypeName "QObject*"
@@ -148,7 +148,7 @@ objectThisMarshaller =
 -- type @tt@.
 newObject :: forall tt. (Object tt) => tt -> IO (ObjRef tt)
 newObject obj = do
-  hndl <- hsqmlCreateObject obj $ classHndl (classDef :: ClassDef tt)
+  hndl <- hsqmlCreateObject obj $ classHndl (classDefCAF :: ClassDef tt)
   return $ ObjRef hndl
 
 -- | Returns the associated value of the underlying Haskell type @tt@ from an
@@ -163,9 +163,14 @@ fromObjRef =
 
 -- | The class 'Object' allows Haskell types to expose an object-oriented
 -- interface to QML. 
-{-# NOINLINE classDef #-}
 class (Typeable tt) => Object tt where
   classDef :: ClassDef tt
+
+-- | Uninlinable version of classDef to try and ensure that class definitions
+-- get stored as constant applicable forms.
+{-# NOINLINE classDefCAF #-}
+classDefCAF :: (Object tt) => ClassDef tt
+classDefCAF = classDef
 
 --
 -- ClassDef
@@ -181,7 +186,8 @@ data ClassDef tt = ClassDef {
 defClass :: forall tt. (Object tt) => [Member tt] -> ClassDef tt
 defClass ms = unsafePerformIO $ do
   let typ  = typeOf (undefined :: tt)
-      name = tyConString $ typeRepTyCon typ
+      con  = typeRepTyCon typ
+      name = showString (tyConModule con) $ showChar '.' $ tyConName con
   id <- hsqmlGetNextClassId
   createClass (showString name $ showChar '_' $ showInt id "") ms
 

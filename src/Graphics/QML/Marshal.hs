@@ -1,6 +1,7 @@
 {-# LANGUAGE
     ScopedTypeVariables,
-    TypeSynonymInstances
+    TypeSynonymInstances,
+    FlexibleInstances
   #-}
 
 -- | Type classs and instances for marshalling values between Haskell and QML.

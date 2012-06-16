@@ -6,7 +6,8 @@ module Graphics.QML.Internal.Objects where
 
 import Foreign.C.Types
 import Foreign.Ptr
-import Foreign.ForeignPtr
+import Foreign.ForeignPtr.Safe
+import Foreign.ForeignPtr.Unsafe
 import Foreign.StablePtr
 
 #include "hsqml.h"
