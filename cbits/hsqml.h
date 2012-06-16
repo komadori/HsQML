@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+#include <stddef.h>
 #include <HsFFI.h>
 
 /* Manager */
@@ -19,7 +20,7 @@ typedef char HsQMLStringHandle;
 
 typedef unsigned short UTF16;
 
-extern const int hsqml_string_size;
+extern size_t hsqml_get_string_size();
 
 extern void hsqml_init_string(
     HsQMLStringHandle*);
@@ -36,7 +37,7 @@ extern int hsqml_unmarshal_string(
 /* URL */
 typedef char HsQMLUrlHandle;
 
-extern const int hsqml_url_size;
+extern size_t hsqml_get_url_size();
 
 extern void hsqml_init_url(
     HsQMLUrlHandle*);
@@ -84,7 +85,10 @@ extern void hsqml_finalise_object_handle(
 /* Engine */
 extern void hsqml_create_engine(
     HsQMLObjectHandle*,
-    const char*);
+    HsQMLUrlHandle*,
+    int,
+    int,
+    HsQMLStringHandle*);
 
 #ifdef __cplusplus
 }

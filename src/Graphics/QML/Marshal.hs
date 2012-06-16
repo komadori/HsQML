@@ -1,4 +1,5 @@
 {-# LANGUAGE
+    ScopedTypeVariables,
     TypeSynonymInstances
   #-}
 
@@ -13,7 +14,6 @@ module Graphics.QML.Marshal (
 import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.PrimValues
 
-import Data.Char
 import Data.Maybe
 import Data.Tagged
 import Data.Text (Text)
@@ -27,7 +27,8 @@ import Foreign.Storable
 import Network.URI (
     URI (URI), URIAuth (URIAuth),
     parseURIReference, unEscapeString,
-    uriToString, escapeURIString, nullURI)
+    uriToString, escapeURIString, nullURI,
+    isUnescapedInURI)
 
 --
 -- Int/int built-in type
@@ -36,7 +37,9 @@ import Network.URI (
 instance MarshalOut Int where
   mOutFunc ptr int =
     poke (castPtr ptr :: Ptr CInt) (fromIntegral int)
-  mOutSize = Tagged $ sizeOf (0 :: CInt)
+  mOutAlloc num f =
+    alloca $ \(ptr :: Ptr CInt) ->
+      mOutFunc (castPtr ptr) num >> f (castPtr ptr)
 
 instance MarshalIn Int where
   mIn = InMarshaller {
@@ -52,7 +55,9 @@ instance MarshalIn Int where
 instance MarshalOut Double where
   mOutFunc ptr num =
     poke (castPtr ptr :: Ptr CDouble) (realToFrac num)
-  mOutSize = Tagged $ sizeOf (0 :: CDouble)
+  mOutAlloc num f =
+    alloca $ \(ptr :: Ptr CDouble) ->
+      mOutFunc (castPtr ptr) num >> f (castPtr ptr)
 
 instance MarshalIn Double where
   mIn = InMarshaller {
@@ -70,7 +75,13 @@ instance MarshalOut Text where
     array <- hsqmlMarshalString
         (T.lengthWord16 txt) (HsQMLStringHandle $ castPtr ptr)
     T.unsafeCopyToPtr txt (castPtr array)
-  mOutSize = Tagged hsqmlStringSize
+  mOutAlloc txt f =
+    allocaBytes hsqmlStringSize $ \ptr -> do
+      hsqmlInitString $ HsQMLStringHandle ptr
+      mOutFunc (castPtr ptr) txt
+      ret <- f (castPtr ptr)
+      hsqmlDeinitString $ HsQMLStringHandle ptr
+      return ret
 
 instance MarshalIn Text where
   mIn = InMarshaller {
@@ -89,7 +100,13 @@ instance MarshalIn Text where
 
 instance MarshalOut String where
   mOutFunc ptr str = mOutFunc ptr $ T.pack str
-  mOutSize = Tagged hsqmlStringSize
+  mOutAlloc txt f =
+    allocaBytes hsqmlStringSize $ \ptr -> do
+      hsqmlInitString $ HsQMLStringHandle ptr
+      mOutFunc (castPtr ptr) txt
+      ret <- f (castPtr ptr)
+      hsqmlDeinitString $ HsQMLStringHandle ptr
+      return ret
 
 instance MarshalIn String where
   mIn = InMarshaller {
@@ -110,10 +127,17 @@ mapURIStrings f (URI scheme auth path query frag) =
 
 instance MarshalOut URI where
   mOutFunc ptr uri =
-    let str = uriToString id (mapURIStrings (escapeURIString isLatin1) uri) ""
+    let str = uriToString id (mapURIStrings
+                (escapeURIString isUnescapedInURI) uri) ""
     in withCStringLen str (\(buf, bufLen) ->
          hsqmlMarshalUrl buf bufLen (HsQMLUrlHandle $ castPtr ptr))
-  mOutSize = Tagged hsqmlUrlSize
+  mOutAlloc uri f =
+    allocaBytes hsqmlUrlSize $ \ptr -> do
+      hsqmlInitUrl $ HsQMLUrlHandle ptr
+      mOutFunc (castPtr ptr) uri
+      ret <- f (castPtr ptr)
+      hsqmlDeinitUrl $ HsQMLUrlHandle ptr
+      return ret
 
 instance MarshalIn URI where
   mIn = InMarshaller {

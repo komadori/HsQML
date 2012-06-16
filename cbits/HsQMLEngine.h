@@ -11,8 +11,17 @@ class HsQMLWindow;
 
 struct HsQMLEngineConfig
 {
-    HsQMLObjectProxy* globalObject;
+    HsQMLEngineConfig()
+        : contextObject(NULL)
+        , showWindow(false)
+        , setWindowTitle(false)
+    {}
+
+    HsQMLObjectProxy* contextObject;
     QUrl initialURL;
+    bool showWindow;
+    bool setWindowTitle;
+    QString windowTitle;
 };
 
 class HsQMLEngine : public QObject

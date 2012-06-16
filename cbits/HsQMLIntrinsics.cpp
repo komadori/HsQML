@@ -7,7 +7,10 @@
 #include "hsqml.h"
 
 /* String */
-extern "C" const int hsqml_string_size = sizeof(QString);
+extern "C" size_t hsqml_get_string_size()
+{
+    return sizeof(QString);
+}
 
 extern "C" void hsqml_init_string(HsQMLStringHandle* hndl)
 {
@@ -37,7 +40,10 @@ extern "C" int hsqml_unmarshal_string(
 }
 
 /* URL */
-extern "C" const int hsqml_url_size = sizeof(QUrl);
+extern "C" size_t hsqml_get_url_size()
+{
+    return sizeof(QUrl);
+}
 
 extern "C" void hsqml_init_url(HsQMLUrlHandle* hndl)
 {
@@ -54,9 +60,8 @@ extern "C" void hsqml_marshal_url(
     char* buf, int bufLen, HsQMLUrlHandle* hndl)
 {
     QUrl* url = (QUrl*)hndl;
-    QByteArray cstr;
-    cstr.setRawData(buf, bufLen);
-    *url = QUrl::fromEncoded(cstr);
+    QByteArray cstr(buf, bufLen);
+    url->setEncodedUrl(cstr, QUrl::StrictMode);
 }
 
 extern "C" int hsqml_unmarshal_url(

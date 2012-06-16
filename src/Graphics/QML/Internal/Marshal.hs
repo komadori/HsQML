@@ -49,12 +49,12 @@ mIOType = mIOTypeFld mIn
 -- | The class 'MarshalOut' allows Haskell values to be converted into QML
 -- values.
 class (MarshalIn a) => MarshalOut a where
-  mOutFunc :: Ptr () -> a -> IO ()
-  mOutSize :: Tagged a Int
+  mOutFunc  :: Ptr () -> a -> IO ()
+  mOutAlloc :: a -> (Ptr () -> IO b) -> IO b
 
 instance MarshalOut () where
   mOutFunc _ _ = return ()
-  mOutSize     = Tagged 0
+  mOutAlloc _ f = f nullPtr
 
 instance MarshalIn () where
   mIn = InMarshaller {

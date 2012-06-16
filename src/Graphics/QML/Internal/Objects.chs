@@ -40,6 +40,16 @@ newClassHandle p =
    id `Ptr (FunPtr UniformFunc)'} ->
   `Maybe HsQMLClassHandle' newClassHandle* #}
 
+withMaybeHsQMLClassHandle ::
+    Maybe HsQMLClassHandle -> (Ptr HsQMLClassHandle -> IO b) -> IO b
+withMaybeHsQMLClassHandle (Just (HsQMLClassHandle fp)) = withForeignPtr fp
+withMaybeHsQMLClassHandle Nothing = \f -> f nullPtr
+
+withMaybeHsQMLObjectHandle ::
+    Maybe HsQMLObjectHandle -> (Ptr HsQMLObjectHandle -> IO b) -> IO b
+withMaybeHsQMLObjectHandle (Just (HsQMLObjectHandle fp)) = withForeignPtr fp
+withMaybeHsQMLObjectHandle Nothing = \f -> f nullPtr
+
 {#pointer *HsQMLObjectHandle as ^ foreign newtype #}
 
 foreign import ccall "hsqml.h &hsqml_finalise_object_handle"
@@ -81,11 +91,6 @@ ptrToObj =
 {#fun unsafe hsqml_object_get_pointer as ^
   {withHsQMLObjectHandle* `HsQMLObjectHandle'} ->
   `Ptr ()' id #}
-
-withMaybeHsQMLClassHandle ::
-    Maybe HsQMLClassHandle -> (Ptr HsQMLClassHandle -> IO b) -> IO b
-withMaybeHsQMLClassHandle (Just (HsQMLClassHandle fptr)) = withForeignPtr fptr
-withMaybeHsQMLClassHandle Nothing = \f -> f nullPtr
 
 {#fun unsafe hsqml_get_object_handle as ^
   {id `Ptr ()',

@@ -53,6 +53,7 @@ import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Ptr
 import Foreign.Storable
+import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import System.IO.Unsafe
 import Numeric
@@ -81,7 +82,9 @@ instance (Object tt) => MarshalOut (ObjRef tt) where
   mOutFunc ptr obj = do
     objPtr <- hsqmlObjectGetPointer $ objHndl obj
     poke (castPtr ptr) objPtr
-  mOutSize = Tagged $ sizeOf nullPtr
+  mOutAlloc obj f =
+    alloca $ \(ptr :: Ptr (Ptr ())) ->
+      mOutFunc (castPtr ptr) obj >> f (castPtr ptr)
 
 instance (Object tt) => MarshalIn (ObjRef tt) where
   mIn = InMarshaller {

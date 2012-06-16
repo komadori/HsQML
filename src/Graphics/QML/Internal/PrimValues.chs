@@ -24,10 +24,12 @@ cIntConv = fromIntegral
 
 {#pointer *HsQMLStringHandle as ^ newtype #}
 
-foreign import ccall "hsqml.h &hsqml_string_size"
-  hsqmlStringSizePtr :: Ptr CInt
+{#fun unsafe hsqml_get_string_size as ^
+  {} ->
+  `Int' fromIntegral #}
+
 hsqmlStringSize :: Int
-hsqmlStringSize = fromIntegral $ unsafePerformIO $ peek hsqmlStringSizePtr
+hsqmlStringSize = unsafePerformIO $ hsqmlGetStringSize
 
 {#fun unsafe hsqml_init_string as ^
   {id `HsQMLStringHandle'} ->
@@ -53,10 +55,12 @@ hsqmlStringSize = fromIntegral $ unsafePerformIO $ peek hsqmlStringSizePtr
 
 {#pointer *HsQMLUrlHandle as ^ newtype #}
 
-foreign import ccall "hsqml.h &hsqml_url_size"
-  hsqmlUrlSizePtr :: Ptr CInt
+{#fun unsafe hsqml_get_url_size as ^
+  {} ->
+  `Int' fromIntegral #}
+
 hsqmlUrlSize :: Int
-hsqmlUrlSize = fromIntegral $ unsafePerformIO $ peek hsqmlUrlSizePtr
+hsqmlUrlSize = unsafePerformIO $ hsqmlGetUrlSize
 
 {#fun unsafe hsqml_init_url as ^
   {id `HsQMLUrlHandle'} ->
