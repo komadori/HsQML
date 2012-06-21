@@ -15,6 +15,8 @@ extern void hsqml_init(
 
 extern void hsqml_run();
 
+extern void hsqml_set_debug_loglevel(int);
+
 /* String */
 typedef char HsQMLStringHandle;
 

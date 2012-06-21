@@ -18,10 +18,12 @@ public:
     HsQMLClass(
         unsigned int*, char*, HsQMLUniformFunc*, HsQMLUniformFunc*);
     ~HsQMLClass();
+    const char* name();
     const HsQMLUniformFunc* methods();
     const HsQMLUniformFunc* properties();
-    void ref();
-    void deref();
+    enum RefSrc {Handle, ObjProxy};
+    void ref(RefSrc);
+    void deref(RefSrc);
 
 private:
     QAtomicInt mRefCount;

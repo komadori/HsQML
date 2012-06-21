@@ -15,8 +15,9 @@ public:
     HsQMLClass* klass() const;
     HsQMLObject* object();
     void clearObject();
-    void ref();
-    void deref();
+    enum RefSrc {Handle, Object};
+    void ref(RefSrc);
+    void deref(RefSrc);
 
 private:
     HsStablePtr mHaskell;

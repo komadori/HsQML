@@ -16,7 +16,7 @@ HsQMLClass::HsQMLClass(
     char*          metaStrData,
     HsQMLUniformFunc* methods,
     HsQMLUniformFunc* properties)
-    : mRefCount(1)
+    : mRefCount(0)
     , mMetaData(metaData)
     , mMetaStrData(metaStrData)
     , mMethods(methods)
@@ -29,12 +29,11 @@ HsQMLClass::HsQMLClass(
           mMetaData,
           0}})
 {
-    qDebug() << "class_created";
+    ref(Handle);
 }
 
 HsQMLClass::~HsQMLClass()
 {
-    QString className = QString(&mMetaStrData[mMetaData[1]]);
     for (int i=0; i<mMethodCount; i++) {
         gManager->freeFun((HsFunPtr)mMethods[i]);
     }
@@ -47,8 +46,12 @@ HsQMLClass::~HsQMLClass()
     std::free(mMetaStrData);
     std::free(mMethods);
     std::free(mProperties);
-    qDebug() << "class_destroyed";
 }
+
+const char* HsQMLClass::name()
+{
+    return mMetaObject.className();
+} 
 
 const HsQMLUniformFunc* HsQMLClass::methods()
 {
@@ -60,14 +63,28 @@ const HsQMLUniformFunc* HsQMLClass::properties()
     return mProperties;
 }
 
-void HsQMLClass::ref()
+void HsQMLClass::ref(RefSrc src)
 {
-    mRefCount.ref();
+    int count = mRefCount.fetchAndAddOrdered(1);
+
+    if (gLogLevel >= (count == 0 ? 1 : 2)) {
+        qDebug() << QString().sprintf(
+            "HsQML: %s Class, name=%s, src=%d, count=%d.",
+            count ? "Ref" : "New", name(), src, count+1);
+    }
 }
 
-void HsQMLClass::deref()
+void HsQMLClass::deref(RefSrc src)
 {
-    if (!mRefCount.deref()) {
+    int count = mRefCount.fetchAndAddOrdered(-1);
+
+    if (gLogLevel >= (count == 1 ? 1 : 2)) {
+        qDebug() << QString().sprintf(
+            "HsQML: %s Class, name=%s, src=%d, count=%d.",
+            count > 1 ? "Deref" : "Delete", name(), src, count);
+    }
+
+    if (count == 1) {
         delete this;
     }
 }
@@ -92,5 +109,5 @@ extern "C" void hsqml_finalise_class_handle(
     HsQMLClassHandle* hndl)
 {
     HsQMLClass* klass = (HsQMLClass*)hndl;
-    klass->deref();
+    klass->deref(HsQMLClass::Handle);
 }

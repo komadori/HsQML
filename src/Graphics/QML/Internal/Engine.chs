@@ -42,3 +42,7 @@ hsqmlInit = hsqmlInit_ hsFreeFunPtr hsFreeStablePtr
   `()' #}
 
 {#fun hsqml_run as ^ {} -> `()' #}
+
+{#fun hsqml_set_debug_loglevel as ^
+  {fromIntegral `Int'} -> `()'
+  #}

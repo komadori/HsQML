@@ -4,6 +4,7 @@
 
 QMutex gMutex;
 HsQMLManager* gManager;
+int gLogLevel;
 
 HsQMLManager::HsQMLManager(
     int& argc,
@@ -69,4 +70,9 @@ extern "C" void hsqml_run()
 {
     Q_ASSERT (gManager);
     gManager->run();
+}
+
+extern "C" void hsqml_set_debug_loglevel(int level)
+{
+    gLogLevel = level;
 }

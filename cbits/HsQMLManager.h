@@ -37,5 +37,6 @@ private:
 
 extern QMutex gMutex;
 extern HsQMLManager* gManager;
+extern int gLogLevel;
 
 #endif /*HSQML_MANAGER_H*/

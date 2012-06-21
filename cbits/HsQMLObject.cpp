@@ -1,5 +1,7 @@
 #include <HsFFI.h>
 #include <QDeclarativeEngine>
+#include <QString>
+#include <QDebug>
 
 #include "HsQMLObject.h"
 #include "HsQMLClass.h"
@@ -9,14 +11,15 @@ HsQMLObjectProxy::HsQMLObjectProxy(HsStablePtr haskell, HsQMLClass* klass)
     : mHaskell(haskell)
     , mKlass(klass)
     , mObject(NULL)
-    , mRefCount(1)
+    , mRefCount(0)
 {
-    mKlass->ref();
+    ref(Handle);
+    mKlass->ref(HsQMLClass::ObjProxy);
 }
 
 HsQMLObjectProxy::~HsQMLObjectProxy()
 {
-    mKlass->deref();
+    mKlass->deref(HsQMLClass::ObjProxy);
 }
 
 HsStablePtr HsQMLObjectProxy::haskell() const
@@ -42,14 +45,28 @@ void HsQMLObjectProxy::clearObject()
     mObject = NULL;
 }
 
-void HsQMLObjectProxy::ref()
+void HsQMLObjectProxy::ref(RefSrc src)
 {
-    mRefCount.ref();
+    int count = mRefCount.fetchAndAddOrdered(1);
+
+    if (gLogLevel >= (count == 0 ? 3 : 4)) {
+        qDebug() << QString().sprintf(
+            "HsQML: %s ObjProxy, class=%s, ptr=%p, src=%d, count=%d.",
+            count ? "Ref" : "New", mKlass->name(), this, src, count+1);
+    }
 }
 
-void HsQMLObjectProxy::deref()
+void HsQMLObjectProxy::deref(RefSrc src)
 {
-    if (!mRefCount.deref()) {
+    int count = mRefCount.fetchAndAddOrdered(-1);
+
+    if (gLogLevel >= (count == 1 ? 3 : 4)) {
+        qDebug() << QString().sprintf(
+            "HsQML: %s ObjProxy, class=%s, ptr=%p, src=%d, count=%d.",
+            count > 1 ? "Deref" : "Delete", mKlass->name(), this, src, count);
+    }
+
+    if (count == 1) {
         delete this;
     }
 }
@@ -61,13 +78,13 @@ HsQMLObject::HsQMLObject(HsQMLObjectProxy* proxy)
 {
     QDeclarativeEngine::setObjectOwnership(
         this, QDeclarativeEngine::JavaScriptOwnership);
-    mProxy->ref();
+    mProxy->ref(HsQMLObjectProxy::Object);
 }
 
 HsQMLObject::~HsQMLObject()
 {
     mProxy->clearObject();
-    mProxy->deref();
+    mProxy->deref(HsQMLObjectProxy::Object);
 }
 
 const QMetaObject* HsQMLObject::metaObject() const
@@ -168,7 +185,7 @@ extern HsQMLObjectHandle* hsqml_get_object_handle(
     // Return object proxy
     HsQMLObject* object = (HsQMLObject*)ptr;
     HsQMLObjectProxy* proxy = object->proxy();
-    proxy->ref();
+    proxy->ref(HsQMLObjectProxy::Handle);
     return (HsQMLObjectHandle*)proxy;
 }
 
@@ -177,6 +194,6 @@ extern void hsqml_finalise_object_handle(
 {
     if (hndl) {
         HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
-        proxy->deref();
+        proxy->deref(HsQMLObjectProxy::Handle);
     }
 }
