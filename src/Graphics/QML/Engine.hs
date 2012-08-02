@@ -3,6 +3,7 @@
     Rank2Types
   #-}
 
+-- | Functions for starting QML engines, displaying content in a window.
 module Graphics.QML.Engine (
   InitialWindowState(
     ShowWindow,
@@ -29,6 +30,7 @@ import Data.Typeable
 import Foreign.Storable
 import Network.URI (URI, nullURI, uriPath, uriToString)
 
+-- | Specifies the intial state of the display window.
 data InitialWindowState
   -- | A visible window should be created for the initial document with a
   -- default title.
