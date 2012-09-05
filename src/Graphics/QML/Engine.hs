@@ -16,7 +16,8 @@ module Graphics.QML.Engine (
     contextObject),
   defaultEngineConfig,
   createEngine,
-  runEngines
+  runEngines,
+  filePathToURI
 ) where
 
 import Graphics.QML.Internal.Marshal
@@ -25,10 +26,12 @@ import Graphics.QML.Internal.Engine
 import Graphics.QML.Marshal
 import Graphics.QML.Objects
 
+import Data.List
 import Data.Maybe
 import Data.Typeable
 import Foreign.Storable
-import Network.URI (URI, nullURI, uriPath, uriToString)
+import System.FilePath (isAbsolute, splitDirectories, pathSeparators)
+import Network.URI (URI(URI), URIAuth(URIAuth), nullURI, uriPath)
 
 -- | Specifies the intial state of the display window.
 data InitialWindowState
@@ -90,3 +93,19 @@ runEngines :: IO ()
 runEngines = do
   hsqmlInit
   hsqmlRun
+
+-- | Convenience function for converting local file paths into URIs.
+filePathToURI :: FilePath -> URI
+filePathToURI fp =
+    let ds = splitDirectories fp
+        abs = isAbsolute fp
+        fixHead =
+            (\cs -> if null cs then [] else '/':cs) .
+            takeWhile (\c -> not $ c `elem` pathSeparators)
+        mapHead _ [] = []
+        mapHead f (x:xs) = f x : xs
+        afp = intercalate "/" $ mapHead fixHead ds
+        rfp = intercalate "/" ds
+    in if abs
+       then URI "file:" (Just $ URIAuth "" "" "") afp "" ""
+       else URI "" Nothing rfp "" ""
