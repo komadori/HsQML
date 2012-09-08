@@ -54,8 +54,19 @@ Library
         cbits/HsQMLWindow.h
     X-separate-cbits: True
     Build-tools: c2hs
-    Pkgconfig-depends:
-        QtDeclarative >= 4.7
+    if os(windows)
+        Include-dirs:
+            QT_ROOT\include
+            QT_ROOT\include\QtCore
+            QT_ROOT\include\QtGui
+            QT_ROOT\include\QtDeclarative
+        Extra-libraries: QtCore4, QtGui4, QtDeclarative4, stdc++
+        Extra-lib-dirs:
+            SYS_ROOT\bin
+            QT_ROOT\bin
+    else
+        Pkgconfig-depends:
+            QtDeclarative >= 4.7
 
 Test-Suite hsqml-test1
     Type: exitcode-stdio-1.0

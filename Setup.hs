@@ -34,11 +34,39 @@ main = defaultMainWithHooks simpleUserHooks {
 
 confWithQt :: (GenericPackageDescription, HookedBuildInfo) -> ConfigFlags ->
   IO LocalBuildInfo
-confWithQt tuple flags = do
-  lbi <- confHook simpleUserHooks tuple flags
-  (_,_,db') <- requireProgramVersion (fromFlag $ configVerbosity flags)
-      mocProgram qtVersionRange (withPrograms lbi)
+confWithQt (gpd,hbi) flags = do
+  let verb = fromFlag $ configVerbosity flags
+  mocPath <- findProgramLocation verb "moc"
+  cppPath <- findProgramLocation verb "cpp"
+  let condLib = fromJust $ condLibrary gpd
+      fixCondLib lib = lib {
+        libBuildInfo = substPaths mocPath cppPath $ libBuildInfo lib} 
+      condLib' = mapCondTree fixCondLib condLib
+      gpd' = gpd {condLibrary = Just $ condLib'}
+  lbi <- confHook simpleUserHooks (gpd',hbi) flags
+  (_,_,db') <- requireProgramVersion verb
+    mocProgram qtVersionRange (withPrograms lbi)
   return $ lbi {withPrograms = db'}
+
+mapCondTree :: (a -> a) -> CondTree v c a -> CondTree v c a
+mapCondTree f (CondNode val cnstr cs) =
+  CondNode (f val) cnstr $ map updateChildren cs
+  where updateChildren (cond,left,right) =
+          (cond, mapCondTree f left, fmap (mapCondTree f) right)
+
+substPaths :: Maybe FilePath -> Maybe FilePath -> BuildInfo -> BuildInfo
+substPaths mocPath cppPath build =
+  let toRoot = takeDirectory . takeDirectory . fromMaybe ""
+      substPath = replacePrefix "QT_ROOT" (toRoot mocPath) .
+        replacePrefix "SYS_ROOT" (toRoot cppPath)
+  in build {extraLibDirs = map substPath $ extraLibDirs build,
+            includeDirs = map substPath $ includeDirs build}
+
+replacePrefix :: (Eq a) => [a] -> [a] -> [a] -> [a]
+replacePrefix old new xs =
+  case stripPrefix old xs of
+    Just ys -> new ++ ys
+    Nothing -> xs
 
 buildWithQt ::
   PackageDescription -> LocalBuildInfo -> UserHooks -> BuildFlags -> IO ()
