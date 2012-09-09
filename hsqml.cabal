@@ -78,3 +78,7 @@ Test-Suite hsqml-test1
         directory == 1.1.*,
         network   == 2.3.*,
         hsqml     == 0.1.*
+
+Source-repository head
+    type:     darcs
+    location: https://patch-tag.com/r/komadori/HsQML
