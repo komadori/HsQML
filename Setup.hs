@@ -57,8 +57,8 @@ mapCondTree f (CondNode val cnstr cs) =
 substPaths :: Maybe FilePath -> Maybe FilePath -> BuildInfo -> BuildInfo
 substPaths mocPath cppPath build =
   let toRoot = takeDirectory . takeDirectory . fromMaybe ""
-      substPath = replacePrefix "QT_ROOT" (toRoot mocPath) .
-        replacePrefix "SYS_ROOT" (toRoot cppPath)
+      substPath = replacePrefix "/QT_ROOT" (toRoot mocPath) .
+        replacePrefix "/SYS_ROOT" (toRoot cppPath)
   in build {extraLibDirs = map substPath $ extraLibDirs build,
             includeDirs = map substPath $ includeDirs build}
 

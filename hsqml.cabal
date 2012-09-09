@@ -56,14 +56,14 @@ Library
     Build-tools: c2hs
     if os(windows)
         Include-dirs:
-            QT_ROOT\include
-            QT_ROOT\include\QtCore
-            QT_ROOT\include\QtGui
-            QT_ROOT\include\QtDeclarative
+            /QT_ROOT/include
+            /QT_ROOT/include/QtCore
+            /QT_ROOT/include/QtGui
+            /QT_ROOT/include/QtDeclarative
         Extra-libraries: QtCore4, QtGui4, QtDeclarative4, stdc++
         Extra-lib-dirs:
-            SYS_ROOT\bin
-            QT_ROOT\bin
+            /SYS_ROOT/bin
+            /QT_ROOT/bin
     else
         Pkgconfig-depends:
             QtDeclarative >= 4.7
