@@ -136,7 +136,7 @@ main = do
     list <- newIORef testTasks
     go <- newObject $ HarnessObject list
     createEngine defaultEngineConfig {
-        initialURL = fromJust $ parseURIReference qmlPath,
+        initialURL = filePathToURI qmlPath,
         contextObject = Just go}
     runEngines
     removeFile qmlPath
