@@ -15,7 +15,7 @@ import System.Directory
 
 data HarnessObject = HarnessObject {
     globalState :: IORef [String]
-} deriving Typeable
+} deriving (Eq, Typeable)
 
 markTaskComplete :: HarnessObject -> String -> IO ()
 markTaskComplete go task = do
@@ -46,10 +46,14 @@ testURI =
     URI "http:" (Just $ URIAuth "" "www.example.com" "")
         "/with space" "" "#test"
 
-data TestObject = TestObject deriving (Eq, Typeable)
+data TestObject = TestObject {
+    testHarness :: HarnessObject
+} deriving (Eq, Typeable)
 
 instance Object TestObject where
-    classDef = defClass []
+    classDef = defClass [
+        defMethod "useObject" (\go -> do
+            markTaskComplete (testHarness $ fromObjRef go) "useObject")]
 
 instance MarshalIn TestObject where
     mIn = objectInMarshaller
@@ -90,10 +94,10 @@ instance Object HarnessObject where
             else return ()),
         defMethod "getObject" (\go -> do
             markTaskComplete (fromObjRef go) "getObject"
-            newObject TestObject),
+            newObject $ TestObject $ fromObjRef go),
         defMethod "setObject" (\go i -> do
             markTaskComplete (fromObjRef go) "setObject"
-            if (i == TestObject)
+            if (testHarness i == fromObjRef go)
             then markTaskComplete (fromObjRef go) "setObjectCorrect"
             else return ())]
 
@@ -115,6 +119,7 @@ testScript = unlines [
     "        setURI(uriVar);",
     "        var objVar = getObject();",
     "        setObject(objVar);",
+    "        objVar.useObject();",
     "        window.close();",
     "    }",
     "}"]
@@ -125,7 +130,8 @@ testTasks = [
     "getDouble", "setDouble", "setDoubleCorrect",
     "getString", "setString", "setStringCorrect",
     "getURI", "setURI", "setURICorrect",
-    "getObject", "setObject", "setObjectCorrect"]
+    "getObject", "setObject", "setObjectCorrect",
+    "useObject"]
 
 main :: IO ()
 main = do
