@@ -164,22 +164,11 @@ extern void* hsqml_object_get_pointer(
 }
 
 extern HsQMLObjectHandle* hsqml_get_object_handle(
-    void* ptr, HsQMLClassHandle* klassHndl)
+    void* ptr)
 {
     // Return NULL if the input pointer is NULL
     if (!ptr) {
         return NULL;
-    }
-
-    // Return NULL if the object type doesn't match any supplied class
-    if (klassHndl) {
-        HsQMLClass* klass = (HsQMLClass*)klassHndl;
-        QObject* qObj = static_cast<QObject*>(ptr);
-        if (0 != strcmp(
-            qObj->metaObject()->className(),
-            klass->mMetaObject.className())) {
-            return NULL;
-        }
     }
 
     // Return object proxy

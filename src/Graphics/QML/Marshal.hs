@@ -46,7 +46,8 @@ instance MarshalIn Int where
   mIn = InMarshaller {
     mInFuncFld = \ptr ->
       errIO $ peek (castPtr ptr :: Ptr CInt) >>= return . fromIntegral,
-    mIOTypeFld = Tagged $ TypeName "int"
+    mIOTypeFld = Tagged $ TypeName "int",
+    mIOInitFld = Tagged $ return ()
   }
 
 --
@@ -64,7 +65,8 @@ instance MarshalIn Double where
   mIn = InMarshaller {
     mInFuncFld = \ptr ->
       errIO $ peek (castPtr ptr :: Ptr CDouble) >>= return . realToFrac,
-    mIOTypeFld = Tagged $ TypeName "double"
+    mIOTypeFld = Tagged $ TypeName "double",
+    mIOInitFld = Tagged $ return ()
   }
 
 --
@@ -92,7 +94,8 @@ instance MarshalIn Text where
         buf <- peek bufPtr
         return (castPtr buf, fromIntegral len))
       uncurry T.fromPtr pair,
-    mIOTypeFld = Tagged $ TypeName "QString"
+    mIOTypeFld = Tagged $ TypeName "QString",
+    mIOInitFld = Tagged $ return ()
   }
 
 --
@@ -112,7 +115,8 @@ instance MarshalOut String where
 instance MarshalIn String where
   mIn = InMarshaller {
     mInFuncFld = fmap T.unpack . mInFuncFld mIn,
-    mIOTypeFld = Tagged $ TypeName "QString"
+    mIOTypeFld = Tagged $ TypeName "QString",
+    mIOInitFld = Tagged $ return ()
   }
 
 --
@@ -151,5 +155,6 @@ instance MarshalIn URI where
       free $ fst pair
       return $ mapURIStrings unEscapeString $
         fromMaybe nullURI $ parseURIReference str,
-    mIOTypeFld = Tagged $ TypeName "QUrl"
+    mIOTypeFld = Tagged $ TypeName "QUrl",
+    mIOInitFld = Tagged $ return ()
   }

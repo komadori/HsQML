@@ -41,11 +41,6 @@ newClassHandle p =
    id `Ptr (FunPtr UniformFunc)'} ->
   `Maybe HsQMLClassHandle' newClassHandle* #}
 
-withMaybeHsQMLClassHandle ::
-    Maybe HsQMLClassHandle -> (Ptr HsQMLClassHandle -> IO b) -> IO b
-withMaybeHsQMLClassHandle (Just (HsQMLClassHandle fp)) = withForeignPtr fp
-withMaybeHsQMLClassHandle Nothing = \f -> f nullPtr
-
 withMaybeHsQMLObjectHandle ::
     Maybe HsQMLObjectHandle -> (Ptr HsQMLObjectHandle -> IO b) -> IO b
 withMaybeHsQMLObjectHandle (Just (HsQMLObjectHandle fp)) = withForeignPtr fp
@@ -94,8 +89,7 @@ ptrToObj =
   `Ptr ()' id #}
 
 {#fun unsafe hsqml_get_object_handle as ^
-  {id `Ptr ()',
-   withMaybeHsQMLClassHandle* `Maybe HsQMLClassHandle'} ->
+  {id `Ptr ()'} ->
   `HsQMLObjectHandle' newObjectHandle* #}
 
 ofDynamicMetaObject :: CUInt

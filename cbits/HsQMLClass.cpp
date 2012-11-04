@@ -11,6 +11,61 @@
 
 QAtomicInt gClassId;
 
+namespace QDeclarativePrivate
+{
+    enum RegistrationType {
+        TypeRegistration = 0
+    };
+
+    int Q_DECLARATIVE_EXPORT qmlregister(RegistrationType, void*);
+};
+
+struct RegisterType {
+    int version;
+
+    int typeId;
+    int listId;
+
+    int objectSize;
+    void (*create)(void*);
+
+    QString noCreationReason;
+
+    const char* uri;
+    int versionMajor;
+    int versionMinor;
+    const char* elementName;
+    const QMetaObject* metaObject;
+
+    void* attachedPropertiesFunction;
+    const QMetaObject* attachedPropertiesMetaObject;
+
+    int parserStatusCast;
+    int valueSourceCast;
+    int valueInterceptorCast;
+
+    QObject* (*extensionObjectCreate)(QObject *);
+    const QMetaObject* extensionMetaObject;
+
+    void* customParser;
+    int revision;
+};
+
+static void* newObjectPtr(const void* pp)
+{
+    if (pp) {
+        return new void*(*static_cast<void* const*>(pp));
+    }
+    else {
+        return new void*();
+    }
+}
+
+static void deleteObjectPtr(void* p)
+{
+    delete reinterpret_cast<void**>(p);
+}
+
 HsQMLClass::HsQMLClass(
     unsigned int*  metaData,
     char*          metaStrData,
@@ -30,6 +85,28 @@ HsQMLClass::HsQMLClass(
           0}})
 {
     ref(Handle);
+
+    // Register with Qt meta-type system
+    QByteArray rawName(name());
+    QByteArray pointerName(rawName + '*');
+    int pointerType = QMetaType::registerType(
+        pointerName, deleteObjectPtr, newObjectPtr);
+
+    // Register with QML meta-type system
+    RegisterType regInfo = {
+        0,
+        pointerType, 0,
+        0, 0,
+        QString(),
+        0, 0, 0, 0, &mMetaObject,
+        0, 0,
+        -1, -1, -1,
+        0, 0,
+        0,
+        0
+    };
+    QDeclarativePrivate::qmlregister(
+        QDeclarativePrivate::TypeRegistration, &regInfo);
 }
 
 HsQMLClass::~HsQMLClass()

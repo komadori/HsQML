@@ -37,7 +37,8 @@ errIO = MaybeT . fmap Just
 -- implementation details.
 data InMarshaller a = InMarshaller {
   mInFuncFld :: Ptr () -> ErrIO a,
-  mIOTypeFld :: Tagged a TypeName
+  mIOTypeFld :: Tagged a TypeName,
+  mIOInitFld :: Tagged a (IO ())
 }
 
 mInFunc :: (MarshalIn a) => Ptr () -> ErrIO a
@@ -45,6 +46,9 @@ mInFunc = mInFuncFld mIn
 
 mIOType :: (MarshalIn a) => Tagged a TypeName
 mIOType = mIOTypeFld mIn
+
+mIOInit :: (MarshalIn a) => Tagged a (IO ())
+mIOInit = mIOInitFld mIn
 
 -- | The class 'MarshalOut' allows Haskell values to be converted into QML
 -- values.
@@ -59,5 +63,6 @@ instance MarshalOut () where
 instance MarshalIn () where
   mIn = InMarshaller {
     mInFuncFld = \_ -> return (),
-    mIOTypeFld = Tagged $ TypeName ""
+    mIOTypeFld = Tagged $ TypeName "",
+    mIOInitFld = Tagged $ return ()
   }

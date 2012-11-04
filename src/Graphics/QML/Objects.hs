@@ -42,6 +42,7 @@ import Graphics.QML.Internal.Engine
 import Control.Monad
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.State
+import Control.Exception
 import Data.Bits
 import Data.Char
 import Data.Map (Map)
@@ -49,6 +50,7 @@ import qualified Data.Map as Map
 import Data.Maybe
 import Data.Tagged
 import Data.Typeable
+import Data.IORef
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Ptr
@@ -78,6 +80,9 @@ data ThisMarshaller tt = ThisMarshaller {
 mThisFunc :: (MarshalThis tt) => Ptr () -> IO tt
 mThisFunc = mThisFuncFld mThis
 
+addPointer :: TypeName -> TypeName
+addPointer (TypeName name) = TypeName $ name ++ "*"
+
 instance (Object tt) => MarshalOut (ObjRef tt) where
   mOutFunc ptr obj = do
     objPtr <- hsqmlObjectGetPointer $ objHndl obj
@@ -90,22 +95,30 @@ instance (Object tt) => MarshalIn (ObjRef tt) where
   mIn = InMarshaller {
     mInFuncFld = \ptr -> MaybeT $ do
       objPtr <- peek (castPtr ptr)
-      hndl <- hsqmlGetObjectHandle objPtr $
-        Just $ classHndl (classDefCAF :: ClassDef tt)
+      hndl <- hsqmlGetObjectHandle objPtr
       return $ if isNullObjectHandle hndl
         then Nothing else Just $ ObjRef hndl,
-    mIOTypeFld = Tagged $ TypeName "QObject*"
+    mIOTypeFld = Tagged $ addPointer $ classType (classDefCAF :: ClassDef tt),
+    mIOInitFld = Tagged $ do
+      let cd = classDefCAF :: ClassDef tt
+          initVar = classInit cd
+      initFlag <- readIORef initVar
+      if initFlag
+        then return ()
+        else do
+          writeIORef initVar True
+          void $ evaluate $ classHndl cd
   }
 
 instance (Object tt) => MarshalThis (ObjRef tt) where
   type ThisObj (ObjRef tt) = tt
   mThis = ThisMarshaller {
       mThisFuncFld = \ptr -> do
-      hndl <- hsqmlGetObjectHandle ptr Nothing
+      hndl <- hsqmlGetObjectHandle ptr
       return $ ObjRef hndl
   }
 
-retagType :: Tagged (ObjRef tt) TypeName -> Tagged tt TypeName
+retagType :: Tagged (ObjRef tt) a -> Tagged tt a
 retagType = retag
 
 -- | Provides an 'InMarshaller' which allows you to define instances of
@@ -123,7 +136,8 @@ objectInMarshaller :: (Object tt) => InMarshaller tt
 objectInMarshaller =
   InMarshaller {
     mInFuncFld = fmap fromObjRef . mInFunc,
-    mIOTypeFld = retagType mIOType
+    mIOTypeFld = retagType mIOType,
+    mIOInitFld = retagType mIOInit
   }
 
 -- | Provides an 'ThisMarshaller' which allows you to define instances of
@@ -179,21 +193,35 @@ classDefCAF = classDef
 -- | Represents the API of the QML class which wraps the type @tt@.
 data ClassDef tt = ClassDef {
   classType :: TypeName,
+  classInit :: IORef Bool,
   classHndl :: HsQMLClassHandle
 }
 
 -- | Generates a 'ClassDef' from a list of 'Member's.
 defClass :: forall tt. (Object tt) => [Member tt] -> ClassDef tt
-defClass ms = unsafePerformIO $ do
+defClass ms =
+  let (name,init) = unsafePerformIO $
+        untag (createClassName :: Tagged tt (IO (String, IORef Bool)))
+      hndl = unsafePerformIO $ do
+        writeIORef init True
+        c <- createClass name ms
+        return c
+  in ClassDef (TypeName name) init hndl
+
+createClassName :: forall tt. (Object tt) => Tagged tt (IO (String, IORef Bool))
+createClassName = Tagged $ do
+  id <- hsqmlGetNextClassId
+  init <- newIORef False
   let typ  = typeOf (undefined :: tt)
       con  = typeRepTyCon typ
-      name = showString (tyConModule con) $ showChar '.' $ tyConName con
-  id <- hsqmlGetNextClassId
-  createClass (showString name $ showChar '_' $ showInt id "") ms
+      name = showString (tyConModule con) $ showChar '.' $
+          showString (tyConName con) $ showChar '_' $ showInt id ""
+  return (name,init)
 
 createClass :: forall tt. (Object tt) =>
-  String -> [Member tt] -> IO (ClassDef tt)
+  String -> [Member tt] -> IO HsQMLClassHandle
 createClass name ms = do
+  initMembers ms
   let methods = methodMembers ms
       properties = propertyMembers ms
       (MOCOutput metaData metaStrData) = compileClass name methods properties
@@ -206,9 +234,8 @@ createClass name ms = do
   propertiesPtr <- newArray $ interleave pReads pWrites
   hsqmlInit
   hndl <- hsqmlCreateClass metaDataPtr metaStrDataPtr methodsPtr propertiesPtr
-  return $ case hndl of 
-    Just hndl' -> ClassDef (TypeName name) hndl'
-    Nothing    -> error ("Failed to create QML class '"++name++"'.")
+  let err = error ("Failed to create QML class '"++name++"'.")
+  return $ fromMaybe err hndl
 
 interleave :: [a] -> [a] -> [a]
 interleave [] ys = ys
@@ -237,6 +264,12 @@ propertyMembers = mapMaybe f
   where f (PropertyMember m) = Just m
         f _ = Nothing
 
+-- | Call all the initialisation functions for a list of members.
+initMembers :: [Member tt] -> IO ()
+initMembers = mapM_ f
+  where f (MethodMember m) = methodInit m
+        f (PropertyMember m) = propertyInit m
+
 --
 -- Method
 --
@@ -249,16 +282,18 @@ data Method tt = Method {
   -- | Gets the 'TypeName's which comprise the signature of a 'Method'.
   -- The head of the list is the return type and the tail the arguments.
   methodTypes :: [TypeName],
-  methodFunc  :: UniformFunc
+  methodFunc  :: UniformFunc,
+  methodInit  :: IO ()
 }
 
 data CrudeMethodTypes = CrudeMethodTypes {
     methodParamTypes :: [TypeName],
-    methodReturnType :: TypeName
+    methodReturnType :: TypeName,
+    methodCrudeInit  :: IO ()
   }
 
 crudeTypesToList :: CrudeMethodTypes -> [TypeName]
-crudeTypesToList (CrudeMethodTypes p r) = r:p
+crudeTypesToList (CrudeMethodTypes p r _) = r:p
 
 -- | Supports marshalling Haskell functions with an arbitrary number of
 -- arguments.
@@ -273,10 +308,11 @@ instance (MarshalIn a, MethodSuffix b) => MethodSuffix (a -> b) where
     mkMethodFunc (n+1) (f val) pv
     return ()
   mkMethodTypes =
-    let (CrudeMethodTypes p r) =
+    let (CrudeMethodTypes p r i) =
           untag (mkMethodTypes :: Tagged b CrudeMethodTypes)
-        ty = untag (mIOType :: Tagged a TypeName)
-    in Tagged $ CrudeMethodTypes (ty:p) r
+        typ = untag (mIOType :: Tagged a TypeName)
+        ini = untag (mIOInit :: Tagged a (IO ()))
+    in Tagged $ CrudeMethodTypes (typ:p) r (ini >> i)
 
 instance (MarshalOut a) => MethodSuffix (IO a) where
   mkMethodFunc _ f pv = errIO $ do
@@ -286,8 +322,9 @@ instance (MarshalOut a) => MethodSuffix (IO a) where
     then return ()
     else mOutFunc ptr val
   mkMethodTypes =
-    let ty = untag (mIOType :: Tagged a TypeName)
-    in Tagged $ CrudeMethodTypes [] ty
+    let typ = untag (mIOType :: Tagged a TypeName)
+        ini = untag (mIOInit :: Tagged a (IO ()))
+    in Tagged $ CrudeMethodTypes [] typ ini
 
 mkUniformFunc :: forall tt ms. (MarshalThis tt, MethodSuffix ms) =>
   (tt -> ms) -> UniformFunc
@@ -306,9 +343,10 @@ mkUniformFunc f = \pt pv -> do
 defMethod ::
   forall tt ms. (MarshalThis tt, MethodSuffix ms) =>
   String -> (tt -> ms) -> Member (ThisObj tt)
-defMethod name f = MethodMember $ Method name
-  (crudeTypesToList $ untag (mkMethodTypes :: Tagged ms CrudeMethodTypes))
-  (mkUniformFunc f)
+defMethod name f =
+  let crude = untag (mkMethodTypes :: Tagged ms CrudeMethodTypes)
+  in MethodMember $ Method name
+       (crudeTypesToList crude) (mkUniformFunc f) (methodCrudeInit crude)
 
 --
 -- Property
@@ -321,7 +359,8 @@ data Property tt = Property {
   propertyName :: String,
   propertyType :: TypeName,
   propertyReadFunc :: UniformFunc,
-  propertyWriteFunc :: Maybe UniformFunc
+  propertyWriteFunc :: Maybe UniformFunc,
+  propertyInit :: IO ()
 }
 
 -- | Defines a named read-only property using an accessor function in the IO
@@ -333,6 +372,7 @@ defPropertyRO name g = PropertyMember $ Property name
   (untag (mIOType :: Tagged tr TypeName))
   (mkUniformFunc g)
   Nothing
+  (untag (mIOInit :: Tagged tr (IO ())))
 
 -- | Defines a named read-write property using a pair of accessor and mutator
 -- functions in the IO monad.
@@ -343,6 +383,7 @@ defPropertyRW name g s = PropertyMember $ Property name
   (untag (mIOType :: Tagged tr TypeName))
   (mkUniformFunc g)
   (Just $ mkUniformFunc s)
+  (untag (mIOInit :: Tagged tr (IO ())))
 
 --
 -- Meta Object Compiler
