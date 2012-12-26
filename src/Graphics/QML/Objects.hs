@@ -61,6 +61,27 @@ import System.IO.Unsafe
 import Numeric
 
 --
+-- Counted Reverse List
+--
+
+data CRList a = CRList {
+  crlLen  :: !Int,
+  crlList :: [a]
+}
+
+crlEmpty :: CRList a
+crlEmpty = CRList 0 []
+
+crlAppend1 :: CRList a -> a -> CRList a
+crlAppend1 (CRList n xs) x = CRList (n+1) (x:xs)
+
+crlAppend :: CRList a -> [a] -> CRList a
+crlAppend (CRList n xs) ys = CRList n' xs'
+  where (xs', n')       = rev ys xs n
+        rev []     vs n = (vs, n)
+        rev (u:us) vs n = rev us (u:vs) (n+1)
+
+--
 -- ObjRef
 --
 
@@ -222,84 +243,72 @@ createClass :: forall tt. (Object tt) =>
   String -> [Member tt] -> IO HsQMLClassHandle
 createClass name ms = do
   initMembers ms
-  let methods = methodMembers ms
-      properties = propertyMembers ms
-      (MOCOutput metaData metaStrData) = compileClass name methods properties
-  metaDataPtr <- newArray metaData
-  metaStrDataPtr <- newArray metaStrData
-  methodsPtr <- mapM (marshalFunc . methodFunc) methods >>= newArray
-  pReads <- mapM (marshalFunc . propertyReadFunc) properties
-  pWrites <- mapM (fromMaybe (return nullFunPtr) . fmap marshalFunc .
-    propertyWriteFunc) properties
-  propertiesPtr <- newArray $ interleave pReads pWrites
+  let moc = compileClass name ms
+      maybeMarshalFunc = maybe (return nullFunPtr) marshalFunc
+  metaDataPtr <- crlToNewArray return (mData moc)
+  metaStrDataPtr <- crlToNewArray return (mStrData moc)
+  methodsPtr <- crlToNewArray maybeMarshalFunc (mFuncMethods moc)
+  propsPtr <- crlToNewArray maybeMarshalFunc (mFuncProperties moc)
   hsqmlInit
-  hndl <- hsqmlCreateClass metaDataPtr metaStrDataPtr methodsPtr propertiesPtr
+  hndl <- hsqmlCreateClass metaDataPtr metaStrDataPtr methodsPtr propsPtr
   let err = error ("Failed to create QML class '"++name++"'.")
   return $ fromMaybe err hndl
 
-interleave :: [a] -> [a] -> [a]
-interleave [] ys = ys
-interleave (x:xs) ys = x : ys `interleave` xs 
+crlToNewArray :: (Storable b) => (a -> IO b) -> CRList a -> IO (Ptr b)
+crlToNewArray f (CRList len lst) = do
+  ptr <- mallocArray len
+  pokeRev ptr lst len
+  return ptr
+  where pokeRev _ []     _ = return ()
+        pokeRev p (x:xs) n = do
+          let n' = n-1
+          x' <- f x
+          pokeElemOff p n' x'
+          pokeRev p xs n'
 
 --
 -- Member
 --
 
+data MemberKind
+  = MethodMember
+  | PropertyMember
+  deriving Eq
+
 -- | Represents a named member of the QML class which wraps type @tt@.
-data Member tt
-  -- | Constructs a 'Member' from a 'Method'.
-  = MethodMember (Method tt)
-  -- | Constructs a 'Member' from a 'Property'.
-  | PropertyMember (Property tt)
+data Member tt = Member {
+  memberKind   :: MemberKind,
+  memberName   :: String,
+  memberInit   :: IO (),
+  memberType   :: TypeName,
+  memberParams :: [TypeName],
+  memberFun    :: UniformFunc,
+  memberFunAux :: Maybe UniformFunc
+}
 
--- | Returns the methods in a list of members.
-methodMembers :: [Member tt] -> [Method tt]
-methodMembers = mapMaybe f
-  where f (MethodMember m) = Just m
-        f _ = Nothing
-
--- | Returns the properties in a list of members.
-propertyMembers :: [Member tt] -> [Property tt]
-propertyMembers = mapMaybe f
-  where f (PropertyMember m) = Just m
-        f _ = Nothing
+filterMembers :: MemberKind -> [Member tt] -> [Member tt]
+filterMembers k ms =
+  filter (\m -> k == memberKind m) ms
 
 -- | Call all the initialisation functions for a list of members.
 initMembers :: [Member tt] -> IO ()
-initMembers = mapM_ f
-  where f (MethodMember m) = methodInit m
-        f (PropertyMember m) = propertyInit m
+initMembers = mapM_ memberInit
 
 --
 -- Method
 --
 
--- | Represents a named method which can be invoked from QML on an object of
--- type @tt@.
-data Method tt = Method {
-  -- | Gets the name of a 'Method'.
-  methodName  :: String,
-  -- | Gets the 'TypeName's which comprise the signature of a 'Method'.
-  -- The head of the list is the return type and the tail the arguments.
-  methodTypes :: [TypeName],
-  methodFunc  :: UniformFunc,
-  methodInit  :: IO ()
+data MethodTypeInfo = MethodTypeInfo {
+  methodParamTypes :: [TypeName],
+  methodReturnType :: TypeName,
+  methodTypesInit  :: IO ()
 }
-
-data CrudeMethodTypes = CrudeMethodTypes {
-    methodParamTypes :: [TypeName],
-    methodReturnType :: TypeName,
-    methodCrudeInit  :: IO ()
-  }
-
-crudeTypesToList :: CrudeMethodTypes -> [TypeName]
-crudeTypesToList (CrudeMethodTypes p r _) = r:p
 
 -- | Supports marshalling Haskell functions with an arbitrary number of
 -- arguments.
 class MethodSuffix a where
   mkMethodFunc  :: Int -> a -> Ptr (Ptr ()) -> ErrIO ()
-  mkMethodTypes :: Tagged a CrudeMethodTypes
+  mkMethodTypes :: Tagged a MethodTypeInfo
 
 instance (MarshalIn a, MethodSuffix b) => MethodSuffix (a -> b) where
   mkMethodFunc n f pv = do
@@ -308,11 +317,11 @@ instance (MarshalIn a, MethodSuffix b) => MethodSuffix (a -> b) where
     mkMethodFunc (n+1) (f val) pv
     return ()
   mkMethodTypes =
-    let (CrudeMethodTypes p r i) =
-          untag (mkMethodTypes :: Tagged b CrudeMethodTypes)
+    let (MethodTypeInfo p r i) =
+          untag (mkMethodTypes :: Tagged b MethodTypeInfo)
         typ = untag (mIOType :: Tagged a TypeName)
         ini = untag (mIOInit :: Tagged a (IO ()))
-    in Tagged $ CrudeMethodTypes (typ:p) r (ini >> i)
+    in Tagged $ MethodTypeInfo (typ:p) r (ini >> i)
 
 instance (MarshalOut a) => MethodSuffix (IO a) where
   mkMethodFunc _ f pv = errIO $ do
@@ -324,7 +333,7 @@ instance (MarshalOut a) => MethodSuffix (IO a) where
   mkMethodTypes =
     let typ = untag (mIOType :: Tagged a TypeName)
         ini = untag (mIOInit :: Tagged a (IO ()))
-    in Tagged $ CrudeMethodTypes [] typ ini
+    in Tagged $ MethodTypeInfo [] typ ini
 
 mkUniformFunc :: forall tt ms. (MarshalThis tt, MethodSuffix ms) =>
   (tt -> ms) -> UniformFunc
@@ -339,153 +348,160 @@ mkUniformFunc f = \pt pv -> do
 -- there may be zero or more parameter arguments followed by an optional return
 -- argument in the IO monad. These argument types must be members of the
 -- 'MarshalThis', 'MarshalIn', and 'MarshalOut' typeclasses respectively.
-
 defMethod ::
   forall tt ms. (MarshalThis tt, MethodSuffix ms) =>
   String -> (tt -> ms) -> Member (ThisObj tt)
 defMethod name f =
-  let crude = untag (mkMethodTypes :: Tagged ms CrudeMethodTypes)
-  in MethodMember $ Method name
-       (crudeTypesToList crude) (mkUniformFunc f) (methodCrudeInit crude)
+  let crude = untag (mkMethodTypes :: Tagged ms MethodTypeInfo)
+  in Member MethodMember
+       name
+       (methodTypesInit crude)
+       (methodReturnType crude)
+       (methodParamTypes crude)
+       (mkUniformFunc f)
+       Nothing
 
 --
 -- Property
 --
-
--- | Represents a named property which can be accessed from QML on an object
--- of type @tt@.
-data Property tt = Property {
-  -- | Gets the name of a 'Property'.
-  propertyName :: String,
-  propertyType :: TypeName,
-  propertyReadFunc :: UniformFunc,
-  propertyWriteFunc :: Maybe UniformFunc,
-  propertyInit :: IO ()
-}
 
 -- | Defines a named read-only property using an accessor function in the IO
 -- monad.
 defPropertyRO ::
   forall tt tr. (MarshalThis tt, MarshalOut tr) =>
   String -> (tt -> IO tr) -> Member (ThisObj tt)
-defPropertyRO name g = PropertyMember $ Property name
+defPropertyRO name g = Member PropertyMember
+  name
+  (untag (mIOInit :: Tagged tr (IO ())))
   (untag (mIOType :: Tagged tr TypeName))
+  []
   (mkUniformFunc g)
   Nothing
-  (untag (mIOInit :: Tagged tr (IO ())))
 
 -- | Defines a named read-write property using a pair of accessor and mutator
 -- functions in the IO monad.
 defPropertyRW ::
   forall tt tr. (MarshalThis tt, MarshalOut tr) =>
   String -> (tt -> IO tr) -> (tt -> tr -> IO ()) -> Member (ThisObj tt)
-defPropertyRW name g s = PropertyMember $ Property name
+defPropertyRW name g s = Member PropertyMember
+  name
+  (untag (mIOInit :: Tagged tr (IO ())))
   (untag (mIOType :: Tagged tr TypeName))
+  []
   (mkUniformFunc g)
   (Just $ mkUniformFunc s)
-  (untag (mIOInit :: Tagged tr (IO ())))
 
 --
 -- Meta Object Compiler
 --
 
 data MOCState = MOCState {
-  mData            :: [CUInt],
-  mDataLen         :: Int,
+  mData            :: CRList CUInt,
   mDataMethodsIdx  :: Maybe Int,
   mDataPropsIdx    :: Maybe Int,
-  mStrData         :: [CChar],
-  mStrDataLen      :: Int,
-  mStrDataMap      :: Map String CUInt
-} deriving Show
+  mStrData         :: CRList CChar,
+  mStrDataMap      :: Map String CUInt,
+  mFuncMethods     :: CRList (Maybe UniformFunc),
+  mFuncProperties  :: CRList (Maybe UniformFunc),
+  mMethodCount     :: Int,
+  mPropertyCount   :: Int
+}
 
-data MOCOutput = MOCOutput [CUInt] [CChar]
+-- | Generate MOC meta-data from a class name and member list.
+compileClass :: String -> [Member tt] -> MOCState
+compileClass name ms = 
+  let enc = flip execState newMOCState $ do
+        writeInt 5                           -- Revision
+        writeString name                     -- Class name
+        writeInt 0 >> writeInt 0             -- Class info
+        writeIntegral $
+          mMethodCount enc                   -- Methods
+        writeIntegral $
+          fromMaybe 0 $ mDataMethodsIdx enc  -- Methods (data index)
+        writeIntegral $ mPropertyCount enc   -- Properties
+        writeIntegral $
+          fromMaybe 0 $ mDataPropsIdx enc    -- Properties (data index)
+        writeInt 0 >> writeInt 0             -- Enums
+        writeInt 0 >> writeInt 0             -- Constructors
+        writeInt 0                           -- Flags
+        writeInt 0                           -- Signals
+        mapM_ writeMethod $ filterMembers MethodMember ms
+        mapM_ writeProperty $ filterMembers PropertyMember ms
+        writeInt 0
+  in enc
 
 newMOCState :: MOCState
-newMOCState = MOCState [] 0 Nothing Nothing [] 0 Map.empty
+newMOCState =
+  MOCState crlEmpty Nothing Nothing crlEmpty Map.empty crlEmpty crlEmpty 0 0
 
 writeInt :: CUInt -> State MOCState ()
 writeInt int = do
   state <- get
-  let md    = mData state
-      mdLen = mDataLen state
-  put $ state {mData = int:md, mDataLen = mdLen+1}
+  put $ state {mData = mData state `crlAppend1` int}
   return ()
+
+writeIntegral :: (Integral a) => a -> State MOCState ()
+writeIntegral int =
+  writeInt (fromIntegral int)
 
 writeString :: String -> State MOCState ()
 writeString str = do
   state <- get
   let msd    = mStrData state
-      msdLen = mStrDataLen state
       msdMap = mStrDataMap state
   case (Map.lookup str msdMap) of
     Just idx -> writeInt idx
     Nothing  -> do
-      let idx = fromIntegral msdLen
-          msd' = 0 : (map castCharToCChar (reverse str) ++ msd)
-          msdLen' = msdLen + length str + 1
-          msdMap' = Map.insert str idx msdMap
+      let idx = crlLen msd
+          msd' = msd `crlAppend` (map castCharToCChar str) `crlAppend1` 0
+          msdMap' = Map.insert str (fromIntegral idx) msdMap
       put $ state {
         mStrData = msd',
-        mStrDataLen = msdLen',
         mStrDataMap = msdMap'}
-      writeInt idx
+      writeIntegral idx
 
-writeMethod :: Method tt -> State MOCState ()
+writeMethod :: Member tt -> State MOCState ()
 writeMethod m = do
-  idx <- get >>= return . mDataLen
+  idx <- get >>= return . crlLen . mData
   writeString $ methodSignature m
   writeString $ methodParameters m
-  writeString $ typeName $ head $ methodTypes m
+  writeString $ typeName $ memberType m
   writeString ""
   writeInt (mfAccessPublic .|. mfMethodScriptable)
   state <- get
-  put $ state {mDataMethodsIdx = mplus (mDataMethodsIdx state) (Just idx)}
+  put $ state {
+    mDataMethodsIdx = mplus (mDataMethodsIdx state) (Just idx),
+    mMethodCount = 1 + (mMethodCount state),
+    mFuncMethods = mFuncMethods state `crlAppend1` (Just $ memberFun m)}
   return ()
 
-writeProperty :: Property tt -> State MOCState ()
+writeProperty :: Member tt -> State MOCState ()
 writeProperty p = do
-  idx <- get >>= return . mDataLen
-  writeString $ propertyName p
-  writeString $ typeName $ propertyType p
+  idx <- get >>= return . crlLen . mData
+  writeString $ memberName p
+  writeString $ typeName $ memberType p
   writeInt (pfReadable .|. pfScriptable .|.
-    if (isJust $ propertyWriteFunc p) then pfWritable else 0)
+    if (isJust $ memberFunAux p) then pfWritable else 0)
   state <- get
-  put $ state {mDataPropsIdx = mplus (mDataPropsIdx state) (Just idx)}
+  put $ state {
+    mDataPropsIdx = mplus (mDataPropsIdx state) (Just idx),
+    mPropertyCount = 1 + (mPropertyCount state),
+    mFuncProperties = mFuncProperties state
+      `crlAppend1` (Just $ memberFun p) `crlAppend1` memberFunAux p
+  }
   return ()
-
-compileClass :: String -> [Method tt] -> [Property tt] -> MOCOutput
-compileClass name ms ps = 
-  let enc = flip execState newMOCState $ do
-        writeInt 5                           -- Revision
-        writeString name                     -- Class name
-        writeInt 0 >> writeInt 0             -- Class info
-        writeInt $ fromIntegral $ length ms  -- Methods
-        writeInt $ fromIntegral $
-          fromMaybe 0 $ mDataMethodsIdx enc  -- Methods (data index)
-        writeInt $ fromIntegral $ length ps  -- Properties
-        writeInt $ fromIntegral $
-          fromMaybe 0 $ mDataPropsIdx enc    -- Properties (data index)
-        writeInt 0 >> writeInt 0             -- Enums
-        writeInt 0 >> writeInt 0             -- Constructors
-        writeInt 0                           -- Flags
-        writeInt 0                           -- Signals        
-        mapM_ writeMethod ms
-        mapM_ writeProperty ps
-        writeInt 0
-  in MOCOutput (reverse $ mData enc) (reverse $ mStrData enc)
 
 foldr0 :: (a -> a -> a) -> a -> [a] -> a
 foldr0 _ x [] = x
 foldr0 f _ xs = foldr1 f xs
 
-methodSignature :: Method tt -> String
+methodSignature :: Member tt -> String
 methodSignature method =
-  let paramTypes = tail $ methodTypes method
-  in (showString (methodName method) . showChar '(' .
+  let paramTypes = memberParams method
+  in (showString (memberName method) . showChar '(' .
        foldr0 (\l r -> l . showChar ',' . r) id
          (map (showString . typeName) paramTypes) . showChar ')') ""
 
-methodParameters :: Method tt -> String
+methodParameters :: Member tt -> String
 methodParameters method =
-  replicate (flip (-) 2 $ length $ methodTypes method) ','
+  replicate (flip (-) 1 $ length $ memberParams method) ','
