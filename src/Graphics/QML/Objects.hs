@@ -1,7 +1,8 @@
 {-# LANGUAGE
     ScopedTypeVariables,
     TypeFamilies,
-    FlexibleContexts
+    FlexibleContexts,
+    FlexibleInstances
   #-}
 
 -- | Facilities for defining new object types which can be marshalled between
@@ -21,6 +22,13 @@ module Graphics.QML.Objects (
   -- * Properties
   defPropertyRO,
   defPropertyRW,
+
+  -- * Signals
+  defSignal,
+  fireSignal,
+  SignalKey (
+    type SignalParams),
+  SignalSuffix,
 
   -- * Object References
   ObjRef,
@@ -273,13 +281,14 @@ crlToNewArray f (CRList len lst) = do
 data MemberKind
   = MethodMember
   | PropertyMember
-  deriving Eq
+  | SignalMember
+  deriving (Bounded, Enum, Eq)
 
 -- | Represents a named member of the QML class which wraps type @tt@.
 data Member tt = Member {
   memberKind   :: MemberKind,
   memberName   :: String,
-  memberInit   :: IO (),
+  memberInit   :: Int -> IO (),
   memberType   :: TypeName,
   memberParams :: [TypeName],
   memberFun    :: UniformFunc,
@@ -292,7 +301,10 @@ filterMembers k ms =
 
 -- | Call all the initialisation functions for a list of members.
 initMembers :: [Member tt] -> IO ()
-initMembers = mapM_ memberInit
+initMembers ms =
+  mapM_ (\k ->
+    mapM_ (\(i,m) -> memberInit m i) $ zip [0..] $ filterMembers k ms) $
+  enumFromTo minBound maxBound
 
 --
 -- Method
@@ -355,7 +367,7 @@ defMethod name f =
   let crude = untag (mkMethodTypes :: Tagged ms MethodTypeInfo)
   in Member MethodMember
        name
-       (methodTypesInit crude)
+       (const $ methodTypesInit crude)
        (methodReturnType crude)
        (methodParamTypes crude)
        (mkUniformFunc f)
@@ -372,7 +384,7 @@ defPropertyRO ::
   String -> (tt -> IO tr) -> Member (ThisObj tt)
 defPropertyRO name g = Member PropertyMember
   name
-  (untag (mIOInit :: Tagged tr (IO ())))
+  (const $ untag (mIOInit :: Tagged tr (IO ())))
   (untag (mIOType :: Tagged tr TypeName))
   []
   (mkUniformFunc g)
@@ -385,11 +397,88 @@ defPropertyRW ::
   String -> (tt -> IO tr) -> (tt -> tr -> IO ()) -> Member (ThisObj tt)
 defPropertyRW name g s = Member PropertyMember
   name
-  (untag (mIOInit :: Tagged tr (IO ())))
+  (const $ untag (mIOInit :: Tagged tr (IO ())))
   (untag (mIOType :: Tagged tr TypeName))
   []
   (mkUniformFunc g)
   (Just $ mkUniformFunc s)
+
+--
+-- Signal
+--
+
+data SignalTypeInfo = SignalTypeInfo {
+  signalParamTypes :: [TypeName],
+  signalTypesInit  :: IO ()
+}
+
+-- | Defines a named signal using a 'SignalKey'.
+defSignal ::
+  forall obj sk. (Object obj, SignalKey sk) => Tagged sk String -> Member obj
+defSignal tn =
+  let crude = untag (mkSignalTypes :: Tagged (SignalParams sk) SignalTypeInfo)
+      slot = untag (signalSlotCAF :: Tagged (obj, sk) (IORef (Maybe Int)))
+  in Member SignalMember
+       (untag tn)
+       (\idx -> signalSlotInit slot idx >> signalTypesInit crude)
+       (TypeName "")
+       (signalParamTypes crude)
+       (\_ _ -> return ())
+       Nothing
+
+{-# NOINLINE signalSlotCAF #-}
+signalSlotCAF ::
+  (Object obj, SignalKey sk) =>
+  Tagged (obj, sk) (IORef (Maybe Int))
+signalSlotCAF = Tagged $ unsafePerformIO $ newIORef Nothing
+
+signalSlotInit :: IORef (Maybe Int) -> Int -> IO ()
+signalSlotInit ref idx =
+  writeIORef ref (Just idx)
+
+-- | Fires a signal on an 'Object', specified using a 'SignalKey'.
+fireSignal ::
+  forall obj sk. (Object obj, SignalKey sk) =>
+  Tagged sk (ObjRef obj) -> SignalParams sk 
+fireSignal this =
+  let slotRef = untag $ (signalSlotCAF ::
+        Tagged (obj, sk) (IORef (Maybe Int)))
+      cont ps = do
+        slotMay <- readIORef slotRef
+        case slotMay of
+          Just slotIdx -> withArray (nullPtr:ps) (\pptr ->
+            hsqmlFireSignal (objHndl $ untag this) slotIdx pptr)
+          Nothing -> error ("Attempt to fire undefined signal on class '"++
+            (typeName $ classType $ (classDefCAF :: ClassDef obj))++"'.")
+  in mkSignalArgs cont
+
+-- | Instances of the 'SignalKey' class identify distinct signals. The
+-- associated 'SignalParams' type specifies the signal's signature.
+class (SignalSuffix (SignalParams sk)) => SignalKey sk where
+  type SignalParams sk
+
+-- | Supports marshalling an arbitrary number of arguments into a QML signal.
+class SignalSuffix ss where
+  mkSignalArgs  :: ([Ptr ()] -> IO ()) -> ss
+  mkSignalTypes :: Tagged ss SignalTypeInfo
+
+instance (MarshalOut a, SignalSuffix b) => SignalSuffix (a -> b) where
+  mkSignalArgs cont param =
+    mkSignalArgs (\ps ->
+      mOutAlloc param (\ptr ->
+        cont (ptr:ps)))
+  mkSignalTypes =
+    let (SignalTypeInfo p i) =
+          untag (mkSignalTypes :: Tagged b SignalTypeInfo)
+        typ = untag (mIOType :: Tagged a TypeName)
+        ini = untag (mIOInit :: Tagged a (IO ()))
+    in Tagged $ SignalTypeInfo (typ:p) (ini >> i)
+
+instance SignalSuffix (IO ()) where
+  mkSignalArgs cont =
+    cont []
+  mkSignalTypes =
+    Tagged $ SignalTypeInfo [] (return ())
 
 --
 -- Meta Object Compiler
@@ -404,6 +493,7 @@ data MOCState = MOCState {
   mFuncMethods     :: CRList (Maybe UniformFunc),
   mFuncProperties  :: CRList (Maybe UniformFunc),
   mMethodCount     :: Int,
+  mSignalCount     :: Int,
   mPropertyCount   :: Int
 }
 
@@ -415,7 +505,8 @@ compileClass name ms =
         writeString name                     -- Class name
         writeInt 0 >> writeInt 0             -- Class info
         writeIntegral $
-          mMethodCount enc                   -- Methods
+          mMethodCount enc +
+          mSignalCount enc                   -- Methods
         writeIntegral $
           fromMaybe 0 $ mDataMethodsIdx enc  -- Methods (data index)
         writeIntegral $ mPropertyCount enc   -- Properties
@@ -424,7 +515,8 @@ compileClass name ms =
         writeInt 0 >> writeInt 0             -- Enums
         writeInt 0 >> writeInt 0             -- Constructors
         writeInt 0                           -- Flags
-        writeInt 0                           -- Signals
+        writeIntegral $ mSignalCount enc     -- Signals
+        mapM_ writeMethod $ filterMembers SignalMember ms
         mapM_ writeMethod $ filterMembers MethodMember ms
         mapM_ writeProperty $ filterMembers PropertyMember ms
         writeInt 0
@@ -432,7 +524,7 @@ compileClass name ms =
 
 newMOCState :: MOCState
 newMOCState =
-  MOCState crlEmpty Nothing Nothing crlEmpty Map.empty crlEmpty crlEmpty 0 0
+  MOCState crlEmpty Nothing Nothing crlEmpty Map.empty crlEmpty crlEmpty 0 0 0
 
 writeInt :: CUInt -> State MOCState ()
 writeInt int = do
@@ -467,11 +559,15 @@ writeMethod m = do
   writeString $ methodParameters m
   writeString $ typeName $ memberType m
   writeString ""
-  writeInt (mfAccessPublic .|. mfMethodScriptable)
+  let (mc,sc,flags) = case memberKind m of
+        SignalMember -> (0,1,mfMethodSignal)
+        _            -> (1,0,0)
+  writeInt (mfAccessPublic .|. mfMethodScriptable .|. flags)
   state <- get
   put $ state {
     mDataMethodsIdx = mplus (mDataMethodsIdx state) (Just idx),
-    mMethodCount = 1 + (mMethodCount state),
+    mMethodCount = mc + (mMethodCount state),
+    mSignalCount = sc + (mSignalCount state),
     mFuncMethods = mFuncMethods state `crlAppend1` (Just $ memberFun m)}
   return ()
 

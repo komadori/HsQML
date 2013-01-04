@@ -84,6 +84,9 @@ extern HsQMLObjectHandle* hsqml_get_object_handle(
 extern void hsqml_finalise_object_handle(
     HsQMLObjectHandle*);
 
+extern void hsqml_fire_signal(
+    HsQMLObjectHandle*, int, void**);
+
 /* Engine */
 extern void hsqml_create_engine(
     HsQMLObjectHandle*,

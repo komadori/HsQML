@@ -2,6 +2,8 @@
 #define HSQML_OBJECT_H
 
 #include <QObject>
+#include <QAtomicInt>
+#include <QAtomicPointer>
 
 class HsQMLClass;
 class HsQMLObject;
@@ -14,6 +16,7 @@ public:
     HsStablePtr haskell() const;
     HsQMLClass* klass() const;
     HsQMLObject* object();
+    HsQMLObject* maybeObject();
     void clearObject();
     enum RefSrc {Handle, Object};
     void ref(RefSrc);
@@ -22,7 +25,7 @@ public:
 private:
     HsStablePtr mHaskell;
     HsQMLClass* mKlass;
-    HsQMLObject* mObject;
+    QAtomicPointer<HsQMLObject> mObject;
     QAtomicInt mRefCount;
 };
 

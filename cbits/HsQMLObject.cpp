@@ -36,12 +36,29 @@ HsQMLObject* HsQMLObjectProxy::object()
 {
     if (!mObject) {
         mObject = new HsQMLObject(this);
+
+        if (gLogLevel >= 5) {
+            qDebug() << QString().sprintf(
+                "HsQML: New QObject, class=%s, ptr=%p, proxy=%p.",
+                mKlass->name(), static_cast<HsQMLObject*>(mObject), this);
+        }
     }
+    return mObject;
+}
+
+HsQMLObject* HsQMLObjectProxy::maybeObject()
+{
     return mObject;
 }
 
 void HsQMLObjectProxy::clearObject()
 {
+    if (gLogLevel >= 5) {
+        qDebug() << QString().sprintf(
+            "HsQML: Release QObject, class=%s, ptr=%p, proxy=%p.",
+            mKlass->name(), static_cast<HsQMLObject*>(mObject), this);
+    }
+
     mObject = NULL;
 }
 
@@ -184,5 +201,15 @@ extern void hsqml_finalise_object_handle(
     if (hndl) {
         HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
         proxy->deref(HsQMLObjectProxy::Handle);
+    }
+}
+
+extern void hsqml_fire_signal(
+    HsQMLObjectHandle* hndl, int idx, void** args)
+{
+    HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
+    HsQMLObject* obj = proxy->maybeObject();
+    if (obj) {
+        QMetaObject::activate(obj, &proxy->klass()->mMetaObject, idx, args);
     }
 }

@@ -92,6 +92,12 @@ ptrToObj =
   {id `Ptr ()'} ->
   `HsQMLObjectHandle' newObjectHandle* #}
 
+{#fun unsafe hsqml_fire_signal as ^
+  {withHsQMLObjectHandle* `HsQMLObjectHandle',
+   `Int',
+   id `Ptr (Ptr ())'} ->
+  `()' #}
+
 ofDynamicMetaObject :: CUInt
 ofDynamicMetaObject = 0x01
 
