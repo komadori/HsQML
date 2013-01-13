@@ -1,5 +1,9 @@
 {-# LANGUAGE
-    ScopedTypeVariables
+    ScopedTypeVariables,
+    TypeFamilies,
+    FlexibleContexts,
+    FlexibleInstances,
+    Rank2Types
   #-}
 
 module Graphics.QML.Internal.Marshal where
@@ -15,11 +19,6 @@ newtype TypeName = TypeName {
   typeName :: String
 }
 
--- | The class 'MarshalIn' allows QML values to be converted into Haskell
--- values.
-class MarshalIn a where
-  mIn :: InMarshaller a
-
 type ErrIO a = MaybeT IO a
 
 runErrIO :: ErrIO a -> IO ()
@@ -32,37 +31,108 @@ runErrIO m = do
 errIO :: IO a -> ErrIO a
 errIO = MaybeT . fmap Just
 
+type MTypeNameFunc t = Tagged t TypeName
+type MTypeInitFunc t = Tagged t (IO ())
+type MValToHsFunc t = Ptr () -> ErrIO t
+type MHsToValFunc t = t -> Ptr () -> IO ()
+type MHsToAllocFunc t = (forall b. t -> (Ptr () -> IO b) -> IO b)
+
+-- | The class 'Marshal' allows Haskell values to be marshalled to and from the
+-- QML environment.
+class Marshal t where
+  -- | The 'MarshalMode' associated type parameter specifies the type of
+  -- marshalling functionality offered by the instance.
+  type MarshalMode t
+  -- | Yields the 'Marshaller' for the type @t@.
+  marshaller :: Marshaller t (MarshalMode t)
+
+-- | Base class containing core functionality for all 'MarshalMode's.
+class MarshalBase m where
+  mTypeName_ :: forall t. Marshaller t m -> MTypeNameFunc t
+  mTypeInit_ :: forall t. Marshaller t m -> MTypeInitFunc t
+
+mTypeName ::
+  forall t. (Marshal t, MarshalBase (MarshalMode t)) => MTypeNameFunc t
+mTypeName = mTypeName_ (marshaller :: Marshaller t (MarshalMode t))
+
+mTypeInit ::
+  forall t. (Marshal t, MarshalBase (MarshalMode t)) => MTypeInitFunc t
+mTypeInit = mTypeInit_ (marshaller :: Marshaller t (MarshalMode t))
+
+-- | Class for 'MarshalMode's which support marshalling QML-to-Haskell.
+class (MarshalBase m) => MarshalToHs m where
+  mValToHs_ :: forall t. Marshaller t m -> MValToHsFunc t
+
+mValToHs ::
+  forall t. (Marshal t, MarshalToHs (MarshalMode t)) => MValToHsFunc t
+mValToHs = mValToHs_ (marshaller :: Marshaller t (MarshalMode t))
+
+-- | Class for 'MarshalMode's which support marshalling Haskell-to-QML.
+class (MarshalBase m) => MarshalToValRaw m where
+  mHsToVal_   :: forall t. Marshaller t m -> MHsToValFunc t
+  mHsToAlloc_ :: forall t. Marshaller t m -> MHsToAllocFunc t
+
+mHsToVal ::
+  forall t. (Marshal t, MarshalToValRaw (MarshalMode t)) => MHsToValFunc t
+mHsToVal = mHsToVal_ (marshaller :: Marshaller t (MarshalMode t))
+
+mHsToAlloc ::
+  forall t. (Marshal t, MarshalToValRaw (MarshalMode t)) => MHsToAllocFunc t
+mHsToAlloc = mHsToAlloc_ (marshaller :: Marshaller t (MarshalMode t))
+
+-- | Class for 'MarshalMode's which support marshalling Haskell-to-QML,
+-- excluding the return of void from methods.
+class (MarshalToValRaw m) => MarshalToVal m where
+
 -- | Encapsulates the functionality to needed to implement an instance of
--- 'MarshalIn' so that such instances can be defined without access to
+-- 'Marshal' so that such instances can be defined without access to
 -- implementation details.
-data InMarshaller a = InMarshaller {
-  mInFuncFld :: Ptr () -> ErrIO a,
-  mIOTypeFld :: Tagged a TypeName,
-  mIOInitFld :: Tagged a (IO ())
-}
+data family Marshaller t m
 
-mInFunc :: (MarshalIn a) => Ptr () -> ErrIO a
-mInFunc = mInFuncFld mIn 
+-- | 'MarshalMode' for built-in data types.
+data ValBidi
 
-mIOType :: (MarshalIn a) => Tagged a TypeName
-mIOType = mIOTypeFld mIn
+data instance Marshaller t ValBidi = MValBidi {
+  mValBidi_typeName  :: !(MTypeNameFunc t),
+  mValBidi_typeInit  :: !(MTypeInitFunc t),
+  mValBidi_valToHs   :: !(MValToHsFunc t),
+  mValBidi_hsToVal   :: !(MHsToValFunc t),
+  mValBidi_hsToAlloc :: !(MHsToAllocFunc t)}
 
-mIOInit :: (MarshalIn a) => Tagged a (IO ())
-mIOInit = mIOInitFld mIn
+instance MarshalBase ValBidi where
+  mTypeName_ = mValBidi_typeName
+  mTypeInit_ = mValBidi_typeInit
 
--- | The class 'MarshalOut' allows Haskell values to be converted into QML
--- values.
-class (MarshalIn a) => MarshalOut a where
-  mOutFunc  :: Ptr () -> a -> IO ()
-  mOutAlloc :: a -> (Ptr () -> IO b) -> IO b
+instance MarshalToHs ValBidi where
+  mValToHs_ = mValBidi_valToHs
 
-instance MarshalOut () where
-  mOutFunc _ _ = return ()
-  mOutAlloc _ f = f nullPtr
+instance MarshalToValRaw ValBidi where
+  mHsToVal_   = mValBidi_hsToVal
+  mHsToAlloc_ = mValBidi_hsToAlloc
 
-instance MarshalIn () where
-  mIn = InMarshaller {
-    mInFuncFld = \_ -> return (),
-    mIOTypeFld = Tagged $ TypeName "",
-    mIOInitFld = Tagged $ return ()
-  }
+instance MarshalToVal ValBidi where
+
+-- | 'MarshalMode' for void in method returns.
+data ValFnRetVoid
+
+data instance Marshaller t ValFnRetVoid = MValFnRetVoid {
+  mValFnRetVoid_typeName  :: !(MTypeNameFunc t),
+  mValFnRetVoid_typeInit  :: !(MTypeInitFunc t),
+  mValFnRetVoid_hsToVal   :: !(MHsToValFunc t),
+  mValFnRetVoid_hsToAlloc :: !(MHsToAllocFunc t)}
+
+instance MarshalBase ValFnRetVoid where
+  mTypeName_ = mValFnRetVoid_typeName
+  mTypeInit_ = mValFnRetVoid_typeInit
+
+instance MarshalToValRaw ValFnRetVoid where
+  mHsToVal_   = mValFnRetVoid_hsToVal
+  mHsToAlloc_ = mValFnRetVoid_hsToAlloc
+
+instance Marshal () where
+  type MarshalMode () = ValFnRetVoid
+  marshaller = MValFnRetVoid {
+    mValFnRetVoid_typeName = Tagged $ TypeName "",
+    mValFnRetVoid_typeInit = Tagged $ return (),
+    mValFnRetVoid_hsToVal = \_ _ -> return (),
+    mValFnRetVoid_hsToAlloc = \_ f -> f nullPtr}

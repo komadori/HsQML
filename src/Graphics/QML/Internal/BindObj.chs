@@ -2,7 +2,7 @@
     ForeignFunctionInterface
   #-}
 
-module Graphics.QML.Internal.Objects where
+module Graphics.QML.Internal.BindObj where
 
 import Foreign.C.Types
 import Foreign.Ptr
@@ -59,11 +59,6 @@ newObjectHandle p = do
 isNullObjectHandle :: HsQMLObjectHandle -> Bool
 isNullObjectHandle (HsQMLObjectHandle fp) =
   nullPtr == unsafeForeignPtrToPtr fp
-
--- | Represents an instance of the QML class which wraps the type @tt@.
-data ObjRef tt = ObjRef {
-  objHndl :: HsQMLObjectHandle
-}
 
 objToPtr :: a -> (Ptr () -> IO b) -> IO b
 objToPtr obj f = do

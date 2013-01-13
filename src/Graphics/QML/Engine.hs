@@ -1,6 +1,6 @@
 {-# LANGUAGE
     ExistentialQuantification,
-    Rank2Types
+    FlexibleContexts
   #-}
 
 -- | Functions for starting QML engines, displaying content in a window.
@@ -28,8 +28,7 @@ import Graphics.QML.Objects
 
 import Data.List
 import Data.Maybe
-import Data.Typeable
-import Foreign.Storable
+import Data.Traversable as T
 import System.FilePath (isAbsolute, splitDirectories, pathSeparators)
 import Network.URI (URI(URI), URIAuth(URIAuth), nullURI, uriPath)
 
@@ -52,7 +51,7 @@ data EngineConfig a = EngineConfig {
   -- | Window state for the initial QML document.
   initialWindowState :: InitialWindowState,
   -- | Context 'Object' made available to QML script code.
-  contextObject      :: Maybe (ObjRef a)
+  contextObject      :: Maybe a
 }
 
 -- | Default engine configuration. Loads @\"main.qml\"@ from the current
@@ -74,18 +73,20 @@ getWindowTitle (ShowWindowWithTitle t) = Just t
 getWindowTitle _ = Nothing
 
 -- | Create a QML engine from a specification of its configuration.
-createEngine :: (Object a) => EngineConfig a -> IO ()
+createEngine ::
+    (Marshal a, MarshalToObj (MarshalMode a)) => EngineConfig a -> IO ()
 createEngine config = do
   hsqmlInit
-  let hndl = fmap (\(ObjRef h) -> h) $ contextObject config
+  let obj = contextObject config
       url = initialURL config
       state = initialWindowState config
       showWin = isWindowShown state
       maybeTitle = getWindowTitle state
       setTitle = isJust maybeTitle
       titleStr = fromMaybe "" maybeTitle
-  mOutAlloc url $ \urlPtr -> do
-    mOutAlloc titleStr $ \titlePtr -> do
+  hndl <- T.sequence $ fmap mHsToObj $ obj
+  mHsToAlloc url $ \urlPtr -> do
+    mHsToAlloc titleStr $ \titlePtr -> do
       hsqmlCreateEngine hndl urlPtr showWin setTitle titlePtr
 
 -- | Enters the Qt event loop and runs until all engines have terminated.

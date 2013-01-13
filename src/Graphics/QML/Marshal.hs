@@ -1,19 +1,31 @@
 {-# LANGUAGE
     ScopedTypeVariables,
+    TypeFamilies,
     TypeSynonymInstances,
     FlexibleInstances
   #-}
 
 -- | Type classs and instances for marshalling values between Haskell and QML.
 module Graphics.QML.Marshal (
-  MarshalIn (
-    mIn),
-  InMarshaller,
-  MarshalOut
+  Marshal (
+    type MarshalMode,
+    marshaller),
+  MarshalToHs,
+  MarshalToValRaw,
+  MarshalToVal,
+  MarshalFromObj,
+  MarshalToObj,
+  ValBidi,
+  ValFnRetVoid,
+  ValObjBidi,
+  ValObjToOnly,
+  ThisObj,
+  Marshaller 
 ) where
 
+import Graphics.QML.Internal.BindPrim
 import Graphics.QML.Internal.Marshal
-import Graphics.QML.Internal.PrimValues
+import Graphics.QML.Internal.Objects
 
 import Data.Maybe
 import Data.Tagged
@@ -35,89 +47,75 @@ import Network.URI (
 -- Int/int built-in type
 --
 
-instance MarshalOut Int where
-  mOutFunc ptr int =
-    poke (castPtr ptr :: Ptr CInt) (fromIntegral int)
-  mOutAlloc num f =
-    alloca $ \(ptr :: Ptr CInt) ->
-      mOutFunc (castPtr ptr) num >> f (castPtr ptr)
-
-instance MarshalIn Int where
-  mIn = InMarshaller {
-    mInFuncFld = \ptr ->
+instance Marshal Int where
+  type MarshalMode Int = ValBidi
+  marshaller = MValBidi {
+    mValBidi_typeName = Tagged $ TypeName "int",
+    mValBidi_typeInit = Tagged $ return (),
+    mValBidi_valToHs = \ptr ->
       errIO $ peek (castPtr ptr :: Ptr CInt) >>= return . fromIntegral,
-    mIOTypeFld = Tagged $ TypeName "int",
-    mIOInitFld = Tagged $ return ()
-  }
+    mValBidi_hsToVal = \int ptr ->
+      poke (castPtr ptr :: Ptr CInt) (fromIntegral int),
+    mValBidi_hsToAlloc = \int f ->
+      alloca $ \(ptr :: Ptr CInt) ->
+        mHsToVal int (castPtr ptr) >> f (castPtr ptr)}
 
 --
 -- Double/double built-in type
 --
 
-instance MarshalOut Double where
-  mOutFunc ptr num =
-    poke (castPtr ptr :: Ptr CDouble) (realToFrac num)
-  mOutAlloc num f =
-    alloca $ \(ptr :: Ptr CDouble) ->
-      mOutFunc (castPtr ptr) num >> f (castPtr ptr)
-
-instance MarshalIn Double where
-  mIn = InMarshaller {
-    mInFuncFld = \ptr ->
+instance Marshal Double where
+  type MarshalMode Double = ValBidi
+  marshaller = MValBidi {
+    mValBidi_typeName = Tagged $ TypeName "double",
+    mValBidi_typeInit = Tagged $ return (),
+    mValBidi_valToHs = \ptr ->
       errIO $ peek (castPtr ptr :: Ptr CDouble) >>= return . realToFrac,
-    mIOTypeFld = Tagged $ TypeName "double",
-    mIOInitFld = Tagged $ return ()
-  }
+    mValBidi_hsToVal = \num ptr ->
+      poke (castPtr ptr :: Ptr CDouble) (realToFrac num),
+    mValBidi_hsToAlloc = \num f ->
+      alloca $ \(ptr :: Ptr CDouble) ->
+        mHsToVal num (castPtr ptr) >> f (castPtr ptr)}
 
 --
 -- Text/QString built-in type
 --
 
-instance MarshalOut Text where
-  mOutFunc ptr txt = do
-    array <- hsqmlMarshalString
-        (T.lengthWord16 txt) (HsQMLStringHandle $ castPtr ptr)
-    T.unsafeCopyToPtr txt (castPtr array)
-  mOutAlloc txt f =
-    allocaBytes hsqmlStringSize $ \ptr -> do
-      hsqmlInitString $ HsQMLStringHandle ptr
-      mOutFunc (castPtr ptr) txt
-      ret <- f (castPtr ptr)
-      hsqmlDeinitString $ HsQMLStringHandle ptr
-      return ret
-
-instance MarshalIn Text where
-  mIn = InMarshaller {
-    mInFuncFld = \ptr -> errIO $ do
+instance Marshal Text where
+  type MarshalMode Text = ValBidi
+  marshaller = MValBidi {
+    mValBidi_typeName = Tagged $ TypeName "QString",
+    mValBidi_typeInit = Tagged $ return (),
+    mValBidi_valToHs = \ptr -> errIO $ do
       pair <- alloca (\bufPtr -> do
         len <- hsqmlUnmarshalString (HsQMLStringHandle $ castPtr ptr) bufPtr
         buf <- peek bufPtr
         return (castPtr buf, fromIntegral len))
       uncurry T.fromPtr pair,
-    mIOTypeFld = Tagged $ TypeName "QString",
-    mIOInitFld = Tagged $ return ()
-  }
+    mValBidi_hsToVal = \txt ptr -> do
+      array <- hsqmlMarshalString
+          (T.lengthWord16 txt) (HsQMLStringHandle $ castPtr ptr)
+      T.unsafeCopyToPtr txt (castPtr array),
+    mValBidi_hsToAlloc = \txt f ->
+      allocaBytes hsqmlStringSize $ \ptr -> do
+        hsqmlInitString $ HsQMLStringHandle ptr
+        mHsToVal txt (castPtr ptr)
+        ret <- f (castPtr ptr)
+        hsqmlDeinitString $ HsQMLStringHandle ptr
+        return ret}
 
 --
 -- String/QString built-in type
 --
 
-instance MarshalOut String where
-  mOutFunc ptr str = mOutFunc ptr $ T.pack str
-  mOutAlloc txt f =
-    allocaBytes hsqmlStringSize $ \ptr -> do
-      hsqmlInitString $ HsQMLStringHandle ptr
-      mOutFunc (castPtr ptr) txt
-      ret <- f (castPtr ptr)
-      hsqmlDeinitString $ HsQMLStringHandle ptr
-      return ret
-
-instance MarshalIn String where
-  mIn = InMarshaller {
-    mInFuncFld = fmap T.unpack . mInFuncFld mIn,
-    mIOTypeFld = Tagged $ TypeName "QString",
-    mIOInitFld = Tagged $ return ()
-  }
+instance Marshal String where
+  type MarshalMode String = ValBidi
+  marshaller = MValBidi {
+    mValBidi_typeName = Tagged $ TypeName "QString",
+    mValBidi_typeInit = Tagged $ return (),
+    mValBidi_valToHs = fmap T.unpack . mValToHs,
+    mValBidi_hsToVal = \txt ptr -> mHsToVal (T.pack txt) ptr,
+    mValBidi_hsToAlloc = \txt f -> mHsToAlloc (T.pack txt) f}
 
 --
 -- URI/QUrl built-in type
@@ -130,23 +128,12 @@ mapURIStrings f (URI scheme auth path query frag) =
               Just $ URIAuth (f user) (f name) (f port)
           mapAuth Nothing = Nothing
 
-instance MarshalOut URI where
-  mOutFunc ptr uri =
-    let str = uriToString id (mapURIStrings
-                (escapeURIString isUnescapedInURI) uri) ""
-    in withCStringLen str (\(buf, bufLen) ->
-         hsqmlMarshalUrl buf bufLen (HsQMLUrlHandle $ castPtr ptr))
-  mOutAlloc uri f =
-    allocaBytes hsqmlUrlSize $ \ptr -> do
-      hsqmlInitUrl $ HsQMLUrlHandle ptr
-      mOutFunc (castPtr ptr) uri
-      ret <- f (castPtr ptr)
-      hsqmlDeinitUrl $ HsQMLUrlHandle ptr
-      return ret
-
-instance MarshalIn URI where
-  mIn = InMarshaller {
-    mInFuncFld = \ptr -> errIO $ do
+instance Marshal URI where
+  type MarshalMode URI = ValBidi
+  marshaller = MValBidi {
+    mValBidi_typeName = Tagged $ TypeName "QUrl",
+    mValBidi_typeInit = Tagged $ return (),
+    mValBidi_valToHs = \ptr -> errIO $ do
       pair <- alloca (\bufPtr -> do
         len <- hsqmlUnmarshalUrl (HsQMLUrlHandle $ castPtr ptr) bufPtr
         buf <- peek bufPtr
@@ -155,6 +142,15 @@ instance MarshalIn URI where
       free $ fst pair
       return $ mapURIStrings unEscapeString $
         fromMaybe nullURI $ parseURIReference str,
-    mIOTypeFld = Tagged $ TypeName "QUrl",
-    mIOInitFld = Tagged $ return ()
-  }
+    mValBidi_hsToVal = \uri ptr ->
+      let str = uriToString id (mapURIStrings
+                  (escapeURIString isUnescapedInURI) uri) ""
+      in withCStringLen str (\(buf, bufLen) ->
+           hsqmlMarshalUrl buf bufLen (HsQMLUrlHandle $ castPtr ptr)),
+    mValBidi_hsToAlloc = \uri f ->
+      allocaBytes hsqmlUrlSize $ \ptr -> do
+        hsqmlInitUrl $ HsQMLUrlHandle ptr
+        mHsToVal uri (castPtr ptr)
+        ret <- f (castPtr ptr)
+        hsqmlDeinitUrl $ HsQMLUrlHandle ptr
+        return ret}

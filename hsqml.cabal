@@ -34,9 +34,10 @@ Library
         Graphics.QML.Marshal
         Graphics.QML.Objects
     Other-modules:
+        Graphics.QML.Internal.BindPrim
+        Graphics.QML.Internal.BindObj
         Graphics.QML.Internal.Marshal
         Graphics.QML.Internal.Objects
-        Graphics.QML.Internal.PrimValues
         Graphics.QML.Internal.Engine
     Hs-source-dirs: src
     Cc-options: -std=c++0x

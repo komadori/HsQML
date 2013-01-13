@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, TypeFamilies #-}
 
 module Main where
 
@@ -55,8 +55,9 @@ instance Object TestObject where
         defMethod "useObject" (\go -> do
             markTaskComplete (testHarness $ fromObjRef go) "useObject")]
 
-instance MarshalIn TestObject where
-    mIn = objectInMarshaller
+instance Marshal TestObject where
+    type MarshalMode TestObject = ValObjToOnly TestObject
+    marshaller = objSimpleMarshaller
 
 instance Object HarnessObject where
     classDef = defClass [

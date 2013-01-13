@@ -5,7 +5,7 @@
 
 module Graphics.QML.Internal.Engine where
 
-{#import Graphics.QML.Internal.Objects #}
+{#import Graphics.QML.Internal.BindObj #}
 
 import Foreign.C.Types
 import Foreign.C.String

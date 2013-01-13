@@ -2,15 +2,10 @@
     ForeignFunctionInterface
   #-}
 
-module Graphics.QML.Internal.PrimValues where
+module Graphics.QML.Internal.BindPrim where
 
 import Foreign.C.Types
-import Foreign.C.String
 import Foreign.Ptr
-import Foreign.ForeignPtr
-import Foreign.Storable
-import Foreign.Marshal.Alloc
-import Foreign.Marshal.Array
 import System.IO.Unsafe
 
 #include "hsqml.h"
