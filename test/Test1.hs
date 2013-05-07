@@ -4,6 +4,7 @@ module Main where
 
 import Graphics.QML
 import Control.Monad
+import Data.Int
 import Data.IORef
 import Data.List
 import Data.Maybe
@@ -32,7 +33,7 @@ markTaskComplete go task = do
             showString task $ showString "' completed." [])
         writeIORef ref $ ("unexpected_" ++ task) : list
 
-testInt :: Int
+testInt :: Int32
 testInt = 8888
 
 testDouble :: Double

@@ -29,6 +29,7 @@ import Graphics.QML.Internal.Objects
 
 import Data.Maybe
 import Data.Tagged
+import Data.Int
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Foreign as T
@@ -44,11 +45,11 @@ import Network.URI (
     isUnescapedInURI)
 
 --
--- Int/int built-in type
+-- Int32/int built-in type
 --
 
-instance Marshal Int where
-  type MarshalMode Int = ValBidi
+instance Marshal Int32 where
+  type MarshalMode Int32 = ValBidi
   marshaller = MValBidi {
     mValBidi_typeName = Tagged $ TypeName "int",
     mValBidi_typeInit = Tagged $ return (),
