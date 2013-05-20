@@ -61,6 +61,15 @@ instance Marshal Int32 where
       alloca $ \(ptr :: Ptr CInt) ->
         mHsToVal int (castPtr ptr) >> f (castPtr ptr)}
 
+instance Marshal Int where
+  type MarshalMode Int = ValBidi
+  marshaller = MValBidi {
+    mValBidi_typeName = Tagged $ TypeName "int",
+    mValBidi_typeInit = Tagged $ return (),
+    mValBidi_valToHs = fmap (fromIntegral :: Int32 -> Int) . mValToHs,
+    mValBidi_hsToVal = \int ptr -> mHsToVal (fromIntegral int :: Int32) ptr,
+    mValBidi_hsToAlloc = \int f -> mHsToAlloc (fromIntegral int :: Int32) f}
+
 --
 -- Double/double built-in type
 --
