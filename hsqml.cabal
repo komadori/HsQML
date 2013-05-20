@@ -68,6 +68,7 @@ Library
     else
         Pkgconfig-depends:
             QtDeclarative >= 4.7
+        Extra-libraries: stdc++
 
 Test-Suite hsqml-test1
     Type: exitcode-stdio-1.0
