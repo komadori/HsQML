@@ -12,25 +12,36 @@ import Graphics.QML.Internal.BindObj
 import Graphics.QML.Internal.Marshal
 
 import Data.Typeable
-import Data.IORef
+import Data.Typeable.Internal
+import Data.Bits
+import Data.Char
+
+data MemberKind
+    = MethodMember
+    | PropertyMember
+    | SignalMember
+    deriving (Bounded, Enum, Eq)
+
+-- | Represents a named member of the QML class which wraps type @tt@.
+data Member tt = Member {
+    memberKind   :: MemberKind,
+    memberName   :: String,
+    memberInit   :: Int -> IO (),
+    memberType   :: TypeName,
+    memberParams :: [TypeName],
+    memberFun    :: UniformFunc,
+    memberFunAux :: Maybe UniformFunc
+}
 
 -- | Represents the API of the QML class which wraps the type @tt@.
-data ClassDef tt = ClassDef {
-  classType :: TypeName,
-  classInit :: IORef Bool,
-  classHndl :: HsQMLClassHandle
+newtype ClassDef tt = ClassDef {
+    classMembers :: [Member tt]
 }
 
 -- | The class 'Object' allows Haskell types to expose an object-oriented
 -- interface to QML. 
 class (Typeable tt) => Object tt where
   classDef :: ClassDef tt
-
--- | Uninlinable version of classDef to try and ensure that class definitions
--- get stored as constant applicable forms.
-{-# NOINLINE classDefCAF #-}
-classDefCAF :: (Object tt) => ClassDef tt
-classDefCAF = classDef
 
 type MObjToHsFunc t = HsQMLObjectHandle -> IO t
 type MHsToObjFunc t = t -> IO HsQMLObjectHandle

@@ -102,16 +102,10 @@ instance (Object tt) => Marshal (ObjRef tt) where
   type MarshalMode (ObjRef tt) = ValObjBidi tt
   marshaller = MValObjBidi {
     mValObjBidi_typeName = Tagged $
-      addPointer $ classType (classDefCAF :: ClassDef tt),
-    mValObjBidi_typeInit = Tagged $ do
-      let cd = classDefCAF :: ClassDef tt
-          initVar = classInit cd
-      initFlag <- readIORef initVar
-      if initFlag
-        then return ()
-        else do
-          writeIORef initVar True
-          void $ evaluate $ classHndl cd,
+      addPointer $ TypeName $
+      unsafePerformIO $ getClassName (classDef :: ClassDef tt),
+    mValObjBidi_typeInit = Tagged $
+      void $ getClassHandle (classDef :: ClassDef tt),
     mValObjBidi_valToHs = \ptr -> MaybeT $ do
       objPtr <- peek (castPtr ptr)
       hndl <- hsqmlGetObjectHandle objPtr
@@ -132,8 +126,9 @@ instance (Object tt) => Marshal (ObjRef tt) where
 -- type @tt@.
 newObject :: forall tt. (Object tt) => tt -> IO (ObjRef tt)
 newObject obj = do
-  hndl <- hsqmlCreateObject obj $ classHndl (classDefCAF :: ClassDef tt)
-  return $ ObjRef hndl
+  cHndl <- getClassHandle (classDef :: ClassDef tt)
+  oHndl <- hsqmlCreateObject obj cHndl
+  return $ ObjRef oHndl
 
 -- | Returns the associated value of the underlying Haskell type @tt@ from an
 -- instance of the QML class which wraps it.
@@ -198,39 +193,57 @@ objBidiMarshaller newFn = MValObjBidi {
 
 -- | Generates a 'ClassDef' from a list of 'Member's.
 defClass :: forall tt. (Object tt) => [Member tt] -> ClassDef tt
-defClass ms =
-  let (name,init) = unsafePerformIO $
-        untag (createClassName :: Tagged tt (IO (String, IORef Bool)))
-      hndl = unsafePerformIO $ do
-        writeIORef init True
-        c <- createClass name ms
-        return c
-  in ClassDef (TypeName name) init hndl
+defClass = ClassDef
 
-createClassName :: forall tt. (Object tt) => Tagged tt (IO (String, IORef Bool))
-createClassName = Tagged $ do
-  id <- hsqmlGetNextClassId
-  init <- newIORef False
-  let typ  = typeOf (undefined :: tt)
-      con  = typeRepTyCon typ
-      name = showString (tyConModule con) $ showChar '.' $
-          showString (tyConName con) $ showChar '_' $ showInt id ""
-  return (name,init)
+{-# NOINLINE classNameDb #-}
+classNameDb :: IORef (Map TypeRep String)
+classNameDb = unsafePerformIO $ newIORef $ Map.empty
+
+getClassName :: forall tt. (Object tt) => ClassDef tt -> IO String
+getClassName cdef = do
+    map <- readIORef classNameDb
+    let typRep = typeOf (undefined :: tt)
+        constrs t = typeRepTyCon t : (concatMap constrs $ typeRepArgs t)
+    case Map.lookup typRep map of
+        Just name -> return name
+        Nothing   -> do
+            classId <- hsqmlGetNextClassId
+            let name = foldr (\c s -> showString (tyConName c) .
+                    showChar '_' . s) id (constrs typRep) $ showInt classId ""
+            writeIORef classNameDb $ Map.insert typRep name map
+            return name
+
+{-# NOINLINE classHandleDb #-}
+classHandleDb :: IORef (Map TypeRep HsQMLClassHandle)
+classHandleDb = unsafePerformIO $ newIORef $ Map.empty
+
+getClassHandle :: forall tt. (Object tt) => ClassDef tt -> IO HsQMLClassHandle
+getClassHandle cdef = do
+    map <- readIORef classHandleDb
+    let typRep = typeOf (undefined :: tt)
+    case Map.lookup typRep map of
+        Just hndl -> return hndl
+        Nothing   -> createClass typRep cdef
 
 createClass :: forall tt. (Object tt) =>
-  String -> [Member tt] -> IO HsQMLClassHandle
-createClass name ms = do
-  initMembers ms
-  let moc = compileClass name ms
+    TypeRep -> ClassDef tt -> IO HsQMLClassHandle
+createClass typRep cdef = do
+  name <- getClassName cdef
+  let ms = classMembers cdef
+      moc = compileClass name ms
       maybeMarshalFunc = maybe (return nullFunPtr) marshalFunc
   metaDataPtr <- crlToNewArray return (mData moc)
   metaStrDataPtr <- crlToNewArray return (mStrData moc)
   methodsPtr <- crlToNewArray maybeMarshalFunc (mFuncMethods moc)
   propsPtr <- crlToNewArray maybeMarshalFunc (mFuncProperties moc)
   hsqmlInit
-  hndl <- hsqmlCreateClass metaDataPtr metaStrDataPtr methodsPtr propsPtr
-  let err = error ("Failed to create QML class '"++name++"'.")
-  return $ fromMaybe err hndl
+  maybeHndl <- hsqmlCreateClass metaDataPtr metaStrDataPtr methodsPtr propsPtr
+  case maybeHndl of
+      Just hndl -> do
+          modifyIORef classHandleDb (Map.insert typRep hndl)
+          initMembers ms
+          return hndl
+      Nothing -> error ("Failed to create QML class '"++name++"'.")
 
 crlToNewArray :: (Storable b) => (a -> IO b) -> CRList a -> IO (Ptr b)
 crlToNewArray f (CRList len lst) = do
@@ -247,23 +260,6 @@ crlToNewArray f (CRList len lst) = do
 --
 -- Member
 --
-
-data MemberKind
-  = MethodMember
-  | PropertyMember
-  | SignalMember
-  deriving (Bounded, Enum, Eq)
-
--- | Represents a named member of the QML class which wraps type @tt@.
-data Member tt = Member {
-  memberKind   :: MemberKind,
-  memberName   :: String,
-  memberInit   :: Int -> IO (),
-  memberType   :: TypeName,
-  memberParams :: [TypeName],
-  memberFun    :: UniformFunc,
-  memberFunAux :: Maybe UniformFunc
-}
 
 filterMembers :: MemberKind -> [Member tt] -> [Member tt]
 filterMembers k ms =
