@@ -1,10 +1,10 @@
 #ifndef HSQML_MANAGER_H
 #define HSQML_MANAGER_H
 
-#include <QApplication>
-#include <QMutex>
-#include <QVector>
-#include <QUrl>
+#include <QtCore/QMutex>
+#include <QtCore/QVector>
+#include <QtCore/QUrl>
+#include <QtGui/QApplication>
 
 #include "hsqml.h"
 #include "HsQMLEngine.h"

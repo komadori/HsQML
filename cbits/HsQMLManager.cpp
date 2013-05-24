@@ -1,4 +1,4 @@
-#include <QMetaType>
+#include <QtCore/QMetaType>
 
 #include "HsQMLManager.h"
 

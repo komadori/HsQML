@@ -1,10 +1,10 @@
 #ifndef HSQML_ENGINE_H
 #define HSQML_ENGINE_H
 
-#include <QSet>
-#include <QString>
-#include <QUrl>
-#include <QDeclarativeEngine>
+#include <QtCore/QSet>
+#include <QtCore/QString>
+#include <QtCore/QUrl>
+#include <QtDeclarative/QDeclarativeEngine>
 
 class HsQMLObjectProxy;
 class HsQMLWindow;

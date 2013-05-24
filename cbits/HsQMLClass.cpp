@@ -1,9 +1,9 @@
 #include <cstdlib>
 #include <HsFFI.h>
-#include <QAtomicInt>
-#include <QMetaObject>
-#include <QString>
-#include <QDebug>
+#include <QtCore/QAtomicInt>
+#include <QtCore/QMetaObject>
+#include <QtCore/QString>
+#include <QtCore/QDebug>
 
 #include "hsqml.h"
 #include "HsQMLClass.h"
@@ -78,13 +78,16 @@ HsQMLClass::HsQMLClass(
     , mProperties(properties)
     , mMethodCount(metaData[MD_METHOD_COUNT])
     , mPropertyCount(metaData[MD_PROPERTY_COUNT])
-    , mMetaObject(QMetaObject {{
+{
+    ref(Handle);
+
+    // Create meta-object
+    QMetaObject tmp = {
           &QObject::staticMetaObject,
           mMetaStrData,
           mMetaData,
-          0}})
-{
-    ref(Handle);
+          0};
+    mMetaObject = new QMetaObject(tmp);
 
     // Register with Qt meta-type system
     QByteArray rawName(name());
@@ -98,7 +101,7 @@ HsQMLClass::HsQMLClass(
         pointerType, 0,
         0, 0,
         QString(),
-        0, 0, 0, 0, &mMetaObject,
+        0, 0, 0, 0, mMetaObject,
         0, 0,
         -1, -1, -1,
         0, 0,
@@ -123,12 +126,25 @@ HsQMLClass::~HsQMLClass()
     std::free(mMetaStrData);
     std::free(mMethods);
     std::free(mProperties);
+
+    // Leak QMetaObject because there is no way to unregister it
+    //delete mMetaObject;
 }
 
 const char* HsQMLClass::name()
 {
-    return mMetaObject.className();
+    return mMetaObject->className();
 } 
+
+int HsQMLClass::methodCount()
+{
+    return mMethodCount;
+}
+
+int HsQMLClass::propertyCount()
+{
+    return mPropertyCount;
+}
 
 const HsQMLUniformFunc* HsQMLClass::methods()
 {
@@ -138,6 +154,11 @@ const HsQMLUniformFunc* HsQMLClass::methods()
 const HsQMLUniformFunc* HsQMLClass::properties()
 {
     return mProperties;
+}
+
+const QMetaObject* HsQMLClass::metaObj()
+{
+    return mMetaObject;
 }
 
 void HsQMLClass::ref(RefSrc src)

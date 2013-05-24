@@ -1,8 +1,8 @@
 #include <cstdlib>
 #include <cstring>
 
-#include <QString>
-#include <QUrl>
+#include <QtCore/QString>
+#include <QtCore/QUrl>
 
 #include "hsqml.h"
 

@@ -1,7 +1,7 @@
 #include <HsFFI.h>
-#include <QDeclarativeEngine>
-#include <QString>
-#include <QDebug>
+#include <QtCore/QString>
+#include <QtCore/QDebug>
+#include <QtDeclarative/QDeclarativeEngine>
 
 #include "HsQMLObject.h"
 #include "HsQMLClass.h"
@@ -107,7 +107,7 @@ HsQMLObject::~HsQMLObject()
 const QMetaObject* HsQMLObject::metaObject() const
 {
     return QObject::d_ptr->metaObject ?
-        QObject::d_ptr->metaObject : &mKlass->mMetaObject;
+        QObject::d_ptr->metaObject : mKlass->metaObj();
 }
 
 void* HsQMLObject::qt_metacast(const char* clname)
@@ -116,8 +116,8 @@ void* HsQMLObject::qt_metacast(const char* clname)
         return 0;
     }
     if (!strcmp(clname,
-            mKlass->mMetaObject.d.stringdata +
-            mKlass->mMetaObject.d.data[MD_CLASS_NAME])) {
+            mKlass->metaObj()->d.stringdata +
+            mKlass->metaObj()->d.data[MD_CLASS_NAME])) {
         return static_cast<void*>(const_cast<HsQMLObject*>(this));
     }
     return QObject::qt_metacast(clname);
@@ -131,25 +131,25 @@ int HsQMLObject::qt_metacall(QMetaObject::Call c, int id, void** a)
     }
     if (QMetaObject::InvokeMetaMethod == c) {
         mKlass->methods()[id](this, a);
-        id -= mKlass->mMethodCount;
+        id -= mKlass->methodCount();
     }
     else if (QMetaObject::ReadProperty == c) {
         mKlass->properties()[2*id](this, a);
-        id -= mKlass->mPropertyCount;
+        id -= mKlass->propertyCount();
     }
     else if (QMetaObject::WriteProperty == c) {
         HsQMLUniformFunc uf = mKlass->properties()[2*id+1];
         if (uf) {
             uf(this, a);
         }
-        id -= mKlass->mPropertyCount;
+        id -= mKlass->propertyCount();
     }
     else if (QMetaObject::QueryPropertyDesignable == c ||
              QMetaObject::QueryPropertyScriptable == c ||
              QMetaObject::QueryPropertyStored == c ||
              QMetaObject::QueryPropertyEditable == c ||
              QMetaObject::QueryPropertyUser == c) {
-        id -= mKlass->mPropertyCount;
+        id -= mKlass->propertyCount();
     }
     return id;
 }
@@ -210,6 +210,6 @@ extern void hsqml_fire_signal(
     HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
     HsQMLObject* obj = proxy->maybeObject();
     if (obj) {
-        QMetaObject::activate(obj, &proxy->klass()->mMetaObject, idx, args);
+        QMetaObject::activate(obj, proxy->klass()->metaObj(), idx, args);
     }
 }

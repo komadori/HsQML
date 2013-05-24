@@ -1,8 +1,8 @@
 #ifndef HSQML_CLASS_H
 #define HSQML_CLASS_H
 
-#include <QObject>
-#include <QAtomicInt>
+#include <QtCore/QObject>
+#include <QtCore/QAtomicInt>
 
 #include "hsqml.h"
 
@@ -19,8 +19,11 @@ public:
         unsigned int*, char*, HsQMLUniformFunc*, HsQMLUniformFunc*);
     ~HsQMLClass();
     const char* name();
+    int methodCount();
+    int propertyCount();
     const HsQMLUniformFunc* methods();
     const HsQMLUniformFunc* properties();
+    const QMetaObject* metaObj();
     enum RefSrc {Handle, ObjProxy};
     void ref(RefSrc);
     void deref(RefSrc);
@@ -29,13 +32,11 @@ private:
     QAtomicInt mRefCount;
     unsigned int* mMetaData;
     char* mMetaStrData;
+    int mMethodCount;
+    int mPropertyCount;
     HsQMLUniformFunc* mMethods;
     HsQMLUniformFunc* mProperties;
-
-public:
-    const int mMethodCount;
-    const int mPropertyCount;
-    const QMetaObject mMetaObject;
+    QMetaObject* mMetaObject;
 };
 
 #endif /*HSQML_CLASS_H*/

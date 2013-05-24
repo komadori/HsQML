@@ -1,9 +1,9 @@
 #ifndef HSQML_OBJECT_H
 #define HSQML_OBJECT_H
 
-#include <QObject>
-#include <QAtomicInt>
-#include <QAtomicPointer>
+#include <QtCore/QObject>
+#include <QtCore/QAtomicInt>
+#include <QtCore/QAtomicPointer>
 
 class HsQMLClass;
 class HsQMLObject;

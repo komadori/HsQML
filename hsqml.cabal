@@ -17,6 +17,11 @@ Description:
 
     General documentation is present in the 'Graphics.QML' module.
 
+Flag UsePkgConfig
+    Description:
+        Use pkg-config for libraries instead of the platform default mechanism.
+    Default: False
+
 Library
     Default-language: Haskell2010
     Build-depends:
@@ -40,7 +45,6 @@ Library
         Graphics.QML.Internal.Objects
         Graphics.QML.Internal.Engine
     Hs-source-dirs: src
-    Cc-options: -std=c++0x
     C-sources:
         cbits/HsQMLClass.cpp
         cbits/HsQMLEngine.cpp
@@ -55,19 +59,15 @@ Library
         cbits/HsQMLWindow.h
     X-separate-cbits: True
     Build-tools: c2hs
-    if os(windows)
-        Include-dirs:
-            /QT_ROOT/include
-            /QT_ROOT/include/QtCore
-            /QT_ROOT/include/QtGui
-            /QT_ROOT/include/QtDeclarative
+    if os(windows) && !flag(UsePkgConfig)
+        Include-dirs: /QT_ROOT/include
         Extra-libraries: QtCore4, QtGui4, QtDeclarative4, stdc++
-        Extra-lib-dirs:
-            /SYS_ROOT/bin
-            /QT_ROOT/bin
+        Extra-lib-dirs: /SYS_ROOT/bin /QT_ROOT/bin
     else
-        Pkgconfig-depends:
-            QtDeclarative >= 4.7
+        if os(darwin) && !flag(UsePkgConfig)
+            Frameworks: QtCore QtGui QtDeclarative
+        else
+            Pkgconfig-depends: QtDeclarative >= 4.7
         Extra-libraries: stdc++
 
 Test-Suite hsqml-test1

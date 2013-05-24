@@ -1,12 +1,12 @@
 #ifndef HSQML_WINDOW_H
 #define HSQML_WINDOW_H
 
-#include <QMainWindow>
-#include <QDeclarativeContext>
-#include <QDeclarativeItem>
-#include <QGraphicsScene>
-#include <QGraphicsView>
-#include <QUrl>
+#include <QtCore/QUrl>
+#include <QtGui/QMainWindow>
+#include <QtGui/QGraphicsScene>
+#include <QtGui/QGraphicsView>
+#include <QtDeclarative/QDeclarativeContext>
+#include <QtDeclarative/QDeclarativeItem>
 
 #include "HsQMLManager.h"
 
