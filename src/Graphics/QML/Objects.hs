@@ -45,6 +45,7 @@ import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.Objects
 import Graphics.QML.Internal.Engine
 
+import Control.Concurrent.MVar
 import Control.Monad
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.State
@@ -105,7 +106,7 @@ instance (Object tt) => Marshal (ObjRef tt) where
       addPointer $ TypeName $
       unsafePerformIO $ getClassName (classDef :: ClassDef tt),
     mValObjBidi_typeInit = Tagged $
-      void $ getClassHandle (classDef :: ClassDef tt),
+      void $ getClassRec (classDef :: ClassDef tt),
     mValObjBidi_valToHs = \ptr -> MaybeT $ do
       objPtr <- peek (castPtr ptr)
       hndl <- hsqmlGetObjectHandle objPtr
@@ -126,8 +127,8 @@ instance (Object tt) => Marshal (ObjRef tt) where
 -- type @tt@.
 newObject :: forall tt. (Object tt) => tt -> IO (ObjRef tt)
 newObject obj = do
-  cHndl <- getClassHandle (classDef :: ClassDef tt)
-  oHndl <- hsqmlCreateObject obj cHndl
+  cRec <- getClassRec (classDef :: ClassDef tt)
+  oHndl <- hsqmlCreateObject obj $ crecHndl cRec
   return $ ObjRef oHndl
 
 -- | Returns the associated value of the underlying Haskell type @tt@ from an
@@ -195,42 +196,68 @@ objBidiMarshaller newFn = MValObjBidi {
 defClass :: forall tt. (Object tt) => [Member tt] -> ClassDef tt
 defClass = ClassDef
 
+data MemoStore k v = MemoStore (MVar (Map k v)) (IORef (Map k v))
+
+newMemoStore :: IO (MemoStore k v)
+newMemoStore = do
+    let m = Map.empty
+    mr <- newMVar m
+    ir <- newIORef m
+    return $ MemoStore mr ir
+
+getFromMemoStore :: (Ord k) => MemoStore k v -> k -> IO v -> IO (Bool, v)
+getFromMemoStore (MemoStore mr ir) key fn = do
+    fstMap <- readIORef ir
+    case Map.lookup key fstMap of
+        Just val -> return (False, val)
+        Nothing  -> modifyMVar mr $ \sndMap -> do
+            case Map.lookup key sndMap of
+                Just val -> return (sndMap, (False, val))
+                Nothing  -> do
+                    val <- fn
+                    let newMap = Map.insert key val sndMap
+                    writeIORef ir newMap
+                    return (newMap, (True, val))
+
 {-# NOINLINE classNameDb #-}
-classNameDb :: IORef (Map TypeRep String)
-classNameDb = unsafePerformIO $ newIORef $ Map.empty
+classNameDb :: MemoStore TypeRep String
+classNameDb = unsafePerformIO $ newMemoStore
 
 getClassName :: forall tt. (Object tt) => ClassDef tt -> IO String
-getClassName cdef = do
-    map <- readIORef classNameDb
-    let typRep = typeOf (undefined :: tt)
-        constrs t = typeRepTyCon t : (concatMap constrs $ typeRepArgs t)
-    case Map.lookup typRep map of
-        Just name -> return name
-        Nothing   -> do
-            classId <- hsqmlGetNextClassId
-            let name = foldr (\c s -> showString (tyConName c) .
-                    showChar '_' . s) id (constrs typRep) $ showInt classId ""
-            writeIORef classNameDb $ Map.insert typRep name map
-            return name
+getClassName _ =
+    fmap snd $ getFromMemoStore classNameDb typ (createClassName typ)
+    where typ = typeOf (undefined :: tt)
 
-{-# NOINLINE classHandleDb #-}
-classHandleDb :: IORef (Map TypeRep HsQMLClassHandle)
-classHandleDb = unsafePerformIO $ newIORef $ Map.empty
+createClassName :: TypeRep -> IO String
+createClassName typRep = do
+    classId <- hsqmlGetNextClassId
+    let constrs t = typeRepTyCon t : (concatMap constrs $ typeRepArgs t)
+    return $ foldr (\c s -> showString (tyConName c) .
+        showChar '_' . s) id (constrs typRep) $ showInt classId ""
 
-getClassHandle :: forall tt. (Object tt) => ClassDef tt -> IO HsQMLClassHandle
-getClassHandle cdef = do
-    map <- readIORef classHandleDb
-    let typRep = typeOf (undefined :: tt)
-    case Map.lookup typRep map of
-        Just hndl -> return hndl
-        Nothing   -> createClass typRep cdef
+data ClassRec = ClassRec {
+    crecHndl :: HsQMLClassHandle,
+    crecSigs :: Map TypeRep Int
+}
 
-createClass :: forall tt. (Object tt) =>
-    TypeRep -> ClassDef tt -> IO HsQMLClassHandle
+{-# NOINLINE classRecDb #-}
+classRecDb :: MemoStore TypeRep ClassRec
+classRecDb = unsafePerformIO $ newMemoStore
+
+getClassRec :: forall tt. (Object tt) => ClassDef tt -> IO ClassRec
+getClassRec cdef = do
+    let typ = typeOf (undefined :: tt)
+    (new, val) <- getFromMemoStore classRecDb typ (createClass typ cdef)
+    if new then initMembers $ classMembers cdef else return ()
+    return val
+
+createClass :: forall tt. (Object tt) => TypeRep -> ClassDef tt -> IO ClassRec
 createClass typRep cdef = do
   name <- getClassName cdef
   let ms = classMembers cdef
       moc = compileClass name ms
+      sigs = filterMembers SignalMember ms
+      sigMap = Map.fromList $ flip zip [0..] $ map (fromJust . memberKey) sigs
       maybeMarshalFunc = maybe (return nullFunPtr) marshalFunc
   metaDataPtr <- crlToNewArray return (mData moc)
   metaStrDataPtr <- crlToNewArray return (mStrData moc)
@@ -239,10 +266,7 @@ createClass typRep cdef = do
   hsqmlInit
   maybeHndl <- hsqmlCreateClass metaDataPtr metaStrDataPtr methodsPtr propsPtr
   case maybeHndl of
-      Just hndl -> do
-          modifyIORef classHandleDb (Map.insert typRep hndl)
-          initMembers ms
-          return hndl
+      Just hndl -> return $ ClassRec hndl sigMap
       Nothing -> error ("Failed to create QML class '"++name++"'.")
 
 crlToNewArray :: (Storable b) => (a -> IO b) -> CRList a -> IO (Ptr b)
@@ -267,10 +291,7 @@ filterMembers k ms =
 
 -- | Call all the initialisation functions for a list of members.
 initMembers :: [Member tt] -> IO ()
-initMembers ms =
-  mapM_ (\k ->
-    mapM_ (\(i,m) -> memberInit m i) $ zip [0..] $ filterMembers k ms) $
-  enumFromTo minBound maxBound
+initMembers = mapM_ memberInit
 
 --
 -- Method
@@ -338,10 +359,11 @@ defMethod name f =
   let crude = untag (mkMethodTypes :: Tagged (MSHelp ms) MethodTypeInfo)
   in Member MethodMember
        name
-       (const $ methodTypesInit crude)
+       (methodTypesInit crude)
        (methodReturnType crude)
        (methodParamTypes crude)
        (mkUniformFunc f)
+       Nothing
        Nothing
 
 --
@@ -356,10 +378,11 @@ defPropertyRO ::
   String -> (tt -> IO tr) -> Member (ThisObj tt)
 defPropertyRO name g = Member PropertyMember
   name
-  (const $ untag (mTypeInit :: Tagged tr (IO ())))
+  (untag (mTypeInit :: Tagged tr (IO ())))
   (untag (mTypeName :: Tagged tr TypeName))
   []
   (mkUniformFunc g)
+  Nothing
   Nothing
 
 -- | Defines a named read-write property using a pair of accessor and mutator
@@ -370,11 +393,12 @@ defPropertyRW ::
   String -> (tt -> IO tr) -> (tt -> tr -> IO ()) -> Member (ThisObj tt)
 defPropertyRW name g s = Member PropertyMember
   name
-  (const $ untag (mTypeInit :: Tagged tr (IO ())))
+  (untag (mTypeInit :: Tagged tr (IO ())))
   (untag (mTypeName :: Tagged tr TypeName))
   []
   (mkUniformFunc g)
   (Just $ mkUniformFunc s)
+  Nothing
 
 --
 -- Signal
@@ -390,45 +414,36 @@ defSignal ::
   forall obj sk. (Object obj, SignalKey sk) => Tagged sk String -> Member obj
 defSignal tn =
   let crude = untag (mkSignalTypes :: Tagged (SignalParams sk) SignalTypeInfo)
-      slot = untag (signalSlotCAF :: Tagged (obj, sk) (IORef (Maybe Int)))
   in Member SignalMember
        (untag tn)
-       (\idx -> signalSlotInit slot idx >> signalTypesInit crude)
+       (signalTypesInit crude)
        (TypeName "")
        (signalParamTypes crude)
        (\_ _ -> return ())
        Nothing
-
-{-# NOINLINE signalSlotCAF #-}
-signalSlotCAF ::
-  (Object obj, SignalKey sk) =>
-  Tagged (obj, sk) (IORef (Maybe Int))
-signalSlotCAF = Tagged $ unsafePerformIO $ newIORef Nothing
-
-signalSlotInit :: IORef (Maybe Int) -> Int -> IO ()
-signalSlotInit ref idx =
-  writeIORef ref (Just idx)
+       (Just $ typeOf (undefined :: sk))
 
 -- | Fires a signal on an 'Object', specified using a 'SignalKey'.
 fireSignal ::
-  forall tt sk. (Marshal tt, MarshalToObj (MarshalMode tt), SignalKey sk) =>
-  Tagged sk tt -> SignalParams sk 
+    forall tt sk. (Marshal tt, MarshalToObj (MarshalMode tt), SignalKey sk) =>
+    Tagged sk tt -> SignalParams sk 
 fireSignal this =
-  let slotRef = untag $ (signalSlotCAF ::
-        Tagged ((ThisObj tt), sk) (IORef (Maybe Int)))
-      cont ps = do
-        slotMay <- readIORef slotRef
-        case slotMay of
-          Just slotIdx -> withArray (nullPtr:ps) (\pptr -> do
-            hndl <- mHsToObj $ untag this
-            hsqmlFireSignal hndl slotIdx pptr)
-          Nothing -> error ("Attempt to fire undefined signal on class '"++
-            (typeName $ untag (mTypeName :: Tagged tt TypeName))++"'.")
-  in mkSignalArgs cont
+   let cont ps = do
+           crec <- getClassRec (classDef :: ClassDef (ThisObj tt))
+           let keyRep = typeOf (undefined :: sk)
+               slotMay = Map.lookup keyRep $ crecSigs crec
+           case slotMay of
+                Just slotIdx -> withArray (nullPtr:ps) (\pptr -> do
+                    hndl <- mHsToObj $ untag this
+                    hsqmlFireSignal hndl slotIdx pptr)
+                Nothing ->
+                    error ("Attempt to fire undefined signal on class '"++
+                    (typeName $ untag (mTypeName :: Tagged tt TypeName))++"'.")
+    in mkSignalArgs cont
 
 -- | Instances of the 'SignalKey' class identify distinct signals. The
 -- associated 'SignalParams' type specifies the signal's signature.
-class (SignalSuffix (SignalParams sk)) => SignalKey sk where
+class (SignalSuffix (SignalParams sk), Typeable sk) => SignalKey sk where
   type SignalParams sk
 
 -- | Supports marshalling an arbitrary number of arguments into a QML signal.

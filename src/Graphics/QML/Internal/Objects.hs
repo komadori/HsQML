@@ -26,11 +26,12 @@ data MemberKind
 data Member tt = Member {
     memberKind   :: MemberKind,
     memberName   :: String,
-    memberInit   :: Int -> IO (),
+    memberInit   :: IO (),
     memberType   :: TypeName,
     memberParams :: [TypeName],
     memberFun    :: UniformFunc,
-    memberFunAux :: Maybe UniformFunc
+    memberFunAux :: Maybe UniformFunc,
+    memberKey    :: Maybe TypeRep
 }
 
 -- | Represents the API of the QML class which wraps the type @tt@.
