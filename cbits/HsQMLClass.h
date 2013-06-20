@@ -6,12 +6,6 @@
 
 #include "hsqml.h"
 
-enum MDFields {
-    MD_CLASS_NAME     = 1,
-    MD_METHOD_COUNT   = 4,
-    MD_PROPERTY_COUNT = 6,
-};
-
 class HsQMLClass
 {
 public:

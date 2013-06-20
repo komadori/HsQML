@@ -115,9 +115,7 @@ void* HsQMLObject::qt_metacast(const char* clname)
     if (!clname) {
         return 0;
     }
-    if (!strcmp(clname,
-            mKlass->metaObj()->d.stringdata +
-            mKlass->metaObj()->d.data[MD_CLASS_NAME])) {
+    if (!strcmp(clname, mKlass->metaObj()->className())) {
         return static_cast<void*>(const_cast<HsQMLObject*>(this));
     }
     return QObject::qt_metacast(clname);

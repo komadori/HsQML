@@ -9,6 +9,11 @@
 #include "HsQMLClass.h"
 #include "HsQMLManager.h"
 
+enum MDFields {
+    MD_METHOD_COUNT   = 4,
+    MD_PROPERTY_COUNT = 6,
+};
+
 QAtomicInt gClassId;
 
 namespace QDeclarativePrivate
