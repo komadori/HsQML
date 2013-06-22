@@ -12,8 +12,9 @@ HsQMLWindow::HsQMLWindow(HsQMLEngine* engine)
     // Setup context
     mContext.setContextProperty("window", this);
 
-    // Don't delete on close
+    // Handle Window close event manually
     mWindow.setAttribute(Qt::WA_DeleteOnClose, false);
+    mWindow.installEventFilter(this);
 
     // Setup for QML performance
     mView.setOptimizationFlags(QGraphicsView::DontSavePainterState);
@@ -30,6 +31,14 @@ HsQMLWindow::HsQMLWindow(HsQMLEngine* engine)
 
 HsQMLWindow::~HsQMLWindow()
 {
+}
+
+bool HsQMLWindow::eventFilter(QObject* obj, QEvent* ev)
+{
+    if (obj == &mWindow && ev->type() == QEvent::Close) {
+        deleteLater();
+    }
+    return false;
 }
 
 QUrl HsQMLWindow::source() const
@@ -94,11 +103,5 @@ void HsQMLWindow::setVisible(bool visible)
 
 void HsQMLWindow::close()
 {
-    QMetaObject::invokeMethod(
-        this, "completeClose", Qt::QueuedConnection);
-}
-
-void HsQMLWindow::completeClose()
-{
-    delete this;
+    deleteLater();
 }

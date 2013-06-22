@@ -15,16 +15,23 @@ HsQMLEngine::HsQMLEngine(HsQMLEngineConfig& config)
 
     // Create window
     HsQMLWindow* win = new HsQMLWindow(this);
+    win->setParent(this);
     win->setSource(config.initialURL);
     win->setVisible(config.showWindow);
     if (config.setWindowTitle) {
         win->setTitle(config.windowTitle);
     }
-    mWindows.insert(win);
 }
 
 HsQMLEngine::~HsQMLEngine()
 {
+}
+
+void HsQMLEngine::childEvent(QChildEvent* ev)
+{
+    if (ev->removed() && children().size() == 0) {
+        deleteLater();
+    }
 }
 
 QDeclarativeEngine* HsQMLEngine::engine()

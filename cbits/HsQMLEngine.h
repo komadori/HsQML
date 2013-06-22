@@ -31,11 +31,11 @@ class HsQMLEngine : public QObject
 public:
     HsQMLEngine(HsQMLEngineConfig&);
     ~HsQMLEngine();
+    virtual void childEvent(QChildEvent*);
     QDeclarativeEngine* engine();
 
 private:
     QDeclarativeEngine mEngine;
-    QSet<HsQMLWindow*> mWindows;
 };
 
 #endif /*HSQML_ENGINE_H*/

@@ -19,6 +19,7 @@ class HsQMLWindow : public QObject
 public:
     HsQMLWindow(HsQMLEngine*);
     virtual ~HsQMLWindow();
+    virtual bool eventFilter(QObject*, QEvent*);
     QUrl source() const;
     void setSource(const QUrl&);
     Q_PROPERTY(QUrl source READ source WRITE setSource);
@@ -32,7 +33,6 @@ public:
 
 private:
     Q_SLOT void completeSetSource();
-    Q_SLOT void completeClose();
     HsQMLEngine* mEngine;
     QDeclarativeContext mContext;
     QMainWindow mWindow;

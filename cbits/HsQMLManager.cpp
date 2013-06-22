@@ -17,22 +17,23 @@ HsQMLManager::HsQMLManager(
     , mFreeFun(freeFun)
     , mFreeStable(freeStable)
 {
+    mApp.setQuitOnLastWindowClosed(false);
 }
 
 HsQMLManager::~HsQMLManager()
 {
 }
 
+void HsQMLManager::childEvent(QChildEvent* ev)
+{
+    if (ev->removed() && children().size() == 0) {
+        mApp.quit();
+    }
+}
+
 void HsQMLManager::run()
 {
     mApp.exec();
-
-    // Delete engines once the event loop returns
-    for (QVector<HsQMLEngine*>::iterator it = mEngines.begin();
-            it != mEngines.end(); ++it) {
-        delete *it;
-    }
-    mEngines.clear();
 }
 
 void HsQMLManager::freeFun(HsFunPtr funPtr)
@@ -47,7 +48,8 @@ void HsQMLManager::freeStable(HsStablePtr stablePtr)
 
 void HsQMLManager::createEngine(HsQMLEngineConfig config)
 {
-    mEngines.push_back(new HsQMLEngine(config));
+    HsQMLEngine* engine = new HsQMLEngine(config);
+    engine->setParent(this);
 }
 
 extern "C" void hsqml_init(

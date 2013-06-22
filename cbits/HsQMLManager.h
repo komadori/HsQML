@@ -20,6 +20,7 @@ public:
         void (*)(HsFunPtr),
         void (*)(HsStablePtr));
     ~HsQMLManager();
+    virtual void childEvent(QChildEvent*);
     void run();
     void freeFun(HsFunPtr);
     void freeStable(HsStablePtr);
@@ -30,7 +31,6 @@ private:
     HsQMLManager& operator=(const HsQMLManager&);
 
     QApplication mApp;
-    QVector<HsQMLEngine*> mEngines;
     void (*mFreeFun)(HsFunPtr);
     void (*mFreeStable)(HsStablePtr);
 };
