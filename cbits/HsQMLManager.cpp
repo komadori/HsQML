@@ -1,9 +1,11 @@
+#include <cstdlib>
 #include <QtCore/QMetaType>
 
 #include "HsQMLManager.h"
 
 QMutex gMutex;
 HsQMLManager* gManager;
+bool gLogLevelSet;
 int gLogLevel;
 
 HsQMLManager::HsQMLManager(
@@ -56,6 +58,13 @@ extern "C" void hsqml_init(
     if (!gManager) {
         qRegisterMetaType<HsQMLEngineConfig>("HsQMLEngineConfig");
 
+        if (!gLogLevelSet) {
+            const char* env = std::getenv("HSQML_DEBUG_LOG_LEVEL");
+            if (env) {
+                gLogLevel = QString(env).toInt();
+            }
+        }
+
         int* argcp = new int[1];
         *argcp = 1;
         char** argv = new char*[1];
@@ -74,5 +83,6 @@ extern "C" void hsqml_run()
 
 extern "C" void hsqml_set_debug_loglevel(int level)
 {
+    gLogLevelSet = true;
     gLogLevel = level;
 }
