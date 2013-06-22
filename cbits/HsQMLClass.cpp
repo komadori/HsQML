@@ -84,8 +84,6 @@ HsQMLClass::HsQMLClass(
     , mMethodCount(metaData[MD_METHOD_COUNT])
     , mPropertyCount(metaData[MD_PROPERTY_COUNT])
 {
-    ref(Handle);
-
     // Create meta-object
     QMetaObject tmp = {
           &QObject::staticMetaObject,
@@ -115,6 +113,9 @@ HsQMLClass::HsQMLClass(
     };
     QDeclarativePrivate::qmlregister(
         QDeclarativePrivate::TypeRegistration, &regInfo);
+
+    // Add reference
+    ref(Handle);
 }
 
 HsQMLClass::~HsQMLClass()
