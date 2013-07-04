@@ -1,6 +1,5 @@
 #include <HsFFI.h>
 #include <QtCore/QString>
-#include <QtCore/QDebug>
 #include <QtDeclarative/QDeclarativeEngine>
 
 #include "HsQMLObject.h"
@@ -37,11 +36,9 @@ HsQMLObject* HsQMLObjectProxy::object()
     if (!mObject) {
         mObject = new HsQMLObject(this);
 
-        if (gLogLevel >= 5) {
-            qDebug() << QString().sprintf(
-                "HsQML: New QObject, class=%s, ptr=%p, proxy=%p.",
-                mKlass->name(), static_cast<HsQMLObject*>(mObject), this);
-        }
+        HSQML_LOG(5,
+            QString().sprintf("New QObject, class=%s, ptr=%p, proxy=%p.",
+            mKlass->name(), static_cast<HsQMLObject*>(mObject), this));
     }
     return mObject;
 }
@@ -53,11 +50,9 @@ HsQMLObject* HsQMLObjectProxy::maybeObject()
 
 void HsQMLObjectProxy::clearObject()
 {
-    if (gLogLevel >= 5) {
-        qDebug() << QString().sprintf(
-            "HsQML: Release QObject, class=%s, ptr=%p, proxy=%p.",
-            mKlass->name(), static_cast<HsQMLObject*>(mObject), this);
-    }
+    HSQML_LOG(5,
+        QString().sprintf("Release QObject, class=%s, ptr=%p, proxy=%p.",
+        mKlass->name(), static_cast<HsQMLObject*>(mObject), this));
 
     mObject = NULL;
 }
@@ -66,22 +61,18 @@ void HsQMLObjectProxy::ref(RefSrc src)
 {
     int count = mRefCount.fetchAndAddOrdered(1);
 
-    if (gLogLevel >= (count == 0 ? 3 : 4)) {
-        qDebug() << QString().sprintf(
-            "HsQML: %s ObjProxy, class=%s, ptr=%p, src=%d, count=%d.",
-            count ? "Ref" : "New", mKlass->name(), this, src, count+1);
-    }
+    HSQML_LOG(count == 0 ? 3 : 4,
+        QString().sprintf("%s ObjProxy, class=%s, ptr=%p, src=%d, count=%d.",
+        count ? "Ref" : "New", mKlass->name(), this, src, count+1));
 }
 
 void HsQMLObjectProxy::deref(RefSrc src)
 {
     int count = mRefCount.fetchAndAddOrdered(-1);
 
-    if (gLogLevel >= (count == 1 ? 3 : 4)) {
-        qDebug() << QString().sprintf(
-            "HsQML: %s ObjProxy, class=%s, ptr=%p, src=%d, count=%d.",
-            count > 1 ? "Deref" : "Delete", mKlass->name(), this, src, count);
-    }
+    HSQML_LOG(count == 1 ? 3 : 4,
+        QString().sprintf("%s ObjProxy, class=%s, ptr=%p, src=%d, count=%d.",
+        count > 1 ? "Deref" : "Delete", mKlass->name(), this, src, count));
 
     if (count == 1) {
         delete this;

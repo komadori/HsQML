@@ -33,16 +33,23 @@ foreign import ccall "HsFFI.h &hs_free_stable_ptr"
 hsqmlInit :: IO ()
 hsqmlInit = hsqmlInit_ hsFreeFunPtr hsFreeStablePtr
 
-{#fun unsafe hsqml_create_engine as ^
+type EngineStopCb = IO ()
+
+foreign import ccall "wrapper"  
+  marshalEngStopCb :: EngineStopCb -> IO (FunPtr EngineStopCb)
+
+withEngineStopCb :: EngineStopCb -> (FunPtr EngineStopCb -> IO a) -> IO a
+withEngineStopCb f with = marshalEngStopCb f >>= with
+
+{#fun hsqml_run_engine as ^
   {withMaybeHsQMLObjectHandle* `Maybe HsQMLObjectHandle',
    castPtr `Ptr ()',
    fromBool `Bool',
    fromBool `Bool',
-   castPtr `Ptr ()'} ->
-  `()' #}
+   castPtr `Ptr ()',
+   withEngineStopCb* `EngineStopCb'} ->
+  `Int' fromIntegral #}
 
-{#fun hsqml_run as ^ {} -> `()' #}
-
-{#fun hsqml_set_debug_loglevel as ^
+{#fun unsafe hsqml_set_debug_loglevel as ^
   {fromIntegral `Int'} -> `()'
   #}

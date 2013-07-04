@@ -1,42 +1,64 @@
 #ifndef HSQML_MANAGER_H
 #define HSQML_MANAGER_H
 
-#include <QtCore/QMutex>
-#include <QtCore/QVector>
-#include <QtCore/QUrl>
+#include <QtCore/QAtomicPointer>
+#include <QtCore/QReadWriteLock>
+#include <QtCore/QString>
 #include <QtGui/QApplication>
 
 #include "hsqml.h"
 #include "HsQMLEngine.h"
 
-class HsQMLManager : public QObject
+#define HSQML_LOG(ll, msg) if (gManager->checkLogLevel(ll)) gManager->log(msg)
+
+class HsQMLManagerApp;
+
+class HsQMLManager
+{
+public:
+    HsQMLManager(
+        void (*)(HsFunPtr),
+        void (*)(HsStablePtr));
+    void setLogLevel(int);
+    bool checkLogLevel(int);
+    void log(const QString&);
+    void freeFun(HsFunPtr);
+    void freeStable(HsStablePtr);
+    int startEngine(const HsQMLEngineConfig&);
+
+private:
+    friend class HsQMLManagerApp;
+    Q_DISABLE_COPY(HsQMLManager)
+
+    int mLogLevel;
+    void (*mFreeFun)(HsFunPtr);
+    void (*mFreeStable)(HsStablePtr);
+    HsQMLManagerApp* mApp;
+    bool mAppRunning;
+    QReadWriteLock mAppLock;
+};
+
+class HsQMLManagerApp : public QObject
 {
     Q_OBJECT
 
 public:
-    HsQMLManager(
-        int& argc,
-        char** argv,
-        void (*)(HsFunPtr),
-        void (*)(HsStablePtr));
-    ~HsQMLManager();
+    HsQMLManagerApp();
+    virtual ~HsQMLManagerApp();
     virtual void childEvent(QChildEvent*);
-    void run();
-    void freeFun(HsFunPtr);
-    void freeStable(HsStablePtr);
+    virtual void customEvent(QEvent*);
     Q_SLOT void createEngine(HsQMLEngineConfig);
+    int exec();
 
 private:
-    HsQMLManager(const HsQMLManager&);
-    HsQMLManager& operator=(const HsQMLManager&);
+    Q_DISABLE_COPY(HsQMLManagerApp)
 
+    int mArgC;
+    char mArg0;
+    char* mArgV;
     QApplication mApp;
-    void (*mFreeFun)(HsFunPtr);
-    void (*mFreeStable)(HsStablePtr);
 };
 
-extern QMutex gMutex;
-extern HsQMLManager* gManager;
-extern int gLogLevel;
+extern QAtomicPointer<HsQMLManager> gManager;
 
 #endif /*HSQML_MANAGER_H*/

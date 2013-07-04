@@ -1,16 +1,15 @@
-#include "hsqml.h"
 #include "HsQMLManager.h"
 #include "HsQMLEngine.h"
 #include "HsQMLObject.h"
 #include "HsQMLWindow.h"
 
-HsQMLEngine::HsQMLEngine(HsQMLEngineConfig& config)
+HsQMLEngine::HsQMLEngine(const HsQMLEngineConfig& config)
+    : mStopCb(config.stopCb)
 {
     // Obtain, re-parent, and set QML global object
     if (config.contextObject) {
-        QObject* contextObject = config.contextObject->object();
-        contextObject->setParent(this);
-        mEngine.rootContext()->setContextObject(contextObject);
+        mContextObj.reset(config.contextObject->object());
+        mEngine.rootContext()->setContextObject(mContextObj.data());
     }
 
     // Create window
@@ -25,6 +24,9 @@ HsQMLEngine::HsQMLEngine(HsQMLEngineConfig& config)
 
 HsQMLEngine::~HsQMLEngine()
 {
+    // Call stop callback
+    mStopCb();
+    gManager->freeFun(reinterpret_cast<HsFunPtr>(mStopCb));
 }
 
 void HsQMLEngine::childEvent(QChildEvent* ev)
@@ -39,12 +41,13 @@ QDeclarativeEngine* HsQMLEngine::engine()
     return &mEngine;
 }
 
-extern "C" void hsqml_create_engine(
+extern "C" int hsqml_run_engine(
     HsQMLObjectHandle* contextObject,
     HsQMLUrlHandle* initialURL,
     int showWindow,
     int setWindowTitle,
-    HsQMLStringHandle* windowTitle)
+    HsQMLStringHandle* windowTitle,
+    HsQMLEngineStopCb stopCb)
 {
     HsQMLEngineConfig config;
     config.contextObject = reinterpret_cast<HsQMLObjectProxy*>(contextObject);
@@ -54,9 +57,8 @@ extern "C" void hsqml_create_engine(
         config.setWindowTitle = true;
         config.windowTitle = *reinterpret_cast<QString*>(windowTitle);
     }
+    config.stopCb = stopCb;
 
     Q_ASSERT (gManager);
-    QMetaObject::invokeMethod(
-        gManager, "createEngine", Qt::QueuedConnection,
-        Q_ARG(HsQMLEngineConfig, config));
+    return gManager->startEngine(config);
 }

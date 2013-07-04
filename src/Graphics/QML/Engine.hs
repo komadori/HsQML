@@ -1,5 +1,5 @@
 {-# LANGUAGE
-    ExistentialQuantification,
+    DeriveDataTypeable,
     FlexibleContexts
   #-}
 
@@ -15,8 +15,8 @@ module Graphics.QML.Engine (
     initialWindowState,
     contextObject),
   defaultEngineConfig,
-  createEngine,
-  runEngines,
+  runEngine,
+  EngineException(),
   filePathToURI
 ) where
 
@@ -26,9 +26,14 @@ import Graphics.QML.Internal.Engine
 import Graphics.QML.Marshal
 import Graphics.QML.Objects
 
+import Control.Concurrent
+import Control.Concurrent.MVar
+import Control.Exception
+import Control.Monad
 import Data.List
 import Data.Maybe
 import Data.Traversable as T
+import Data.Typeable
 import System.FilePath (isAbsolute, splitDirectories, pathSeparators)
 import Network.URI (URI(URI), URIAuth(URIAuth), nullURI, uriPath)
 
@@ -72,28 +77,60 @@ getWindowTitle :: InitialWindowState -> Maybe String
 getWindowTitle (ShowWindowWithTitle t) = Just t
 getWindowTitle _ = Nothing
 
--- | Create a QML engine from a specification of its configuration.
-createEngine ::
-    (Marshal a, MarshalToObj (MarshalMode a)) => EngineConfig a -> IO ()
-createEngine config = do
-  hsqmlInit
-  let obj = contextObject config
-      url = initialURL config
-      state = initialWindowState config
-      showWin = isWindowShown state
-      maybeTitle = getWindowTitle state
-      setTitle = isJust maybeTitle
-      titleStr = fromMaybe "" maybeTitle
-  hndl <- T.sequence $ fmap mHsToObj $ obj
-  mHsToAlloc url $ \urlPtr -> do
-    mHsToAlloc titleStr $ \titlePtr -> do
-      hsqmlCreateEngine hndl urlPtr showWin setTitle titlePtr
+runEngineImpl ::
+    (Marshal a, MarshalToObj (MarshalMode a)) =>
+    EngineConfig a -> EngineStopCb -> IO Int
+runEngineImpl config stopCb = do
+    hsqmlInit
+    let obj = contextObject config
+        url = initialURL config
+        state = initialWindowState config
+        showWin = isWindowShown state
+        maybeTitle = getWindowTitle state
+        setTitle = isJust maybeTitle
+        titleStr = fromMaybe "" maybeTitle
+    hndl <- T.sequence $ fmap mHsToObj $ obj
+    mHsToAlloc url $ \urlPtr -> do
+        mHsToAlloc titleStr $ \titlePtr -> do
+            hsqmlRunEngine hndl urlPtr showWin setTitle titlePtr stopCb
 
--- | Enters the Qt event loop and runs until all engines have terminated.
-runEngines :: IO ()
-runEngines = do
-  hsqmlInit
-  hsqmlRun
+-- | Starts a new QML engine using the supplied configuration and blocks at
+-- least until the engine has terminated.
+--
+-- The first time an application runs an engine then the Qt framework will be
+-- initialised and its main event loop bound to the current operating system
+-- thread. The event loop will run on this thread until all engines have
+-- terminated. It's recommended that applications run their first engine on the
+-- primordial thread as some platforms prevent running the event loop on other
+-- threads. If the event loop fails to start then an 'EngineException' will be
+-- thrown.
+--
+-- This function is thread-safe. Additional engines can be started from
+-- arbitrary threads and these calls will block until their respective engines
+-- terminate. However, the call used to start the first engine is special
+-- because its thread will be used to host the Qt event loop. Hence, it may
+-- continue to block after its own engine has terminated, until all running
+-- engines have terminated and the event loop can finish.
+--
+-- Once the event loop has finished, starting a further engine will attempt to
+-- start the event loop again, as in the first instance. Any call which may
+-- restart the event loop must be made on the same thread used to host it
+-- previously, as the event loop thread cannot be changed once Qt has been
+-- initialised.
+runEngine ::
+    (Marshal a, MarshalToObj (MarshalMode a)) => EngineConfig a -> IO ()
+runEngine config = do
+    finishVar <- newEmptyMVar
+    let stopCb = putMVar finishVar () 
+    ret <- runEngineImpl config stopCb
+    if ret /= 0
+        then throw EngineException
+        else void $ takeMVar finishVar
+
+-- | Exception type used to report errors while starting QML engines.
+data EngineException = EngineException deriving (Show, Typeable)
+
+instance Exception EngineException
 
 -- | Convenience function for converting local file paths into URIs.
 filePathToURI :: FilePath -> URI

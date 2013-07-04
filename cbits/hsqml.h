@@ -88,12 +88,15 @@ extern void hsqml_fire_signal(
     HsQMLObjectHandle*, int, void**);
 
 /* Engine */
-extern void hsqml_create_engine(
+typedef void (*HsQMLEngineStopCb)();
+
+extern int hsqml_run_engine(
     HsQMLObjectHandle*,
     HsQMLUrlHandle*,
     int,
     int,
-    HsQMLStringHandle*);
+    HsQMLStringHandle*,
+    HsQMLEngineStopCb);
 
 #ifdef __cplusplus
 }

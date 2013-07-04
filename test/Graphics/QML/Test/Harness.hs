@@ -36,10 +36,9 @@ runTest src = do
     hClose hndl
     mock <- mockFromSrc src
     go <- newObject mock
-    createEngine defaultEngineConfig {
+    runEngine defaultEngineConfig {
         initialURL = filePathToURI qmlPath,
         contextObject = Just go}
-    runEngines
     removeFile qmlPath
     status <- readIORef (mockStatus mock)
     if isJust $ testFault status

@@ -2,8 +2,8 @@
 #include <HsFFI.h>
 #include <QtCore/QAtomicInt>
 #include <QtCore/QMetaObject>
+#include <QtCore/QMetaType>
 #include <QtCore/QString>
-#include <QtCore/QDebug>
 
 #include "hsqml.h"
 #include "HsQMLClass.h"
@@ -171,22 +171,18 @@ void HsQMLClass::ref(RefSrc src)
 {
     int count = mRefCount.fetchAndAddOrdered(1);
 
-    if (gLogLevel >= (count == 0 ? 1 : 2)) {
-        qDebug() << QString().sprintf(
-            "HsQML: %s Class, name=%s, src=%d, count=%d.",
-            count ? "Ref" : "New", name(), src, count+1);
-    }
+    HSQML_LOG(count == 0 ? 1 : 2,
+        QString().sprintf("%s Class, name=%s, src=%d, count=%d.",
+        count ? "Ref" : "New", name(), src, count+1));
 }
 
 void HsQMLClass::deref(RefSrc src)
 {
     int count = mRefCount.fetchAndAddOrdered(-1);
 
-    if (gLogLevel >= (count == 1 ? 1 : 2)) {
-        qDebug() << QString().sprintf(
-            "HsQML: %s Class, name=%s, src=%d, count=%d.",
-            count > 1 ? "Deref" : "Delete", name(), src, count);
-    }
+    HSQML_LOG(count == 1 ? 1 : 2,
+        QString().sprintf("%s Class, name=%s, src=%d, count=%d.",
+        count > 1 ? "Deref" : "Delete", name(), src, count));
 
     if (count == 1) {
         delete this;

@@ -1,39 +1,41 @@
+#include <iostream>
 #include <cstdlib>
 #include <QtCore/QMetaType>
+#include <QtCore/QThread>
 
 #include "HsQMLManager.h"
 
-QMutex gMutex;
-HsQMLManager* gManager;
-bool gLogLevelSet;
-int gLogLevel;
+QAtomicPointer<HsQMLManager> gManager;
 
 HsQMLManager::HsQMLManager(
-    int& argc,
-    char** argv,
     void (*freeFun)(HsFunPtr),
     void (*freeStable)(HsStablePtr))
-    : mApp(argc, argv)
+    : mLogLevel(0)
     , mFreeFun(freeFun)
     , mFreeStable(freeStable)
+    , mAppRunning(false)
 {
-    mApp.setQuitOnLastWindowClosed(false);
-}
+    qRegisterMetaType<HsQMLEngineConfig>("HsQMLEngineConfig");
 
-HsQMLManager::~HsQMLManager()
-{
-}
-
-void HsQMLManager::childEvent(QChildEvent* ev)
-{
-    if (ev->removed() && children().size() == 0) {
-        mApp.quit();
+    const char* env = std::getenv("HSQML_DEBUG_LOG_LEVEL");
+    if (env) {
+        mLogLevel = QString(env).toInt();
     }
 }
 
-void HsQMLManager::run()
+void HsQMLManager::setLogLevel(int ll)
 {
-    mApp.exec();
+    mLogLevel = ll;
+}
+
+bool HsQMLManager::checkLogLevel(int ll)
+{
+    return mLogLevel >= ll;
+}
+
+void HsQMLManager::log(const QString& msg)
+{
+    std::cerr << "HsQML: " << msg.toStdString() << std::endl;
 }
 
 void HsQMLManager::freeFun(HsFunPtr funPtr)
@@ -46,45 +48,104 @@ void HsQMLManager::freeStable(HsStablePtr stablePtr)
     mFreeStable(stablePtr);
 }
 
-void HsQMLManager::createEngine(HsQMLEngineConfig config)
+int HsQMLManager::startEngine(const HsQMLEngineConfig& config)
+{
+    // Initialise application
+    bool usingThread = false;
+    mAppLock.lockForWrite();
+    if (mApp && !mAppRunning && mApp->thread() != QThread::currentThread()) {
+        mAppLock.unlock();
+        return -1;
+    }
+    if (!mApp) {
+        mApp = new HsQMLManagerApp();
+    }
+    if (!mAppRunning) {
+        usingThread = true;
+        mAppRunning = true;
+    }
+
+    // Create engine
+    QMetaObject::invokeMethod(
+        mApp, "createEngine", Q_ARG(HsQMLEngineConfig, config));
+    mAppLock.unlock();
+
+    // Run event loop if neccessary
+    if (usingThread) {
+        if (mApp->exec() == 0) {
+            mAppRunning = false;
+            // Lock was acquired during event loop exit
+            mAppLock.unlock();
+        }
+        else {
+            // Error while entering loop
+            mAppRunning = false;
+            return -1;
+        }
+    }
+    return 0;
+}
+
+HsQMLManagerApp::HsQMLManagerApp()
+    : mArgC(1)
+    , mArg0(0)
+    , mArgV(&mArg0)
+    , mApp(mArgC, &mArgV)
+{
+    mApp.setQuitOnLastWindowClosed(false);
+}
+
+HsQMLManagerApp::~HsQMLManagerApp()
+{}
+
+void HsQMLManagerApp::childEvent(QChildEvent* ev)
+{
+    if (ev->removed() && children().size() == 0) {
+        gManager->mAppLock.lockForWrite();
+        // Allow events to flush out of queue
+        QCoreApplication::postEvent(
+            this, new QEvent(QEvent::User), Qt::LowEventPriority);
+    }
+}
+
+void HsQMLManagerApp::customEvent(QEvent* ev)
+{
+    if (ev->type() == QEvent::User) {
+        if (children().size() == 0) {
+            mApp.quit();
+        }
+        else {
+            // New engines have started
+            gManager->mAppLock.unlock();
+        }
+    }
+}
+
+void HsQMLManagerApp::createEngine(HsQMLEngineConfig config)
 {
     HsQMLEngine* engine = new HsQMLEngine(config);
     engine->setParent(this);
 }
 
-extern "C" void hsqml_init(
-    void (*free_fun)(HsFunPtr),
-    void (*free_stable)(HsStablePtr))
+int HsQMLManagerApp::exec()
 {
-    gMutex.lock();
-    if (!gManager) {
-        qRegisterMetaType<HsQMLEngineConfig>("HsQMLEngineConfig");
-
-        if (!gLogLevelSet) {
-            const char* env = std::getenv("HSQML_DEBUG_LOG_LEVEL");
-            if (env) {
-                gLogLevel = QString(env).toInt();
-            }
-        }
-
-        int* argcp = new int[1];
-        *argcp = 1;
-        char** argv = new char*[1];
-        argv[0] = new char[1];
-        argv[0][0] = '\0';
-        gManager = new HsQMLManager(*argcp, argv, free_fun, free_stable);
-    }
-    gMutex.unlock();
+    return mApp.exec();
 }
 
-extern "C" void hsqml_run()
+extern "C" void hsqml_init(
+    void (*freeFun)(HsFunPtr),
+    void (*freeStable)(HsStablePtr))
+{
+    if (gManager == NULL) {
+        HsQMLManager* manager = new HsQMLManager(freeFun, freeStable);
+        if (!gManager.testAndSetOrdered(NULL, manager)) {
+            delete manager;
+        }
+    }
+}
+
+extern "C" void hsqml_set_debug_loglevel(int ll)
 {
     Q_ASSERT (gManager);
-    gManager->run();
-}
-
-extern "C" void hsqml_set_debug_loglevel(int level)
-{
-    gLogLevelSet = true;
-    gLogLevel = level;
+    gManager->setLogLevel(ll);
 }
