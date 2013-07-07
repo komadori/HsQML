@@ -155,6 +155,13 @@ extern "C" HsQMLObjectHandle* hsqml_create_object(
     return (HsQMLObjectHandle*)proxy;
 }
 
+extern "C" HsStablePtr hsqml_object_get_hs_typerep(
+    HsQMLObjectHandle* hndl)
+{
+    HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
+    return proxy->klass()->hsTypeRep();
+}
+
 extern HsStablePtr hsqml_object_get_haskell(
     HsQMLObjectHandle* hndl)
 {

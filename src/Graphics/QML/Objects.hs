@@ -35,6 +35,11 @@ module Graphics.QML.Objects (
   newObject,
   fromObjRef,
 
+  -- * Dynamic Object References
+  AnyObjRef,
+  anyObjRef,
+  fromAnyObjRef,
+
   -- * Customer Marshallers
   objSimpleMarshaller,
   objBidiMarshaller
@@ -140,6 +145,51 @@ fromObjRef =
 fromObjRefIO :: ObjRef tt -> IO tt
 fromObjRefIO =
     hsqmlObjectGetHaskell . objHndl 
+
+-- | Represents an instance of a QML class which wraps an arbitrary Haskell
+-- type. Unlike 'ObjRef', an 'AnyObjRef' only carries the type of its Haskell
+-- value dynamically and does not encode it into the static type.
+data AnyObjRef = AnyObjRef {
+  anyObjHndl :: HsQMLObjectHandle
+}
+
+instance Marshal AnyObjRef where
+  type MarshalMode AnyObjRef = ValObjBidi ()
+  marshaller = MValObjBidi {
+    mValObjBidi_typeName = Tagged $ TypeName "QObject*",
+    mValObjBidi_typeInit = Tagged $ return (),
+    mValObjBidi_valToHs = \ptr -> MaybeT $ do
+      objPtr <- peek (castPtr ptr)
+      hndl <- hsqmlGetObjectHandle objPtr
+      return $ if isNullObjectHandle hndl
+        then Nothing else Just $ AnyObjRef hndl,
+    mValObjBidi_hsToVal = \obj ptr -> do
+      objPtr <- hsqmlObjectGetPointer $ anyObjHndl obj
+      poke (castPtr ptr) objPtr,
+    mValObjBidi_hsToAlloc = \obj f ->
+      alloca $ \(ptr :: Ptr (Ptr ())) ->
+        flip mHsToVal (castPtr ptr) obj >> f (castPtr ptr),
+    mValObjBidi_objToHs = \hndl ->
+      return $ AnyObjRef hndl,
+    mValObjBidi_hsToObj = \obj ->
+      return $ anyObjHndl obj}
+
+-- | Upcasts an 'ObjRef' into an 'AnyObjRef'.
+anyObjRef :: ObjRef tt -> AnyObjRef
+anyObjRef (ObjRef hndl) = AnyObjRef hndl
+
+-- | Attempts to downcast an 'AnyObjRef' into an 'ObjRef' with the specific
+-- underlying Haskell type @tt@.
+fromAnyObjRef :: (Object tt) => AnyObjRef -> Maybe (ObjRef tt)
+fromAnyObjRef = unsafePerformIO . fromAnyObjRefIO
+
+fromAnyObjRefIO :: forall tt. (Object tt) => AnyObjRef -> IO (Maybe (ObjRef tt))
+fromAnyObjRefIO (AnyObjRef hndl) = do
+    let srcRep = typeOf (undefined :: tt)
+    dstRep <- hsqmlObjectGetHsTyperep hndl
+    if srcRep == dstRep
+        then return $ Just $ ObjRef hndl
+        else return Nothing
 
 -- | Provides a QML-to-Haskell 'Marshaller' which allows you to define
 -- instances of 'Marshal' for custom 'Object' types. This allows a custom types
@@ -264,7 +314,8 @@ createClass typRep cdef = do
   methodsPtr <- crlToNewArray maybeMarshalFunc (mFuncMethods moc)
   propsPtr <- crlToNewArray maybeMarshalFunc (mFuncProperties moc)
   hsqmlInit
-  maybeHndl <- hsqmlCreateClass metaDataPtr metaStrDataPtr methodsPtr propsPtr
+  maybeHndl <- hsqmlCreateClass
+      metaDataPtr metaStrDataPtr typRep methodsPtr propsPtr
   case maybeHndl of
       Just hndl -> return $ ClassRec hndl sigMap
       Nothing -> error ("Failed to create QML class '"++name++"'.")

@@ -61,7 +61,7 @@ typedef void (*HsQMLUniformFunc)(void*, void**);
 extern int hsqml_get_next_class_id();
 
 extern HsQMLClassHandle* hsqml_create_class(
-    unsigned int*, char*, HsQMLUniformFunc*, HsQMLUniformFunc*);
+    unsigned int*, char*, HsStablePtr, HsQMLUniformFunc*, HsQMLUniformFunc*);
 
 extern void hsqml_finalise_class_handle(
     HsQMLClassHandle* hndl);
@@ -71,6 +71,9 @@ typedef char HsQMLObjectHandle;
 
 extern HsQMLObjectHandle* hsqml_create_object(
     HsStablePtr, HsQMLClassHandle*);
+
+extern HsStablePtr hsqml_object_get_hs_typerep(
+    HsQMLObjectHandle*);
 
 extern HsStablePtr hsqml_object_get_haskell(
     HsQMLObjectHandle*);

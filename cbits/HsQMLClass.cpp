@@ -74,15 +74,17 @@ static void deleteObjectPtr(void* p)
 HsQMLClass::HsQMLClass(
     unsigned int*  metaData,
     char*          metaStrData,
+    HsStablePtr    hsTypeRep,
     HsQMLUniformFunc* methods,
     HsQMLUniformFunc* properties)
     : mRefCount(0)
     , mMetaData(metaData)
     , mMetaStrData(metaStrData)
-    , mMethods(methods)
-    , mProperties(properties)
+    , mHsTypeRep(hsTypeRep)
     , mMethodCount(metaData[MD_METHOD_COUNT])
     , mPropertyCount(metaData[MD_PROPERTY_COUNT])
+    , mMethods(methods)
+    , mProperties(properties)
 {
     // Create meta-object
     QMetaObject tmp = {
@@ -128,6 +130,7 @@ HsQMLClass::~HsQMLClass()
             gManager->freeFun((HsFunPtr)mProperties[i]);
         }
     }
+    gManager->freeStable(mHsTypeRep);
     std::free(mMetaData);
     std::free(mMetaStrData);
     std::free(mMethods);
@@ -141,6 +144,11 @@ const char* HsQMLClass::name()
 {
     return mMetaObject->className();
 } 
+
+HsStablePtr HsQMLClass::hsTypeRep()
+{
+    return mHsTypeRep;
+}
 
 int HsQMLClass::methodCount()
 {
@@ -197,11 +205,12 @@ extern "C" int hsqml_get_next_class_id()
 extern "C" HsQMLClassHandle* hsqml_create_class(
     unsigned int*  metaData,
     char*          metaStrData,
+    HsStablePtr    hsTypeRep,
     HsQMLUniformFunc* methods,
     HsQMLUniformFunc* properties)
 {
     HsQMLClass* klass = new HsQMLClass(
-            metaData, metaStrData, methods, properties);
+            metaData, metaStrData, hsTypeRep, methods, properties);
     return (HsQMLClassHandle*)klass;
 }
 

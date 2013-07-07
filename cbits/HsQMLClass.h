@@ -10,9 +10,11 @@ class HsQMLClass
 {
 public:
     HsQMLClass(
-        unsigned int*, char*, HsQMLUniformFunc*, HsQMLUniformFunc*);
+        unsigned int*, char*, HsStablePtr,
+        HsQMLUniformFunc*, HsQMLUniformFunc*);
     ~HsQMLClass();
     const char* name();
+    HsStablePtr hsTypeRep();
     int methodCount();
     int propertyCount();
     const HsQMLUniformFunc* methods();
@@ -26,6 +28,7 @@ private:
     QAtomicInt mRefCount;
     unsigned int* mMetaData;
     char* mMetaStrData;
+    HsStablePtr mHsTypeRep;
     int mMethodCount;
     int mPropertyCount;
     HsQMLUniformFunc* mMethods;

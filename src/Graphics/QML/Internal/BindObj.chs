@@ -4,6 +4,7 @@
 
 module Graphics.QML.Internal.BindObj where
 
+import Data.Typeable
 import Foreign.C.Types
 import Foreign.Ptr
 import Foreign.ForeignPtr.Safe
@@ -11,6 +12,16 @@ import Foreign.ForeignPtr.Unsafe
 import Foreign.StablePtr
 
 #include "hsqml.h"
+
+marshalStable :: a -> (Ptr () -> IO b) -> IO b
+marshalStable obj f = do
+  sPtr <- newStablePtr obj
+  res <- f $ castStablePtrToPtr sPtr
+  return res
+
+fromStable :: Ptr () -> IO a
+fromStable =
+  deRefStablePtr . castPtrToStablePtr
 
 {#fun unsafe hsqml_get_next_class_id as ^
   {} ->
@@ -37,6 +48,7 @@ newClassHandle p =
 {#fun unsafe hsqml_create_class as ^
   {id `Ptr CUInt',
    id `Ptr CChar',
+   marshalStable* `TypeRep',
    id `Ptr (FunPtr UniformFunc)',
    id `Ptr (FunPtr UniformFunc)'} ->
   `Maybe HsQMLClassHandle' newClassHandle* #}
@@ -60,24 +72,19 @@ isNullObjectHandle :: HsQMLObjectHandle -> Bool
 isNullObjectHandle (HsQMLObjectHandle fp) =
   nullPtr == unsafeForeignPtrToPtr fp
 
-objToPtr :: a -> (Ptr () -> IO b) -> IO b
-objToPtr obj f = do
-  sPtr <- newStablePtr obj
-  res <- f $ castStablePtrToPtr sPtr
-  return res
-
 {#fun unsafe hsqml_create_object as ^
-  {objToPtr* `a',
+  {marshalStable* `a',
    withHsQMLClassHandle* `HsQMLClassHandle'} ->
   `HsQMLObjectHandle' newObjectHandle* #}
 
-ptrToObj :: Ptr () -> IO a
-ptrToObj =
-  deRefStablePtr . castPtrToStablePtr
 
 {#fun unsafe hsqml_object_get_haskell as ^
   {withHsQMLObjectHandle* `HsQMLObjectHandle'} ->
-  `a' ptrToObj* #}
+  `a' fromStable* #}
+
+{#fun unsafe hsqml_object_get_hs_typerep as ^
+  {withHsQMLObjectHandle* `HsQMLObjectHandle'} ->
+  `TypeRep' fromStable* #}
 
 {#fun unsafe hsqml_object_get_pointer as ^
   {withHsQMLObjectHandle* `HsQMLObjectHandle'} ->
