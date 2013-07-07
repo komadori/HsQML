@@ -476,7 +476,9 @@ defSignal tn =
 
 -- | Fires a signal on an 'Object', specified using a 'SignalKey'.
 fireSignal ::
-    forall tt sk. (Marshal tt, MarshalToObj (MarshalMode tt), SignalKey sk) =>
+    forall tt sk. (
+        Marshal tt, MarshalToObj (MarshalMode tt),
+        Object (ThisObj tt), SignalKey sk) =>
     Tagged sk tt -> SignalParams sk 
 fireSignal this =
    let cont ps = do

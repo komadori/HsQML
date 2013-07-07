@@ -12,7 +12,6 @@ import Graphics.QML.Internal.BindObj
 import Graphics.QML.Internal.Marshal
 
 import Data.Typeable
-import Data.Typeable.Internal
 import Data.Bits
 import Data.Char
 
@@ -56,7 +55,7 @@ type ThisObj tt = ModeObj (MarshalMode tt)
 
 -- | Class for 'MarshalMode's which support marshalling QML-to-Haskell
 -- in contexts specific to objects.
-class (MarshalBase m, Object (ModeObj m)) => MarshalFromObj m where
+class (MarshalBase m) => MarshalFromObj m where
   mObjToHs_ :: forall t. Marshaller t m -> MObjToHsFunc t
 
 mObjToHs ::
@@ -65,7 +64,7 @@ mObjToHs = mObjToHs_ (marshaller :: Marshaller t (MarshalMode t))
 
 -- | Class for 'MarshalMode's which support marshalling Haskell-to-QML
 -- in contexts specific to objects.
-class (MarshalBase m, Object (ModeObj m)) => MarshalToObj m where
+class (MarshalBase m) => MarshalToObj m where
   mHsToObj_ :: forall t. Marshaller t m -> MHsToObjFunc t
 
 mHsToObj ::
@@ -98,10 +97,10 @@ instance MarshalToValRaw (ValObjBidi a) where
 
 instance MarshalToVal (ValObjBidi a) where
 
-instance (Object a) => MarshalToObj (ValObjBidi a) where
+instance MarshalToObj (ValObjBidi a) where
   mHsToObj_ = mValObjBidi_hsToObj
 
-instance (Object a) => MarshalFromObj (ValObjBidi a) where
+instance MarshalFromObj (ValObjBidi a) where
   mObjToHs_ = mValObjBidi_objToHs
 
 -- | 'MarshalMode' for object types, operating only in the QML-to-Haskell
@@ -123,6 +122,6 @@ instance MarshalBase (ValObjToOnly a) where
 instance MarshalToHs (ValObjToOnly a) where
   mValToHs_ = mValObjToOnly_valToHs
 
-instance (Object a) => MarshalFromObj (ValObjToOnly a) where
+instance MarshalFromObj (ValObjToOnly a) where
   mObjToHs_ = mValObjToOnly_objToHs
 
