@@ -101,28 +101,18 @@ data ObjRef tt = ObjRef {
   objHndl :: HsQMLObjectHandle
 }
 
-addPointer :: TypeName -> TypeName
-addPointer (TypeName name) = TypeName $ name ++ "*"
-
 instance (Object tt) => Marshal (ObjRef tt) where
   type MarshalMode (ObjRef tt) = ValObjBidi tt
   marshaller = MValObjBidi {
-    mValObjBidi_typeName = Tagged $
-      addPointer $ TypeName $
-      unsafePerformIO $ getClassName (classDef :: ClassDef tt),
-    mValObjBidi_typeInit = Tagged $
-      void $ getClassRec (classDef :: ClassDef tt),
-    mValObjBidi_valToHs = \ptr -> MaybeT $ do
-      objPtr <- peek (castPtr ptr)
-      hndl <- hsqmlGetObjectHandle objPtr
-      return $ if isNullObjectHandle hndl
-        then Nothing else Just $ ObjRef hndl,
-    mValObjBidi_hsToVal = \obj ptr -> do
-      objPtr <- hsqmlObjectGetPointer $ objHndl obj
-      poke (castPtr ptr) objPtr,
+    mValObjBidi_typeName = Tagged $ TypeName "QObject*",
+    mValObjBidi_typeInit = Tagged $ return (),
+    mValObjBidi_valToHs = \ptr -> do
+      any <- mValToHs ptr
+      MaybeT $ return $ fromAnyObjRef any,
+    mValObjBidi_hsToVal = \obj ptr ->
+      mHsToVal (AnyObjRef $ objHndl obj) ptr,
     mValObjBidi_hsToAlloc = \obj f ->
-      alloca $ \(ptr :: Ptr (Ptr ())) ->
-        flip mHsToVal (castPtr ptr) obj >> f (castPtr ptr),
+      mHsToAlloc (AnyObjRef $ objHndl obj) f,
     mValObjBidi_objToHs = \hndl ->
       return $ ObjRef hndl,
     mValObjBidi_hsToObj = \obj ->
@@ -269,22 +259,6 @@ getFromMemoStore (MemoStore mr ir) key fn = do
                     writeIORef ir newMap
                     return (newMap, (True, val))
 
-{-# NOINLINE classNameDb #-}
-classNameDb :: MemoStore TypeRep String
-classNameDb = unsafePerformIO $ newMemoStore
-
-getClassName :: forall tt. (Object tt) => ClassDef tt -> IO String
-getClassName _ =
-    fmap snd $ getFromMemoStore classNameDb typ (createClassName typ)
-    where typ = typeOf (undefined :: tt)
-
-createClassName :: TypeRep -> IO String
-createClassName typRep = do
-    classId <- hsqmlGetNextClassId
-    let constrs t = typeRepTyCon t : (concatMap constrs $ typeRepArgs t)
-    return $ foldr (\c s -> showString (tyConName c) .
-        showChar '_' . s) id (constrs typRep) $ showInt classId ""
-
 data ClassRec = ClassRec {
     crecHndl :: HsQMLClassHandle,
     crecSigs :: Map TypeRep Int
@@ -303,8 +277,11 @@ getClassRec cdef = do
 
 createClass :: forall tt. (Object tt) => TypeRep -> ClassDef tt -> IO ClassRec
 createClass typRep cdef = do
-  name <- getClassName cdef
-  let ms = classMembers cdef
+  classId <- hsqmlGetNextClassId
+  let constrs t = typeRepTyCon t : (concatMap constrs $ typeRepArgs t)
+      name = foldr (\c s -> showString (tyConName c) .
+          showChar '_' . s) id (constrs typRep) $ showInt classId ""
+      ms = classMembers cdef
       moc = compileClass name ms
       sigs = filterMembers SignalMember ms
       sigMap = Map.fromList $ flip zip [0..] $ map (fromJust . memberKey) sigs
