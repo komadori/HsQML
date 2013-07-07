@@ -50,18 +50,18 @@ data InitialWindowState
   | HideWindow
 
 -- | Holds parameters for configuring a QML runtime engine.
-data EngineConfig a = EngineConfig {
+data EngineConfig = EngineConfig {
   -- | URL for the first QML document to be loaded.
   initialURL         :: URI,
   -- | Window state for the initial QML document.
   initialWindowState :: InitialWindowState,
   -- | Context 'Object' made available to QML script code.
-  contextObject      :: Maybe a
+  contextObject      :: Maybe AnyObjRef
 }
 
 -- | Default engine configuration. Loads @\"main.qml\"@ from the current
 -- working directory into a visible window with no context object.
-defaultEngineConfig :: EngineConfig a
+defaultEngineConfig :: EngineConfig
 defaultEngineConfig = EngineConfig {
   initialURL         = nullURI {uriPath = "main.qml"},
   initialWindowState = ShowWindow,
@@ -77,9 +77,7 @@ getWindowTitle :: InitialWindowState -> Maybe String
 getWindowTitle (ShowWindowWithTitle t) = Just t
 getWindowTitle _ = Nothing
 
-runEngineImpl ::
-    (Marshal a, MarshalToObj (MarshalMode a)) =>
-    EngineConfig a -> EngineStopCb -> IO Int
+runEngineImpl :: EngineConfig -> EngineStopCb -> IO Int
 runEngineImpl config stopCb = do
     hsqmlInit
     let obj = contextObject config
@@ -117,8 +115,7 @@ runEngineImpl config stopCb = do
 -- restart the event loop must be made on the same thread used to host it
 -- previously, as the event loop thread cannot be changed once Qt has been
 -- initialised.
-runEngine ::
-    (Marshal a, MarshalToObj (MarshalMode a)) => EngineConfig a -> IO ()
+runEngine :: EngineConfig -> IO ()
 runEngine config = do
     finishVar <- newEmptyMVar
     let stopCb = putMVar finishVar () 

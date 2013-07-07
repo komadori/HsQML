@@ -38,7 +38,7 @@ runTest src = do
     go <- newObject mock
     runEngine defaultEngineConfig {
         initialURL = filePathToURI qmlPath,
-        contextObject = Just go}
+        contextObject = Just $ anyObjRef go}
     removeFile qmlPath
     status <- readIORef (mockStatus mock)
     if isJust $ testFault status
