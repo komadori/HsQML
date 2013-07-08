@@ -22,7 +22,7 @@ module Graphics.QML.Engine (
 
 import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.Objects
-import Graphics.QML.Internal.Engine
+import Graphics.QML.Internal.BindCore
 import Graphics.QML.Marshal
 import Graphics.QML.Objects
 

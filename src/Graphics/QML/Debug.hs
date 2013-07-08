@@ -3,7 +3,7 @@ module Graphics.QML.Debug (
     setDebugLogLevel
 ) where
 
-import Graphics.QML.Internal.Engine
+import Graphics.QML.Internal.BindCore
 
 -- | Sets the global debug log level. At level zero, no logging information
 -- will be printed. Higher levels will increase debug verbosity.

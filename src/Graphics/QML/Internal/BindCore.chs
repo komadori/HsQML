@@ -3,7 +3,7 @@
   #-}
 {-# OPTIONS_HADDOCK hide #-}
 
-module Graphics.QML.Internal.Engine where
+module Graphics.QML.Internal.BindCore where
 
 {#import Graphics.QML.Internal.BindObj #}
 

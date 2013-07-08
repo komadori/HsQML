@@ -45,10 +45,10 @@ module Graphics.QML.Objects (
   objBidiMarshaller
 ) where
 
+import Graphics.QML.Internal.BindCore
 import Graphics.QML.Internal.BindObj
 import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.Objects
-import Graphics.QML.Internal.Engine
 
 import Control.Concurrent.MVar
 import Control.Monad

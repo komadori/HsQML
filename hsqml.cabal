@@ -39,11 +39,11 @@ Library
         Graphics.QML.Marshal
         Graphics.QML.Objects
     Other-modules:
+        Graphics.QML.Internal.BindCore
         Graphics.QML.Internal.BindPrim
         Graphics.QML.Internal.BindObj
         Graphics.QML.Internal.Marshal
         Graphics.QML.Internal.Objects
-        Graphics.QML.Internal.Engine
     Hs-source-dirs: src
     C-sources:
         cbits/HsQMLClass.cpp
