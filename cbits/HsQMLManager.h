@@ -2,7 +2,8 @@
 #define HSQML_MANAGER_H
 
 #include <QtCore/QAtomicPointer>
-#include <QtCore/QReadWriteLock>
+#include <QtCore/QMutex>
+#include <QtCore/QMutexLocker>
 #include <QtCore/QString>
 #include <QtGui/QApplication>
 
@@ -24,7 +25,11 @@ public:
     void log(const QString&);
     void freeFun(HsFunPtr);
     void freeStable(HsStablePtr);
-    int startEngine(const HsQMLEngineConfig&);
+    typedef HsQMLEventLoopStatus EventLoopStatus;
+    EventLoopStatus runEventLoop(HsQMLTrivialCb, HsQMLTrivialCb);
+    EventLoopStatus requireEventLoop();
+    void releaseEventLoop();
+    void createEngine(const HsQMLEngineConfig&);
 
 private:
     friend class HsQMLManagerApp;
@@ -34,8 +39,11 @@ private:
     void (*mFreeFun)(HsFunPtr);
     void (*mFreeStable)(HsStablePtr);
     HsQMLManagerApp* mApp;
-    bool mAppRunning;
-    QReadWriteLock mAppLock;
+    QMutex mLock;
+    bool mRunning;
+    int mRunCount;
+    HsQMLTrivialCb mStartCb;
+    HsQMLTrivialCb mYieldCb;
 };
 
 class HsQMLManagerApp : public QObject
@@ -45,10 +53,20 @@ class HsQMLManagerApp : public QObject
 public:
     HsQMLManagerApp();
     virtual ~HsQMLManagerApp();
-    virtual void childEvent(QChildEvent*);
     virtual void customEvent(QEvent*);
+    virtual void timerEvent(QTimerEvent*);
     Q_SLOT void createEngine(HsQMLEngineConfig);
     int exec();
+
+    enum CustomEventIndicies {
+        StartedLoopEventIndex,
+        StopLoopEventIndex
+    };
+
+    static const QEvent::Type StartedLoopEvent =
+        static_cast<QEvent::Type>(QEvent::User+StartedLoopEventIndex);
+    static const QEvent::Type StopLoopEvent =
+        static_cast<QEvent::Type>(QEvent::User+StopLoopEventIndex);
 
 private:
     Q_DISABLE_COPY(HsQMLManagerApp)

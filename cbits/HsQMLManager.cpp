@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdlib>
+#include <QtCore/QBasicTimer>
 #include <QtCore/QMetaType>
 #include <QtCore/QThread>
 
@@ -13,7 +14,9 @@ HsQMLManager::HsQMLManager(
     : mLogLevel(0)
     , mFreeFun(freeFun)
     , mFreeStable(freeStable)
-    , mAppRunning(false)
+    , mLock(QMutex::Recursive)
+    , mRunning(false)
+    , mRunCount(0)
 {
     qRegisterMetaType<HsQMLEngineConfig>("HsQMLEngineConfig");
 
@@ -48,42 +51,88 @@ void HsQMLManager::freeStable(HsStablePtr stablePtr)
     mFreeStable(stablePtr);
 }
 
-int HsQMLManager::startEngine(const HsQMLEngineConfig& config)
+HsQMLManager::EventLoopStatus HsQMLManager::runEventLoop(
+    HsQMLTrivialCb startCb, HsQMLTrivialCb yieldCb)
 {
-    // Initialise application
-    bool usingThread = false;
-    mAppLock.lockForWrite();
-    if (mApp && !mAppRunning && mApp->thread() != QThread::currentThread()) {
-        mAppLock.unlock();
-        return -1;
+    QMutexLocker locker(&mLock);
+
+    // Check if already running
+    if (mRunning) {
+        return HSQML_EVLOOP_ALREADY_RUNNING;
     }
+
+    // Check if event loop bound to a different thread
+    if (mApp && mApp->thread() != QThread::currentThread()) {
+        return HSQML_EVLOOP_WRONG_THREAD;
+    }
+
+    // Create application object
     if (!mApp) {
         mApp = new HsQMLManagerApp();
     }
-    if (!mAppRunning) {
-        usingThread = true;
-        mAppRunning = true;
+
+    // Save callbacks
+    mStartCb = startCb;
+    mYieldCb = yieldCb;
+
+    // Setup events
+    QCoreApplication::postEvent(
+        mApp, new QEvent(HsQMLManagerApp::StartedLoopEvent),
+        Qt::HighEventPriority);
+    QBasicTimer idleTimer;
+    if (yieldCb) {
+        idleTimer.start(0, mApp);
     }
 
-    // Create engine
+    // Run loop
+    int ret = mApp->exec();
+
+    // Cleanup callbacks
+    freeFun(startCb);
+    mStartCb = NULL;
+    if (yieldCb) {
+        freeFun(yieldCb);
+        mYieldCb = NULL;
+    }
+
+    // Return
+    if (ret == 0) {
+        return HSQML_EVLOOP_OK;
+    }
+    else {
+        QCoreApplication::removePostedEvents(
+            mApp, HsQMLManagerApp::StartedLoopEvent);
+        return HSQML_EVLOOP_OTHER_ERROR;
+    }
+}
+
+HsQMLManager::EventLoopStatus HsQMLManager::requireEventLoop()
+{
+    QMutexLocker locker(&mLock);
+    if (mRunCount > 0) {
+        mRunCount++;
+        return HSQML_EVLOOP_OK;
+    }
+    else {
+        return HSQML_EVLOOP_NOT_RUNNING;
+    }
+}
+
+void HsQMLManager::releaseEventLoop()
+{
+    QMutexLocker locker(&mLock);
+    if (--mRunCount == 0) {
+        QCoreApplication::postEvent(
+            mApp, new QEvent(HsQMLManagerApp::StopLoopEvent),
+            Qt::LowEventPriority);
+    }
+}
+
+void HsQMLManager::createEngine(const HsQMLEngineConfig& config)
+{
+    Q_ASSERT (mApp);
     QMetaObject::invokeMethod(
         mApp, "createEngine", Q_ARG(HsQMLEngineConfig, config));
-    mAppLock.unlock();
-
-    // Run event loop if neccessary
-    if (usingThread) {
-        if (mApp->exec() == 0) {
-            mAppRunning = false;
-            // Lock was acquired during event loop exit
-            mAppLock.unlock();
-        }
-        else {
-            // Error while entering loop
-            mAppRunning = false;
-            return -1;
-        }
-    }
-    return 0;
 }
 
 HsQMLManagerApp::HsQMLManagerApp()
@@ -98,27 +147,31 @@ HsQMLManagerApp::HsQMLManagerApp()
 HsQMLManagerApp::~HsQMLManagerApp()
 {}
 
-void HsQMLManagerApp::childEvent(QChildEvent* ev)
+void HsQMLManagerApp::customEvent(QEvent* ev)
 {
-    if (ev->removed() && children().size() == 0) {
-        gManager->mAppLock.lockForWrite();
-        // Allow events to flush out of queue
-        QCoreApplication::postEvent(
-            this, new QEvent(QEvent::User), Qt::LowEventPriority);
+    switch (ev->type()) {
+    case HsQMLManagerApp::StartedLoopEvent:
+        gManager->mRunning = true;
+        gManager->mRunCount++;
+        gManager->mLock.unlock();
+        gManager->mStartCb();
+        break;
+    case HsQMLManagerApp::StopLoopEvent:
+        gManager->mLock.lock();
+        const QObjectList& cs = gManager->mApp->children();
+        while (!cs.empty()) {
+            delete cs.front();
+        }
+        gManager->mRunning = false;
+        gManager->mApp->mApp.quit();
+        break;
     }
 }
 
-void HsQMLManagerApp::customEvent(QEvent* ev)
+void HsQMLManagerApp::timerEvent(QTimerEvent*)
 {
-    if (ev->type() == QEvent::User) {
-        if (children().size() == 0) {
-            mApp.quit();
-        }
-        else {
-            // New engines have started
-            gManager->mAppLock.unlock();
-        }
-    }
+    Q_ASSERT(gManager->mYieldCb);
+    gManager->mYieldCb();
 }
 
 void HsQMLManagerApp::createEngine(HsQMLEngineConfig config)
@@ -142,6 +195,23 @@ extern "C" void hsqml_init(
             delete manager;
         }
     }
+}
+
+extern "C" HsQMLEventLoopStatus hsqml_evloop_run(
+    HsQMLTrivialCb startCb,
+    HsQMLTrivialCb yieldCb)
+{
+    return gManager->runEventLoop(startCb, yieldCb);
+}
+
+extern "C" HsQMLEventLoopStatus hsqml_evloop_require()
+{
+    return gManager->requireEventLoop();
+}
+
+extern "C" void hsqml_evloop_release()
+{
+    gManager->releaseEventLoop();
 }
 
 extern "C" void hsqml_set_debug_loglevel(int ll)

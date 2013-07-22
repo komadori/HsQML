@@ -25,7 +25,7 @@ struct HsQMLEngineConfig
     bool showWindow;
     bool setWindowTitle;
     QString windowTitle;
-    HsQMLEngineStopCb stopCb;
+    HsQMLTrivialCb stopCb;
 };
 
 class HsQMLEngine : public QObject
@@ -43,7 +43,7 @@ private:
 
     QDeclarativeEngine mEngine;
     QScopedPointer<QObject> mContextObj;
-    HsQMLEngineStopCb mStopCb;
+    HsQMLTrivialCb mStopCb;
 };
 
 #endif /*HSQML_ENGINE_H*/

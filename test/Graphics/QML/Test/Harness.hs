@@ -36,7 +36,7 @@ runTest src = do
     hClose hndl
     mock <- mockFromSrc src
     go <- newObject mock
-    runEngine defaultEngineConfig {
+    runEngineLoop defaultEngineConfig {
         initialURL = filePathToURI qmlPath,
         contextObject = Just $ anyObjRef go}
     removeFile qmlPath

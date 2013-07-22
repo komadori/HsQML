@@ -33,22 +33,44 @@ foreign import ccall "HsFFI.h &hs_free_stable_ptr"
 hsqmlInit :: IO ()
 hsqmlInit = hsqmlInit_ hsFreeFunPtr hsFreeStablePtr
 
-type EngineStopCb = IO ()
+type TrivialCb = IO ()
 
 foreign import ccall "wrapper"  
-  marshalEngStopCb :: EngineStopCb -> IO (FunPtr EngineStopCb)
+  marshalTrivialCb :: TrivialCb -> IO (FunPtr TrivialCb)
 
-withEngineStopCb :: EngineStopCb -> (FunPtr EngineStopCb -> IO a) -> IO a
-withEngineStopCb f with = marshalEngStopCb f >>= with
+withTrivialCb :: TrivialCb -> (FunPtr TrivialCb -> IO a) -> IO a
+withTrivialCb f with = marshalTrivialCb f >>= with
 
-{#fun hsqml_run_engine as ^
+withMaybeTrivialCb :: Maybe TrivialCb -> (FunPtr TrivialCb -> IO b) -> IO b
+withMaybeTrivialCb (Just f) = withTrivialCb f
+withMaybeTrivialCb Nothing = \cont -> cont nullFunPtr
+
+{#enum HsQMLEventLoopStatus as ^ {underscoreToCase} #}
+
+cIntToEnum :: Enum a => CInt -> a
+cIntToEnum = toEnum . fromIntegral
+
+{#fun hsqml_evloop_run as ^
+  {withTrivialCb* `TrivialCb',
+   withMaybeTrivialCb* `Maybe TrivialCb'} ->
+  `HsQMLEventLoopStatus' cIntToEnum #}
+
+{#fun hsqml_evloop_require as ^
+  {} ->
+  `HsQMLEventLoopStatus' cIntToEnum #}
+
+{#fun hsqml_evloop_release as ^
+  {} ->
+  `()' #}
+
+{#fun hsqml_create_engine as ^
   {withMaybeHsQMLObjectHandle* `Maybe HsQMLObjectHandle',
    castPtr `Ptr ()',
    fromBool `Bool',
    fromBool `Bool',
    castPtr `Ptr ()',
-   withEngineStopCb* `EngineStopCb'} ->
-  `Int' fromIntegral #}
+   withTrivialCb* `TrivialCb'} ->
+  `()' #}
 
 {#fun unsafe hsqml_set_debug_loglevel as ^
   {fromIntegral `Int'} -> `()'

@@ -1,10 +1,12 @@
 {-# LANGUAGE
     DeriveDataTypeable,
-    FlexibleContexts
+    FlexibleContexts,
+    GeneralizedNewtypeDeriving
   #-}
 
 -- | Functions for starting QML engines, displaying content in a window.
 module Graphics.QML.Engine (
+  -- * Engines
   InitialWindowState(
     ShowWindow,
     ShowWindowWithTitle,
@@ -15,8 +17,19 @@ module Graphics.QML.Engine (
     initialWindowState,
     contextObject),
   defaultEngineConfig,
+  Engine,
   runEngine,
-  EngineException(),
+  runEngineWith,
+  runEngineAsync,
+  runEngineLoop,
+
+  -- * Event Loop
+  RunQML(),
+  runEventLoop,
+  requireEventLoop,
+  EventLoopException(),
+
+  -- * Utilities
   filePathToURI
 ) where
 
@@ -26,10 +39,12 @@ import Graphics.QML.Internal.BindCore
 import Graphics.QML.Marshal
 import Graphics.QML.Objects
 
+import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.MVar
 import Control.Exception
 import Control.Monad
+import Control.Monad.IO.Class
 import Data.List
 import Data.Maybe
 import Data.Traversable as T
@@ -77,7 +92,10 @@ getWindowTitle :: InitialWindowState -> Maybe String
 getWindowTitle (ShowWindowWithTitle t) = Just t
 getWindowTitle _ = Nothing
 
-runEngineImpl :: EngineConfig -> EngineStopCb -> IO Int
+-- | Represents a QML engine.
+data Engine = Engine
+
+runEngineImpl :: EngineConfig -> IO () -> IO Engine
 runEngineImpl config stopCb = do
     hsqmlInit
     let obj = contextObject config
@@ -90,44 +108,110 @@ runEngineImpl config stopCb = do
     hndl <- T.sequence $ fmap mHsToObj $ obj
     mHsToAlloc url $ \urlPtr -> do
         mHsToAlloc titleStr $ \titlePtr -> do
-            hsqmlRunEngine hndl urlPtr showWin setTitle titlePtr stopCb
+            hsqmlCreateEngine hndl urlPtr showWin setTitle titlePtr stopCb
+    return Engine
 
--- | Starts a new QML engine using the supplied configuration and blocks at
--- least until the engine has terminated.
---
--- The first time an application runs an engine then the Qt framework will be
--- initialised and its main event loop bound to the current operating system
--- thread. The event loop will run on this thread until all engines have
--- terminated. It's recommended that applications run their first engine on the
--- primordial thread as some platforms prevent running the event loop on other
--- threads. If the event loop fails to start then an 'EngineException' will be
--- thrown.
---
--- This function is thread-safe. Additional engines can be started from
--- arbitrary threads and these calls will block until their respective engines
--- terminate. However, the call used to start the first engine is special
--- because its thread will be used to host the Qt event loop. Hence, it may
--- continue to block after its own engine has terminated, until all running
--- engines have terminated and the event loop can finish.
---
--- Once the event loop has finished, starting a further engine will attempt to
--- start the event loop again, as in the first instance. Any call which may
--- restart the event loop must be made on the same thread used to host it
--- previously, as the event loop thread cannot be changed once Qt has been
--- initialised.
-runEngine :: EngineConfig -> IO ()
-runEngine config = do
+-- | Starts a new QML engine using the supplied configuration and blocks until
+-- the engine has terminated.
+runEngine :: EngineConfig -> RunQML ()
+runEngine config = runEngineWith config (const $ return ())
+
+-- | Starts a new QML engine using the supplied configuration. The \'with\'
+-- function is executed once the engine has been started and after it returns
+-- this function blocks until the engine has terminated.
+runEngineWith :: EngineConfig -> (Engine -> RunQML a) -> RunQML a
+runEngineWith config with = RunQML $ do
     finishVar <- newEmptyMVar
     let stopCb = putMVar finishVar () 
-    ret <- runEngineImpl config stopCb
-    if ret /= 0
-        then throw EngineException
-        else void $ takeMVar finishVar
+    eng <- runEngineImpl config stopCb
+    let (RunQML withIO) = with eng
+    ret <- withIO
+    void $ takeMVar finishVar
+    return ret
 
--- | Exception type used to report errors while starting QML engines.
-data EngineException = EngineException deriving (Show, Typeable)
+-- | Starts a new QML engine using the supplied configuration and returns
+-- immediately without blocking.
+runEngineAsync :: EngineConfig -> RunQML Engine
+runEngineAsync config = RunQML $ do
+    runEngineImpl config (return ())
 
-instance Exception EngineException
+-- | Conveniance function that both runs the event loop and starts a new QML
+-- engine. It blocks keeping the event loop running until the engine has
+-- terminated.
+runEngineLoop :: EngineConfig -> IO ()
+runEngineLoop config =
+    runEventLoop $ runEngine config
+
+-- | Wrapper around the IO monad for running actions which depend on the Qt
+-- event loop.
+newtype RunQML a = RunQML (IO a) deriving (Functor, Applicative, Monad)
+
+instance MonadIO RunQML where
+    liftIO io = RunQML io
+
+-- | This function enters the Qt event loop and executes the supplied function
+-- in the 'RunQML' monad on a new unbound thread. The event loop will continue
+-- to run until all functions in the 'RunQML' monad have completed. This
+-- includes both the 'RunQML' function launched by this call and any launched
+-- asynchronously via 'requireEventLoop'. When the event loop exits, all
+-- engines will be terminated.
+--
+-- It's recommended that applications run the event loop on their primordial
+-- thread as some platforms mandate this. Once the event loop has finished, it
+-- can be started again, but only on the same operating system thread as
+-- before. If the event loop fails to start then an 'EventLoopException' will
+-- be thrown.
+runEventLoop :: RunQML a -> IO a
+runEventLoop (RunQML runFn) = do
+    hsqmlInit
+    finishVar <- newEmptyMVar
+    let startCb = void $ forkIO $ do
+            ret <- try runFn
+            case ret of
+                Left ex -> putMVar finishVar $ throwIO (ex :: SomeException)
+                Right ret -> putMVar finishVar $ return ret
+            hsqmlEvloopRelease
+        yieldCb = if rtsSupportsBoundThreads
+                  then Nothing
+                  else Just yield
+    status <- hsqmlEvloopRun startCb yieldCb
+    case statusException status of
+        Just ex -> throw ex
+        Nothing -> do 
+            finFn <- takeMVar finishVar
+            finFn
+
+-- | Executes a function in the 'RunQML' monad asynchronously to the event
+-- loop. Callers must apply their own sychronisation to ensure that the event
+-- loop is currently running when this function is called, otherwise an
+-- 'EventLoopException' will be thrown. The event loop will not exit until the
+-- supplied function has completed.
+requireEventLoop :: RunQML a -> IO a
+requireEventLoop (RunQML runFn) = do
+    hsqmlInit
+    let reqFn = do
+            status <- hsqmlEvloopRequire
+            case statusException status of
+                Just ex -> throw ex
+                Nothing -> return ()
+    bracket_ reqFn hsqmlEvloopRelease runFn
+
+statusException :: HsQMLEventLoopStatus -> Maybe EventLoopException
+statusException HsqmlEvloopOk = Nothing
+statusException HsqmlEvloopAlreadyRunning = Just EventLoopAlreadyRunning
+statusException HsqmlEvloopWrongThread = Just EventLoopWrongThread
+statusException HsqmlEvloopNotRunning = Just EventLoopNotRunning
+statusException _ = Just EventLoopOtherError
+
+-- | Exception type used to report errors pertaining to the event loop.
+data EventLoopException
+    = EventLoopAlreadyRunning
+    | EventLoopWrongThread
+    | EventLoopNotRunning
+    | EventLoopOtherError
+    deriving (Show, Typeable)
+
+instance Exception EventLoopException
 
 -- | Convenience function for converting local file paths into URIs.
 filePathToURI :: FilePath -> URI

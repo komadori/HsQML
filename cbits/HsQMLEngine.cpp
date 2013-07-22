@@ -41,13 +41,13 @@ QDeclarativeEngine* HsQMLEngine::engine()
     return &mEngine;
 }
 
-extern "C" int hsqml_run_engine(
+extern "C" void hsqml_create_engine(
     HsQMLObjectHandle* contextObject,
     HsQMLUrlHandle* initialURL,
     int showWindow,
     int setWindowTitle,
     HsQMLStringHandle* windowTitle,
-    HsQMLEngineStopCb stopCb)
+    HsQMLTrivialCb stopCb)
 {
     HsQMLEngineConfig config;
     config.contextObject = reinterpret_cast<HsQMLObjectProxy*>(contextObject);
@@ -60,5 +60,5 @@ extern "C" int hsqml_run_engine(
     config.stopCb = stopCb;
 
     Q_ASSERT (gManager);
-    return gManager->startEngine(config);
+    gManager->createEngine(config);
 }

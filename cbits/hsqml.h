@@ -13,9 +13,26 @@ extern void hsqml_init(
     void (*)(HsFunPtr),
     void (*)(HsStablePtr));
 
-extern void hsqml_run();
-
 extern void hsqml_set_debug_loglevel(int);
+
+/* Event Loop */
+typedef void (*HsQMLTrivialCb)();
+
+typedef enum {
+    HSQML_EVLOOP_OK = 0,
+    HSQML_EVLOOP_ALREADY_RUNNING,
+    HSQML_EVLOOP_WRONG_THREAD,
+    HSQML_EVLOOP_NOT_RUNNING,
+    HSQML_EVLOOP_OTHER_ERROR
+} HsQMLEventLoopStatus;
+
+extern HsQMLEventLoopStatus hsqml_evloop_run(
+    HsQMLTrivialCb startCb,
+    HsQMLTrivialCb yieldCb);
+
+extern HsQMLEventLoopStatus hsqml_evloop_require();
+
+extern void hsqml_evloop_release();
 
 /* String */
 typedef char HsQMLStringHandle;
@@ -91,15 +108,13 @@ extern void hsqml_fire_signal(
     HsQMLObjectHandle*, int, void**);
 
 /* Engine */
-typedef void (*HsQMLEngineStopCb)();
-
-extern int hsqml_run_engine(
+extern void hsqml_create_engine(
     HsQMLObjectHandle*,
     HsQMLUrlHandle*,
     int,
     int,
     HsQMLStringHandle*,
-    HsQMLEngineStopCb);
+    HsQMLTrivialCb stopCb);
 
 #ifdef __cplusplus
 }
