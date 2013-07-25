@@ -94,7 +94,7 @@ isNullObjectHandle (HsQMLObjectHandle fp) =
   {id `Ptr ()'} ->
   `HsQMLObjectHandle' newObjectHandle* #}
 
-{#fun unsafe hsqml_fire_signal as ^
+{#fun hsqml_fire_signal as ^
   {withHsQMLObjectHandle* `HsQMLObjectHandle',
    `Int',
    id `Ptr (Ptr ())'} ->

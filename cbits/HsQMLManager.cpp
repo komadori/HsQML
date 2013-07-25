@@ -51,8 +51,15 @@ void HsQMLManager::freeStable(HsStablePtr stablePtr)
     mFreeStable(stablePtr);
 }
 
+bool HsQMLManager::isEventThread()
+{
+    return mApp && mApp->thread() == QThread::currentThread();
+}
+
 HsQMLManager::EventLoopStatus HsQMLManager::runEventLoop(
-    HsQMLTrivialCb startCb, HsQMLTrivialCb yieldCb)
+    HsQMLTrivialCb startCb,
+    HsQMLTrivialCb jobsCb,
+    HsQMLTrivialCb yieldCb)
 {
     QMutexLocker locker(&mLock);
 
@@ -62,7 +69,7 @@ HsQMLManager::EventLoopStatus HsQMLManager::runEventLoop(
     }
 
     // Check if event loop bound to a different thread
-    if (mApp && mApp->thread() != QThread::currentThread()) {
+    if (mApp && !isEventThread()) {
         return HSQML_EVLOOP_WRONG_THREAD;
     }
 
@@ -73,6 +80,7 @@ HsQMLManager::EventLoopStatus HsQMLManager::runEventLoop(
 
     // Save callbacks
     mStartCb = startCb;
+    mJobsCb = jobsCb;
     mYieldCb = yieldCb;
 
     // Setup events
@@ -90,6 +98,8 @@ HsQMLManager::EventLoopStatus HsQMLManager::runEventLoop(
     // Cleanup callbacks
     freeFun(startCb);
     mStartCb = NULL;
+    freeFun(jobsCb);
+    mJobsCb = NULL;
     if (yieldCb) {
         freeFun(yieldCb);
         mYieldCb = NULL;
@@ -128,6 +138,15 @@ void HsQMLManager::releaseEventLoop()
     }
 }
 
+void HsQMLManager::notifyJobs()
+{
+    QMutexLocker locker(&mLock);
+    if (mRunCount > 0) {
+        QCoreApplication::postEvent(
+            mApp, new QEvent(HsQMLManagerApp::PendingJobsEvent));
+    }
+}
+
 void HsQMLManager::createEngine(const HsQMLEngineConfig& config)
 {
     Q_ASSERT (mApp);
@@ -150,13 +169,14 @@ HsQMLManagerApp::~HsQMLManagerApp()
 void HsQMLManagerApp::customEvent(QEvent* ev)
 {
     switch (ev->type()) {
-    case HsQMLManagerApp::StartedLoopEvent:
+    case HsQMLManagerApp::StartedLoopEvent: {
         gManager->mRunning = true;
         gManager->mRunCount++;
         gManager->mLock.unlock();
         gManager->mStartCb();
-        break;
-    case HsQMLManagerApp::StopLoopEvent:
+        gManager->mJobsCb();
+        break;}
+    case HsQMLManagerApp::StopLoopEvent: {
         gManager->mLock.lock();
         const QObjectList& cs = gManager->mApp->children();
         while (!cs.empty()) {
@@ -164,7 +184,10 @@ void HsQMLManagerApp::customEvent(QEvent* ev)
         }
         gManager->mRunning = false;
         gManager->mApp->mApp.quit();
-        break;
+        break;}
+    case HsQMLManagerApp::PendingJobsEvent: {
+        gManager->mJobsCb();
+        break;}
     }
 }
 
@@ -199,9 +222,10 @@ extern "C" void hsqml_init(
 
 extern "C" HsQMLEventLoopStatus hsqml_evloop_run(
     HsQMLTrivialCb startCb,
+    HsQMLTrivialCb jobsCb,
     HsQMLTrivialCb yieldCb)
 {
-    return gManager->runEventLoop(startCb, yieldCb);
+    return gManager->runEventLoop(startCb, jobsCb, yieldCb);
 }
 
 extern "C" HsQMLEventLoopStatus hsqml_evloop_require()
@@ -212,6 +236,11 @@ extern "C" HsQMLEventLoopStatus hsqml_evloop_require()
 extern "C" void hsqml_evloop_release()
 {
     gManager->releaseEventLoop();
+}
+
+extern "C" void hsqml_evloop_notify_jobs()
+{
+    gManager->notifyJobs();
 }
 
 extern "C" void hsqml_set_debug_loglevel(int ll)

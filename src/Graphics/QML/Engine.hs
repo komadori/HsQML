@@ -33,6 +33,7 @@ module Graphics.QML.Engine (
   filePathToURI
 ) where
 
+import Graphics.QML.Internal.JobQueue
 import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.Objects
 import Graphics.QML.Internal.BindCore
@@ -174,7 +175,7 @@ runEventLoop (RunQML runFn) = do
         yieldCb = if rtsSupportsBoundThreads
                   then Nothing
                   else Just yield
-    status <- hsqmlEvloopRun startCb yieldCb
+    status <- hsqmlEvloopRun startCb processJobs yieldCb
     case statusException status of
         Just ex -> throw ex
         Nothing -> do 

@@ -28,11 +28,14 @@ typedef enum {
 
 extern HsQMLEventLoopStatus hsqml_evloop_run(
     HsQMLTrivialCb startCb,
+    HsQMLTrivialCb jobsCb,
     HsQMLTrivialCb yieldCb);
 
 extern HsQMLEventLoopStatus hsqml_evloop_require();
 
 extern void hsqml_evloop_release();
+
+extern void hsqml_evloop_notify_jobs();
 
 /* String */
 typedef char HsQMLStringHandle;

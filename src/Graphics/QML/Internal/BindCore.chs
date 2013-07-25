@@ -52,6 +52,7 @@ cIntToEnum = toEnum . fromIntegral
 
 {#fun hsqml_evloop_run as ^
   {withTrivialCb* `TrivialCb',
+   withTrivialCb* `TrivialCb',
    withMaybeTrivialCb* `Maybe TrivialCb'} ->
   `HsQMLEventLoopStatus' cIntToEnum #}
 
@@ -60,6 +61,10 @@ cIntToEnum = toEnum . fromIntegral
   `HsQMLEventLoopStatus' cIntToEnum #}
 
 {#fun hsqml_evloop_release as ^
+  {} ->
+  `()' #}
+
+{#fun unsafe hsqml_evloop_notify_jobs as ^
   {} ->
   `()' #}
 

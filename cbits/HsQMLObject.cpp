@@ -33,6 +33,7 @@ HsQMLClass* HsQMLObjectProxy::klass() const
 
 HsQMLObject* HsQMLObjectProxy::object()
 {
+    Q_ASSERT(gManager->isEventThread());
     if (!mObject) {
         mObject = new HsQMLObject(this);
 
@@ -40,11 +41,6 @@ HsQMLObject* HsQMLObjectProxy::object()
             QString().sprintf("New QObject, class=%s, ptr=%p, proxy=%p.",
             mKlass->name(), static_cast<HsQMLObject*>(mObject), this));
     }
-    return mObject;
-}
-
-HsQMLObject* HsQMLObjectProxy::maybeObject()
-{
     return mObject;
 }
 
@@ -204,8 +200,6 @@ extern void hsqml_fire_signal(
     HsQMLObjectHandle* hndl, int idx, void** args)
 {
     HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
-    HsQMLObject* obj = proxy->maybeObject();
-    if (obj) {
-        QMetaObject::activate(obj, proxy->klass()->metaObj(), idx, args);
-    }
+    HsQMLObject* obj = proxy->object();
+    QMetaObject::activate(obj, proxy->klass()->metaObj(), idx, args);
 }

@@ -47,6 +47,7 @@ module Graphics.QML.Objects (
 
 import Graphics.QML.Internal.BindCore
 import Graphics.QML.Internal.BindObj
+import Graphics.QML.Internal.JobQueue
 import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.Objects
 
@@ -496,7 +497,7 @@ instance (Marshal a, MarshalToVal (MarshalMode a), SignalSuffix b) =>
 
 instance SignalSuffix (IO ()) where
   mkSignalArgs cont =
-    cont []
+    postJob $ cont []
   mkSignalTypes =
     Tagged $ SignalTypeInfo [] (return ())
 

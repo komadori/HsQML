@@ -25,10 +25,13 @@ public:
     void log(const QString&);
     void freeFun(HsFunPtr);
     void freeStable(HsStablePtr);
+    bool isEventThread();
     typedef HsQMLEventLoopStatus EventLoopStatus;
-    EventLoopStatus runEventLoop(HsQMLTrivialCb, HsQMLTrivialCb);
+    EventLoopStatus runEventLoop(
+        HsQMLTrivialCb, HsQMLTrivialCb, HsQMLTrivialCb);
     EventLoopStatus requireEventLoop();
     void releaseEventLoop();
+    void notifyJobs();
     void createEngine(const HsQMLEngineConfig&);
 
 private:
@@ -43,6 +46,7 @@ private:
     bool mRunning;
     int mRunCount;
     HsQMLTrivialCb mStartCb;
+    HsQMLTrivialCb mJobsCb;
     HsQMLTrivialCb mYieldCb;
 };
 
@@ -60,13 +64,16 @@ public:
 
     enum CustomEventIndicies {
         StartedLoopEventIndex,
-        StopLoopEventIndex
+        StopLoopEventIndex,
+        PendingJobsEventIndex
     };
 
     static const QEvent::Type StartedLoopEvent =
         static_cast<QEvent::Type>(QEvent::User+StartedLoopEventIndex);
     static const QEvent::Type StopLoopEvent =
         static_cast<QEvent::Type>(QEvent::User+StopLoopEventIndex);
+    static const QEvent::Type PendingJobsEvent =
+        static_cast<QEvent::Type>(QEvent::User+PendingJobsEventIndex);
 
 private:
     Q_DISABLE_COPY(HsQMLManagerApp)
