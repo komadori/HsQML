@@ -88,4 +88,4 @@ Test-Suite hsqml-test1
 
 Source-repository head
     type:     darcs
-    location: https://patch-tag.com/r/komadori/HsQML
+    location: http://hub.darcs.net/komadori/HsQML/
