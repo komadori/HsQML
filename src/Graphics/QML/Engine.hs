@@ -163,7 +163,7 @@ instance MonadIO RunQML where
 -- before. If the event loop fails to start then an 'EventLoopException' will
 -- be thrown.
 runEventLoop :: RunQML a -> IO a
-runEventLoop (RunQML runFn) = do
+runEventLoop (RunQML runFn) = tryRunInBoundThread $ do
     hsqmlInit
     finishVar <- newEmptyMVar
     let startCb = void $ forkIO $ do
@@ -181,6 +181,12 @@ runEventLoop (RunQML runFn) = do
         Nothing -> do 
             finFn <- takeMVar finishVar
             finFn
+
+tryRunInBoundThread :: IO a -> IO a
+tryRunInBoundThread action = do
+    if rtsSupportsBoundThreads
+    then runInBoundThread action
+    else action
 
 -- | Executes a function in the 'RunQML' monad asynchronously to the event
 -- loop. Callers must apply their own sychronisation to ensure that the event
