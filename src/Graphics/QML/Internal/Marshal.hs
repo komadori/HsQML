@@ -32,7 +32,6 @@ errIO :: IO a -> ErrIO a
 errIO = MaybeT . fmap Just
 
 type MTypeNameFunc t = Tagged t TypeName
-type MTypeInitFunc t = Tagged t (IO ())
 type MValToHsFunc t = Ptr () -> ErrIO t
 type MHsToValFunc t = t -> Ptr () -> IO ()
 type MHsToAllocFunc t = (forall b. t -> (Ptr () -> IO b) -> IO b)
@@ -49,15 +48,10 @@ class Marshal t where
 -- | Base class containing core functionality for all 'MarshalMode's.
 class MarshalBase m where
   mTypeName_ :: forall t. Marshaller t m -> MTypeNameFunc t
-  mTypeInit_ :: forall t. Marshaller t m -> MTypeInitFunc t
 
 mTypeName ::
   forall t. (Marshal t, MarshalBase (MarshalMode t)) => MTypeNameFunc t
 mTypeName = mTypeName_ (marshaller :: Marshaller t (MarshalMode t))
-
-mTypeInit ::
-  forall t. (Marshal t, MarshalBase (MarshalMode t)) => MTypeInitFunc t
-mTypeInit = mTypeInit_ (marshaller :: Marshaller t (MarshalMode t))
 
 -- | Class for 'MarshalMode's which support marshalling QML-to-Haskell.
 class (MarshalBase m) => MarshalToHs m where
@@ -94,14 +88,12 @@ data ValBidi
 
 data instance Marshaller t ValBidi = MValBidi {
   mValBidi_typeName  :: !(MTypeNameFunc t),
-  mValBidi_typeInit  :: !(MTypeInitFunc t),
   mValBidi_valToHs   :: !(MValToHsFunc t),
   mValBidi_hsToVal   :: !(MHsToValFunc t),
   mValBidi_hsToAlloc :: !(MHsToAllocFunc t)}
 
 instance MarshalBase ValBidi where
   mTypeName_ = mValBidi_typeName
-  mTypeInit_ = mValBidi_typeInit
 
 instance MarshalToHs ValBidi where
   mValToHs_ = mValBidi_valToHs
@@ -117,13 +109,11 @@ data ValFnRetVoid
 
 data instance Marshaller t ValFnRetVoid = MValFnRetVoid {
   mValFnRetVoid_typeName  :: !(MTypeNameFunc t),
-  mValFnRetVoid_typeInit  :: !(MTypeInitFunc t),
   mValFnRetVoid_hsToVal   :: !(MHsToValFunc t),
   mValFnRetVoid_hsToAlloc :: !(MHsToAllocFunc t)}
 
 instance MarshalBase ValFnRetVoid where
   mTypeName_ = mValFnRetVoid_typeName
-  mTypeInit_ = mValFnRetVoid_typeInit
 
 instance MarshalToValRaw ValFnRetVoid where
   mHsToVal_   = mValFnRetVoid_hsToVal
@@ -133,6 +123,5 @@ instance Marshal () where
   type MarshalMode () = ValFnRetVoid
   marshaller = MValFnRetVoid {
     mValFnRetVoid_typeName = Tagged $ TypeName "",
-    mValFnRetVoid_typeInit = Tagged $ return (),
     mValFnRetVoid_hsToVal = \_ _ -> return (),
     mValFnRetVoid_hsToAlloc = \_ f -> f nullPtr}

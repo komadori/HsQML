@@ -106,7 +106,6 @@ instance (Object tt) => Marshal (ObjRef tt) where
   type MarshalMode (ObjRef tt) = ValObjBidi tt
   marshaller = MValObjBidi {
     mValObjBidi_typeName = Tagged $ TypeName "QObject*",
-    mValObjBidi_typeInit = Tagged $ return (),
     mValObjBidi_valToHs = \ptr -> do
       any <- mValToHs ptr
       MaybeT $ return $ fromAnyObjRef any,
@@ -148,7 +147,6 @@ instance Marshal AnyObjRef where
   type MarshalMode AnyObjRef = ValObjBidi ()
   marshaller = MValObjBidi {
     mValObjBidi_typeName = Tagged $ TypeName "QObject*",
-    mValObjBidi_typeInit = Tagged $ return (),
     mValObjBidi_valToHs = \ptr -> MaybeT $ do
       objPtr <- peek (castPtr ptr)
       hndl <- hsqmlGetObjectHandle objPtr
@@ -198,7 +196,6 @@ objSimpleMarshaller ::
   forall obj. (Object obj) => Marshaller obj (ValObjToOnly obj)
 objSimpleMarshaller = MValObjToOnly {
   mValObjToOnly_typeName = retag (mTypeName :: Tagged (ObjRef obj) TypeName),
-  mValObjToOnly_typeInit = retag (mTypeInit :: Tagged (ObjRef obj) (IO ())),
   mValObjToOnly_valToHs = \ptr -> (errIO . fromObjRefIO) =<< mValToHs ptr,
   mValObjToOnly_objToHs = hsqmlObjectGetHaskell}
 
@@ -222,7 +219,6 @@ objBidiMarshaller ::
   (obj -> IO (ObjRef obj)) -> Marshaller obj (ValObjBidi obj) 
 objBidiMarshaller newFn = MValObjBidi {
   mValObjBidi_typeName = retag (mTypeName :: Tagged (ObjRef obj) TypeName),
-  mValObjBidi_typeInit = retag (mTypeInit :: Tagged (ObjRef obj) (IO ())),
   mValObjBidi_valToHs = \ptr -> (errIO . fromObjRefIO) =<< mValToHs ptr,
   mValObjBidi_hsToVal = \obj ptr -> flip mHsToVal ptr =<< newFn obj,
   mValObjBidi_hsToAlloc = \obj f -> flip mHsToAlloc f =<< newFn obj,
@@ -272,8 +268,7 @@ classRecDb = unsafePerformIO $ newMemoStore
 getClassRec :: forall tt. (Object tt) => ClassDef tt -> IO ClassRec
 getClassRec cdef = do
     let typ = typeOf (undefined :: tt)
-    (new, val) <- getFromMemoStore classRecDb typ (createClass typ cdef)
-    if new then initMembers $ classMembers cdef else return ()
+    (_, val) <- getFromMemoStore classRecDb typ (createClass typ cdef)
     return val
 
 createClass :: forall tt. (Object tt) => TypeRep -> ClassDef tt -> IO ClassRec
@@ -318,18 +313,13 @@ filterMembers :: MemberKind -> [Member tt] -> [Member tt]
 filterMembers k ms =
   filter (\m -> k == memberKind m) ms
 
--- | Call all the initialisation functions for a list of members.
-initMembers :: [Member tt] -> IO ()
-initMembers = mapM_ memberInit
-
 --
 -- Method
 --
 
 data MethodTypeInfo = MethodTypeInfo {
   methodParamTypes :: [TypeName],
-  methodReturnType :: TypeName,
-  methodTypesInit  :: IO ()
+  methodReturnType :: TypeName
 }
 
 newtype MSHelp a = MSHelp a
@@ -348,11 +338,10 @@ instance (Marshal a, MarshalToHs (MarshalMode a), MethodSuffix (MSHelp b)) =>
     mkMethodFunc (n+1) (MSHelp $ f val) pv
     return ()
   mkMethodTypes =
-    let (MethodTypeInfo p r i) =
+    let (MethodTypeInfo p r) =
           untag (mkMethodTypes :: Tagged (MSHelp b) MethodTypeInfo)
         typ = untag (mTypeName :: Tagged a TypeName)
-        ini = untag (mTypeInit :: Tagged a (IO ()))
-    in Tagged $ MethodTypeInfo (typ:p) r (ini >> i)
+    in Tagged $ MethodTypeInfo (typ:p) r
 
 instance (Marshal a, MarshalToValRaw (MarshalMode a)) =>
   MethodSuffix (MSHelp (IO a)) where
@@ -364,8 +353,7 @@ instance (Marshal a, MarshalToValRaw (MarshalMode a)) =>
     else mHsToVal val ptr
   mkMethodTypes =
     let typ = untag (mTypeName :: Tagged a TypeName)
-        ini = untag (mTypeInit :: Tagged a (IO ()))
-    in Tagged $ MethodTypeInfo [] typ ini
+    in Tagged $ MethodTypeInfo [] typ
 
 mkUniformFunc :: forall tt ms.
   (Marshal tt, MarshalFromObj (MarshalMode tt), MethodSuffix (MSHelp ms)) =>
@@ -388,7 +376,6 @@ defMethod name f =
   let crude = untag (mkMethodTypes :: Tagged (MSHelp ms) MethodTypeInfo)
   in Member MethodMember
        name
-       (methodTypesInit crude)
        (methodReturnType crude)
        (methodParamTypes crude)
        (mkUniformFunc f)
@@ -407,7 +394,6 @@ defPropertyRO ::
   String -> (tt -> IO tr) -> Member (ThisObj tt)
 defPropertyRO name g = Member PropertyMember
   name
-  (untag (mTypeInit :: Tagged tr (IO ())))
   (untag (mTypeName :: Tagged tr TypeName))
   []
   (mkUniformFunc g)
@@ -422,7 +408,6 @@ defPropertyRW ::
   String -> (tt -> IO tr) -> (tt -> tr -> IO ()) -> Member (ThisObj tt)
 defPropertyRW name g s = Member PropertyMember
   name
-  (untag (mTypeInit :: Tagged tr (IO ())))
   (untag (mTypeName :: Tagged tr TypeName))
   []
   (mkUniformFunc g)
@@ -434,8 +419,7 @@ defPropertyRW name g s = Member PropertyMember
 --
 
 data SignalTypeInfo = SignalTypeInfo {
-  signalParamTypes :: [TypeName],
-  signalTypesInit  :: IO ()
+  signalParamTypes :: [TypeName]
 }
 
 -- | Defines a named signal using a 'SignalKey'.
@@ -445,7 +429,6 @@ defSignal tn =
   let crude = untag (mkSignalTypes :: Tagged (SignalParams sk) SignalTypeInfo)
   in Member SignalMember
        (untag tn)
-       (signalTypesInit crude)
        (TypeName "")
        (signalParamTypes crude)
        (\_ _ -> return ())
@@ -495,17 +478,16 @@ instance (Marshal a, MarshalToVal (MarshalMode a), SignalSuffix b) =>
             mHsToAlloc param (\ptr ->
                 cont (ptr:ps) usr))
     mkSignalTypes =
-        let (SignalTypeInfo p i) =
+        let (SignalTypeInfo p) =
                 untag (mkSignalTypes :: Tagged b SignalTypeInfo)
             typ = untag (mTypeName :: Tagged a TypeName)
-            ini = untag (mTypeInit :: Tagged a (IO ()))
-        in Tagged $ SignalTypeInfo (typ:p) (ini >> i)
+        in Tagged $ SignalTypeInfo (typ:p)
 
 instance SignalSuffix (IO ()) where
     mkSignalArgs start cont =
         start $ cont []
     mkSignalTypes =
-        Tagged $ SignalTypeInfo [] (return ())
+        Tagged $ SignalTypeInfo []
 
 --
 -- Meta Object Compiler

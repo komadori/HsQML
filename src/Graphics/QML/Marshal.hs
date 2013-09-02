@@ -52,7 +52,6 @@ instance Marshal Int32 where
   type MarshalMode Int32 = ValBidi
   marshaller = MValBidi {
     mValBidi_typeName = Tagged $ TypeName "int",
-    mValBidi_typeInit = Tagged $ return (),
     mValBidi_valToHs = \ptr ->
       errIO $ peek (castPtr ptr :: Ptr CInt) >>= return . fromIntegral,
     mValBidi_hsToVal = \int ptr ->
@@ -65,7 +64,6 @@ instance Marshal Int where
   type MarshalMode Int = ValBidi
   marshaller = MValBidi {
     mValBidi_typeName = Tagged $ TypeName "int",
-    mValBidi_typeInit = Tagged $ return (),
     mValBidi_valToHs = fmap (fromIntegral :: Int32 -> Int) . mValToHs,
     mValBidi_hsToVal = \int ptr -> mHsToVal (fromIntegral int :: Int32) ptr,
     mValBidi_hsToAlloc = \int f -> mHsToAlloc (fromIntegral int :: Int32) f}
@@ -78,7 +76,6 @@ instance Marshal Double where
   type MarshalMode Double = ValBidi
   marshaller = MValBidi {
     mValBidi_typeName = Tagged $ TypeName "double",
-    mValBidi_typeInit = Tagged $ return (),
     mValBidi_valToHs = \ptr ->
       errIO $ peek (castPtr ptr :: Ptr CDouble) >>= return . realToFrac,
     mValBidi_hsToVal = \num ptr ->
@@ -95,7 +92,6 @@ instance Marshal Text where
   type MarshalMode Text = ValBidi
   marshaller = MValBidi {
     mValBidi_typeName = Tagged $ TypeName "QString",
-    mValBidi_typeInit = Tagged $ return (),
     mValBidi_valToHs = \ptr -> errIO $ do
       pair <- alloca (\bufPtr -> do
         len <- hsqmlUnmarshalString (HsQMLStringHandle $ castPtr ptr) bufPtr
@@ -122,7 +118,6 @@ instance Marshal String where
   type MarshalMode String = ValBidi
   marshaller = MValBidi {
     mValBidi_typeName = Tagged $ TypeName "QString",
-    mValBidi_typeInit = Tagged $ return (),
     mValBidi_valToHs = fmap T.unpack . mValToHs,
     mValBidi_hsToVal = \txt ptr -> mHsToVal (T.pack txt) ptr,
     mValBidi_hsToAlloc = \txt f -> mHsToAlloc (T.pack txt) f}
@@ -142,7 +137,6 @@ instance Marshal URI where
   type MarshalMode URI = ValBidi
   marshaller = MValBidi {
     mValBidi_typeName = Tagged $ TypeName "QUrl",
-    mValBidi_typeInit = Tagged $ return (),
     mValBidi_valToHs = \ptr -> errIO $ do
       pair <- alloca (\bufPtr -> do
         len <- hsqmlUnmarshalUrl (HsQMLUrlHandle $ castPtr ptr) bufPtr

@@ -25,7 +25,6 @@ data MemberKind
 data Member tt = Member {
     memberKind   :: MemberKind,
     memberName   :: String,
-    memberInit   :: IO (),
     memberType   :: TypeName,
     memberParams :: [TypeName],
     memberFun    :: UniformFunc,
@@ -77,7 +76,6 @@ type instance ModeObj (ValObjBidi a) = a
 
 data instance Marshaller t (ValObjBidi a) = MValObjBidi {
   mValObjBidi_typeName  :: !(MTypeNameFunc t),
-  mValObjBidi_typeInit  :: !(MTypeInitFunc t),
   mValObjBidi_valToHs   :: !(MValToHsFunc t),
   mValObjBidi_hsToVal   :: !(MHsToValFunc t),
   mValObjBidi_hsToAlloc :: !(MHsToAllocFunc t),
@@ -86,7 +84,6 @@ data instance Marshaller t (ValObjBidi a) = MValObjBidi {
 
 instance MarshalBase (ValObjBidi a) where
   mTypeName_ = mValObjBidi_typeName
-  mTypeInit_ = mValObjBidi_typeInit
 
 instance MarshalToHs (ValObjBidi a) where
   mValToHs_ = mValObjBidi_valToHs
@@ -111,13 +108,11 @@ type instance ModeObj (ValObjToOnly a) = a
 
 data instance Marshaller t (ValObjToOnly a) = MValObjToOnly {
   mValObjToOnly_typeName  :: !(MTypeNameFunc t),
-  mValObjToOnly_typeInit  :: !(MTypeInitFunc t),
   mValObjToOnly_valToHs   :: !(MValToHsFunc t),
   mValObjToOnly_objToHs   :: !(MObjToHsFunc t)}
 
 instance MarshalBase (ValObjToOnly a) where
   mTypeName_ = mValObjToOnly_typeName
-  mTypeInit_ = mValObjToOnly_typeInit
 
 instance MarshalToHs (ValObjToOnly a) where
   mValToHs_ = mValObjToOnly_valToHs
