@@ -5,6 +5,7 @@
 #include <QtCore/QAtomicInt>
 #include <QtCore/QAtomicPointer>
 
+class HsQMLEngine;
 class HsQMLClass;
 class HsQMLObject;
 
@@ -15,8 +16,9 @@ public:
     virtual ~HsQMLObjectProxy();
     HsStablePtr haskell() const;
     HsQMLClass* klass() const;
-    HsQMLObject* object();
+    HsQMLObject* object(HsQMLEngine*);
     void clearObject();
+    HsQMLEngine* engine() const;
     enum RefSrc {Handle, Object};
     void ref(RefSrc);
     void deref(RefSrc);
@@ -31,17 +33,19 @@ private:
 class HsQMLObject : public QObject
 {
 public:
-    HsQMLObject(HsQMLObjectProxy*);
+    HsQMLObject(HsQMLObjectProxy*, HsQMLEngine*);
     virtual ~HsQMLObject();
     virtual const QMetaObject* metaObject() const;
     virtual void* qt_metacast(const char*);
     virtual int qt_metacall(QMetaObject::Call, int, void**);
     HsQMLObjectProxy* proxy() const;
+    HsQMLEngine* engine() const;
 
 private:
     HsQMLObjectProxy* mProxy;
     HsStablePtr mHaskell;
     HsQMLClass* mKlass;
+    HsQMLEngine* mEngine;
 };
 
 #endif /*HSQML_OBJECT_H*/

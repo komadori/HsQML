@@ -3,13 +3,37 @@
 #include "HsQMLObject.h"
 #include "HsQMLWindow.h"
 
+HsQMLScriptHack::HsQMLScriptHack(QDeclarativeEngine* declEng)
+{
+    QDeclarativeEngine::setObjectOwnership(
+        this, QDeclarativeEngine::CppOwnership);
+    QDeclarativeExpression expr(declEng->rootContext(), this, "hack(self());");
+    expr.evaluate();
+}
+
+QObject* HsQMLScriptHack::self()
+{
+    return this;
+}
+
+void HsQMLScriptHack::hack(QScriptValue& value)
+{
+    mEngine = value.engine();
+}
+
+QScriptEngine* HsQMLScriptHack::scriptEngine() const
+{
+    return mEngine;
+}
+
 HsQMLEngine::HsQMLEngine(const HsQMLEngineConfig& config)
-    : mStopCb(config.stopCb)
+    : mScriptEngine(HsQMLScriptHack(&mDeclEngine).scriptEngine())
+    , mStopCb(config.stopCb)
 {
     // Obtain, re-parent, and set QML global object
     if (config.contextObject) {
-        mContextObj.reset(config.contextObject->object());
-        mEngine.rootContext()->setContextObject(mContextObj.data());
+        mContextObj.reset(config.contextObject->object(this));
+        mDeclEngine.rootContext()->setContextObject(mContextObj.data());
     }
 
     // Create window
@@ -36,9 +60,14 @@ void HsQMLEngine::childEvent(QChildEvent* ev)
     }
 }
 
-QDeclarativeEngine* HsQMLEngine::engine()
+QDeclarativeEngine* HsQMLEngine::declEngine()
 {
-    return &mEngine;
+    return &mDeclEngine;
+}
+
+QScriptEngine* HsQMLEngine::scriptEngine()
+{
+    return mScriptEngine;
 }
 
 extern "C" void hsqml_create_engine(

@@ -4,6 +4,7 @@
 
 module Graphics.QML.Internal.BindObj where
 
+import Control.Exception (bracket_)
 import Data.Typeable
 import Foreign.C.Types
 import Foreign.Ptr
@@ -77,6 +78,16 @@ isNullObjectHandle (HsQMLObjectHandle fp) =
    withHsQMLClassHandle* `HsQMLClassHandle'} ->
   `HsQMLObjectHandle' newObjectHandle* #}
 
+{#fun unsafe hsqml_object_set_active as ^
+  {withMaybeHsQMLObjectHandle* `Maybe HsQMLObjectHandle'} ->
+ `()' #}
+
+withActiveObject :: HsQMLObjectHandle -> IO () -> IO ()
+withActiveObject hndl action =
+    bracket_
+        (hsqmlObjectSetActive $ Just hndl)
+        (hsqmlObjectSetActive Nothing)
+        action
 
 {#fun unsafe hsqml_object_get_haskell as ^
   {withHsQMLObjectHandle* `HsQMLObjectHandle'} ->

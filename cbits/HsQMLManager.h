@@ -33,6 +33,8 @@ public:
     void releaseEventLoop();
     void notifyJobs();
     void createEngine(const HsQMLEngineConfig&);
+    void setActiveEngine(HsQMLEngine*);
+    HsQMLEngine* activeEngine();
 
 private:
     friend class HsQMLManagerApp;
@@ -48,6 +50,7 @@ private:
     HsQMLTrivialCb mStartCb;
     HsQMLTrivialCb mJobsCb;
     HsQMLTrivialCb mYieldCb;
+    HsQMLEngine* mActiveEngine;
 };
 
 class HsQMLManagerApp : public QObject

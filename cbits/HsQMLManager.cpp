@@ -17,6 +17,10 @@ HsQMLManager::HsQMLManager(
     , mLock(QMutex::Recursive)
     , mRunning(false)
     , mRunCount(0)
+    , mStartCb(NULL)
+    , mJobsCb(NULL)
+    , mYieldCb(NULL)
+    , mActiveEngine(NULL)
 {
     qRegisterMetaType<HsQMLEngineConfig>("HsQMLEngineConfig");
 
@@ -152,6 +156,17 @@ void HsQMLManager::createEngine(const HsQMLEngineConfig& config)
     Q_ASSERT (mApp);
     QMetaObject::invokeMethod(
         mApp, "createEngine", Q_ARG(HsQMLEngineConfig, config));
+}
+
+void HsQMLManager::setActiveEngine(HsQMLEngine* engine)
+{
+    Q_ASSERT(!mActiveEngine || !engine);
+    mActiveEngine = engine;
+}
+
+HsQMLEngine* HsQMLManager::activeEngine()
+{
+    return mActiveEngine;
 }
 
 HsQMLManagerApp::HsQMLManagerApp()

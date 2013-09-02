@@ -31,11 +31,12 @@ HsQMLClass* HsQMLObjectProxy::klass() const
     return mKlass;
 }
 
-HsQMLObject* HsQMLObjectProxy::object()
+HsQMLObject* HsQMLObjectProxy::object(HsQMLEngine* engine)
 {
     Q_ASSERT(gManager->isEventThread());
+    Q_ASSERT(engine);
     if (!mObject) {
-        mObject = new HsQMLObject(this);
+        mObject = new HsQMLObject(this, engine);
 
         HSQML_LOG(5,
             QString().sprintf("New QObject, class=%s, ptr=%p, proxy=%p.",
@@ -51,6 +52,14 @@ void HsQMLObjectProxy::clearObject()
         mKlass->name(), static_cast<HsQMLObject*>(mObject), this));
 
     mObject = NULL;
+}
+
+HsQMLEngine* HsQMLObjectProxy::engine() const
+{
+    if (mObject != NULL) {
+        return mObject->engine();
+    }
+    return NULL;
 }
 
 void HsQMLObjectProxy::ref(RefSrc src)
@@ -75,10 +84,11 @@ void HsQMLObjectProxy::deref(RefSrc src)
     }
 }
 
-HsQMLObject::HsQMLObject(HsQMLObjectProxy* proxy)
+HsQMLObject::HsQMLObject(HsQMLObjectProxy* proxy, HsQMLEngine* engine)
     : mProxy(proxy)
     , mHaskell(proxy->haskell())
     , mKlass(proxy->klass())
+    , mEngine(engine)
 {
     QDeclarativeEngine::setObjectOwnership(
         this, QDeclarativeEngine::JavaScriptOwnership);
@@ -114,6 +124,7 @@ int HsQMLObject::qt_metacall(QMetaObject::Call c, int id, void** a)
     if (id < 0) {
         return id;
     }
+    gManager->setActiveEngine(mEngine);
     if (QMetaObject::InvokeMetaMethod == c) {
         mKlass->methods()[id](this, a);
         id -= mKlass->methodCount();
@@ -136,6 +147,7 @@ int HsQMLObject::qt_metacall(QMetaObject::Call c, int id, void** a)
              QMetaObject::QueryPropertyUser == c) {
         id -= mKlass->propertyCount();
     }
+    gManager->setActiveEngine(NULL);
     return id;
 }
 
@@ -144,11 +156,28 @@ HsQMLObjectProxy* HsQMLObject::proxy() const
     return mProxy;
 }
 
+HsQMLEngine* HsQMLObject::engine() const
+{
+    return mEngine;
+}
+
 extern "C" HsQMLObjectHandle* hsqml_create_object(
     HsStablePtr haskell, HsQMLClassHandle* kHndl)
 {
     HsQMLObjectProxy* proxy = new HsQMLObjectProxy(haskell, (HsQMLClass*)kHndl);
     return (HsQMLObjectHandle*)proxy;
+}
+
+extern "C" void hsqml_object_set_active(
+    HsQMLObjectHandle* hndl)
+{
+    HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
+    if (proxy) {
+        gManager->setActiveEngine(proxy->engine());
+    }
+    else {
+        gManager->setActiveEngine(NULL);
+    }
 }
 
 extern "C" HsStablePtr hsqml_object_get_hs_typerep(
@@ -169,7 +198,7 @@ extern void* hsqml_object_get_pointer(
     HsQMLObjectHandle* hndl)
 {
     HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
-    return (void*)proxy->object();
+    return (void*)proxy->object(gManager->activeEngine());
 }
 
 extern HsQMLObjectHandle* hsqml_get_object_handle(
@@ -200,6 +229,13 @@ extern void hsqml_fire_signal(
     HsQMLObjectHandle* hndl, int idx, void** args)
 {
     HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
-    HsQMLObject* obj = proxy->object();
-    QMetaObject::activate(obj, proxy->klass()->metaObj(), idx, args);
+    HsQMLEngine* engine = proxy->engine();
+    // Ignore objects which haven't been marshalled as they are not connected.
+    if (engine) {
+        // Clear active engine in case the slot code calls back into Haskell.
+        Q_ASSERT(gManager->activeEngine() == engine);
+        gManager->setActiveEngine(NULL);
+        HsQMLObject* obj = proxy->object(engine);
+        QMetaObject::activate(obj, proxy->klass()->metaObj(), idx, args);
+    }
 }

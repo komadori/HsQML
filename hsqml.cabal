@@ -62,13 +62,13 @@ Library
     Build-tools: c2hs
     if os(windows) && !flag(UsePkgConfig)
         Include-dirs: /QT_ROOT/include
-        Extra-libraries: QtCore4, QtGui4, QtDeclarative4, stdc++
+        Extra-libraries: QtCore4, QtGui4, QtScript4, QtDeclarative4, stdc++
         Extra-lib-dirs: /SYS_ROOT/bin /QT_ROOT/bin
     else
         if os(darwin) && !flag(UsePkgConfig)
-            Frameworks: QtCore QtGui QtDeclarative
+            Frameworks: QtCore QtGui QtScript QtDeclarative
         else
-            Pkgconfig-depends: QtDeclarative >= 4.7
+            Pkgconfig-depends: QtScript >= 4.7, QtDeclarative >= 4.7
         Extra-libraries: stdc++
 
 Test-Suite hsqml-test1

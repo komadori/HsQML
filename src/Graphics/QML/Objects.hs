@@ -459,18 +459,23 @@ fireSignal ::
         Object (ThisObj tt), SignalKey sk) =>
     Tagged sk tt -> SignalParams sk 
 fireSignal this =
-   let cont ps = do
+   let start cnt = do
            crec <- getClassRec (classDef :: ClassDef (ThisObj tt))
            let keyRep = typeOf (undefined :: sk)
                slotMay = Map.lookup keyRep $ crecSigs crec
            case slotMay of
-                Just slotIdx -> withArray (nullPtr:ps) (\pptr -> do
+                Just slotIdx -> postJob $ do
                     hndl <- mHsToObj $ untag this
-                    hsqmlFireSignal hndl slotIdx pptr)
+                    withActiveObject hndl $ cnt $ SignalData hndl slotIdx
                 Nothing ->
                     error ("Attempt to fire undefined signal on class '"++
                     (typeName $ untag (mTypeName :: Tagged tt TypeName))++"'.")
-    in mkSignalArgs cont
+       cont ps (SignalData hndl slotIdx) =
+           withArray (nullPtr:ps) (\pptr ->
+                hsqmlFireSignal hndl slotIdx pptr)
+    in mkSignalArgs start cont
+
+data SignalData = SignalData HsQMLObjectHandle Int
 
 -- | Instances of the 'SignalKey' class identify distinct signals. The
 -- associated 'SignalParams' type specifies the signal's signature.
@@ -479,27 +484,28 @@ class (SignalSuffix (SignalParams sk), Typeable sk) => SignalKey sk where
 
 -- | Supports marshalling an arbitrary number of arguments into a QML signal.
 class SignalSuffix ss where
-  mkSignalArgs  :: ([Ptr ()] -> IO ()) -> ss
-  mkSignalTypes :: Tagged ss SignalTypeInfo
+    mkSignalArgs  :: forall usr.
+        ((usr -> IO ()) -> IO ()) -> ([Ptr ()] -> usr -> IO ()) -> ss
+    mkSignalTypes :: Tagged ss SignalTypeInfo
 
 instance (Marshal a, MarshalToVal (MarshalMode a), SignalSuffix b) =>
-  SignalSuffix (a -> b) where
-  mkSignalArgs cont param =
-    mkSignalArgs (\ps ->
-      mHsToAlloc param (\ptr ->
-        cont (ptr:ps)))
-  mkSignalTypes =
-    let (SignalTypeInfo p i) =
-          untag (mkSignalTypes :: Tagged b SignalTypeInfo)
-        typ = untag (mTypeName :: Tagged a TypeName)
-        ini = untag (mTypeInit :: Tagged a (IO ()))
-    in Tagged $ SignalTypeInfo (typ:p) (ini >> i)
+    SignalSuffix (a -> b) where
+    mkSignalArgs start cont param =
+        mkSignalArgs start (\ps usr ->
+            mHsToAlloc param (\ptr ->
+                cont (ptr:ps) usr))
+    mkSignalTypes =
+        let (SignalTypeInfo p i) =
+                untag (mkSignalTypes :: Tagged b SignalTypeInfo)
+            typ = untag (mTypeName :: Tagged a TypeName)
+            ini = untag (mTypeInit :: Tagged a (IO ()))
+        in Tagged $ SignalTypeInfo (typ:p) (ini >> i)
 
 instance SignalSuffix (IO ()) where
-  mkSignalArgs cont =
-    postJob $ cont []
-  mkSignalTypes =
-    Tagged $ SignalTypeInfo [] (return ())
+    mkSignalArgs start cont =
+        start $ cont []
+    mkSignalTypes =
+        Tagged $ SignalTypeInfo [] (return ())
 
 --
 -- Meta Object Compiler

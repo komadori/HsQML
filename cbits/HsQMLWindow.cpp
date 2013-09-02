@@ -5,7 +5,7 @@
 HsQMLWindow::HsQMLWindow(HsQMLEngine* engine)
     : QObject(engine)
     , mEngine(engine)
-    , mContext(engine->engine())
+    , mContext(engine->declEngine())
     , mView(&mScene)
     , mComponent(NULL)
 {
@@ -55,7 +55,7 @@ void HsQMLWindow::setSource(const QUrl& url)
     }
     if (!mSource.isEmpty()) {
         mComponent = new QDeclarativeComponent(
-            mEngine->engine(), mSource, this);
+            mEngine->declEngine(), mSource, this);
         if (mComponent->isLoading()) {
             QObject::connect(
                 mComponent,
