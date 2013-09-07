@@ -38,7 +38,7 @@ class HsQMLScriptHack : public QObject
 public:
     HsQMLScriptHack(QDeclarativeEngine*);
     Q_INVOKABLE virtual QObject* self();
-    Q_INVOKABLE virtual void hack(QScriptValue&);
+    Q_INVOKABLE virtual void hack(QScriptValue);
     QScriptEngine* scriptEngine() const;
 
 private:

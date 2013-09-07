@@ -4,11 +4,13 @@
 #include "HsQMLWindow.h"
 
 HsQMLScriptHack::HsQMLScriptHack(QDeclarativeEngine* declEng)
+    : mEngine(NULL)
 {
     QDeclarativeEngine::setObjectOwnership(
         this, QDeclarativeEngine::CppOwnership);
     QDeclarativeExpression expr(declEng->rootContext(), this, "hack(self());");
     expr.evaluate();
+    Q_ASSERT(!expr.hasError());
 }
 
 QObject* HsQMLScriptHack::self()
@@ -16,7 +18,7 @@ QObject* HsQMLScriptHack::self()
     return this;
 }
 
-void HsQMLScriptHack::hack(QScriptValue& value)
+void HsQMLScriptHack::hack(QScriptValue value)
 {
     mEngine = value.engine();
 }
