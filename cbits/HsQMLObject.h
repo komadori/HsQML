@@ -3,7 +3,8 @@
 
 #include <QtCore/QObject>
 #include <QtCore/QAtomicInt>
-#include <QtCore/QAtomicPointer>
+#include <QtCore/QEvent>
+#include <QtScript/QScriptValue>
 
 class HsQMLEngine;
 class HsQMLClass;
@@ -18,16 +19,30 @@ public:
     HsQMLClass* klass() const;
     HsQMLObject* object(HsQMLEngine*);
     void clearObject();
+    void tryGCLock();
+    void removeGCLock();
     HsQMLEngine* engine() const;
-    enum RefSrc {Handle, Object};
+    enum RefSrc {Handle, Object, Event};
     void ref(RefSrc);
     void deref(RefSrc);
 
 private:
     HsStablePtr mHaskell;
     HsQMLClass* mKlass;
-    QAtomicPointer<HsQMLObject> mObject;
+    HsQMLObject* volatile mObject;
     QAtomicInt mRefCount;
+    QAtomicInt mHndlCount;
+};
+
+class HsQMLObjectEvent : public QEvent
+{
+public:
+    HsQMLObjectEvent(HsQMLObjectProxy*);
+    virtual ~HsQMLObjectEvent();
+    void process();
+
+private:
+    HsQMLObjectProxy* mProxy;
 };
 
 class HsQMLObject : public QObject
@@ -38,6 +53,9 @@ public:
     virtual const QMetaObject* metaObject() const;
     virtual void* qt_metacast(const char*);
     virtual int qt_metacall(QMetaObject::Call, int, void**);
+    void setGCLock();
+    void clearGCLock();
+    bool isGCLocked() const;
     HsQMLObjectProxy* proxy() const;
     HsQMLEngine* engine() const;
 
@@ -46,6 +64,7 @@ private:
     HsStablePtr mHaskell;
     HsQMLClass* mKlass;
     HsQMLEngine* mEngine;
+    QScriptValue mGCLock;
 };
 
 #endif /*HSQML_OBJECT_H*/

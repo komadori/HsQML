@@ -5,6 +5,7 @@
 #include <QtCore/QThread>
 
 #include "HsQMLManager.h"
+#include "HsQMLObject.h"
 
 QAtomicPointer<HsQMLManager> gManager;
 
@@ -169,6 +170,11 @@ HsQMLEngine* HsQMLManager::activeEngine()
     return mActiveEngine;
 }
 
+void HsQMLManager::postObjectEvent(HsQMLObjectEvent* ev)
+{
+    QCoreApplication::postEvent(mApp, ev);
+}
+
 HsQMLManagerApp::HsQMLManagerApp()
     : mArgC(1)
     , mArg0(0)
@@ -202,6 +208,9 @@ void HsQMLManagerApp::customEvent(QEvent* ev)
         break;}
     case HsQMLManagerApp::PendingJobsEvent: {
         gManager->mJobsCb();
+        break;}
+    case HsQMLManagerApp::RemoveGCLockEvent: {
+        static_cast<HsQMLObjectEvent*>(ev)->process();
         break;}
     }
 }

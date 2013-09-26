@@ -13,6 +13,7 @@
 #define HSQML_LOG(ll, msg) if (gManager->checkLogLevel(ll)) gManager->log(msg)
 
 class HsQMLManagerApp;
+class HsQMLObjectEvent;
 
 class HsQMLManager
 {
@@ -35,6 +36,7 @@ public:
     void createEngine(const HsQMLEngineConfig&);
     void setActiveEngine(HsQMLEngine*);
     HsQMLEngine* activeEngine();
+    void postObjectEvent(HsQMLObjectEvent*);
 
 private:
     friend class HsQMLManagerApp;
@@ -68,7 +70,8 @@ public:
     enum CustomEventIndicies {
         StartedLoopEventIndex,
         StopLoopEventIndex,
-        PendingJobsEventIndex
+        PendingJobsEventIndex,
+        RemoveGCLockEventIndex
     };
 
     static const QEvent::Type StartedLoopEvent =
@@ -77,6 +80,8 @@ public:
         static_cast<QEvent::Type>(QEvent::User+StopLoopEventIndex);
     static const QEvent::Type PendingJobsEvent =
         static_cast<QEvent::Type>(QEvent::User+PendingJobsEventIndex);
+    static const QEvent::Type RemoveGCLockEvent =
+        static_cast<QEvent::Type>(QEvent::User+RemoveGCLockEventIndex);
 
 private:
     Q_DISABLE_COPY(HsQMLManagerApp)

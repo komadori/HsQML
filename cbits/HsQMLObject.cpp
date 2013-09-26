@@ -37,21 +37,50 @@ HsQMLObject* HsQMLObjectProxy::object(HsQMLEngine* engine)
     Q_ASSERT(engine);
     if (!mObject) {
         mObject = new HsQMLObject(this, engine);
+        tryGCLock();
 
         HSQML_LOG(5,
             QString().sprintf("New QObject, class=%s, ptr=%p, proxy=%p.",
-            mKlass->name(), static_cast<HsQMLObject*>(mObject), this));
+            mKlass->name(), mObject, this));
     }
     return mObject;
 }
 
 void HsQMLObjectProxy::clearObject()
 {
-    HSQML_LOG(5,
-        QString().sprintf("Release QObject, class=%s, ptr=%p, proxy=%p.",
-        mKlass->name(), static_cast<HsQMLObject*>(mObject), this));
+    Q_ASSERT(gManager->isEventThread());
 
     mObject = NULL;
+
+    HSQML_LOG(5,
+        QString().sprintf("Release QObject, class=%s, ptr=%p, proxy=%p.",
+        mKlass->name(), mObject, this));
+}
+
+void HsQMLObjectProxy::tryGCLock()
+{
+    Q_ASSERT(gManager->isEventThread());
+
+    if (mObject && mHndlCount > 0 && !mObject->isGCLocked()) {
+        mObject->setGCLock();
+
+        HSQML_LOG(5,
+            QString().sprintf("Lock QObject, class=%s, ptr=%p, proxy=%p.",
+            mKlass->name(), mObject, this));
+    }
+}
+
+void HsQMLObjectProxy::removeGCLock()
+{
+    Q_ASSERT(gManager->isEventThread());
+
+    if (mObject && mHndlCount == 0 && mObject->isGCLocked()) {
+        mObject->clearGCLock();
+
+        HSQML_LOG(5,
+            QString().sprintf("Unlock QObject, class=%s, ptr=%p, proxy=%p.",
+            mKlass->name(), mObject, this));
+    }
 }
 
 HsQMLEngine* HsQMLObjectProxy::engine() const
@@ -69,10 +98,24 @@ void HsQMLObjectProxy::ref(RefSrc src)
     HSQML_LOG(count == 0 ? 3 : 4,
         QString().sprintf("%s ObjProxy, class=%s, ptr=%p, src=%d, count=%d.",
         count ? "Ref" : "New", mKlass->name(), this, src, count+1));
+
+    if (src == Handle) {
+        mHndlCount.fetchAndAddOrdered(1);
+    }
 }
 
 void HsQMLObjectProxy::deref(RefSrc src)
 {
+    // Remove JavaScript GC lock when there are no handles
+    if (src == Handle) {
+        int hndlCount = mHndlCount.fetchAndAddOrdered(-1);
+        if (hndlCount == 1 && mObject) {
+            // This will increment the reference count for the lifetime of the
+            // of the event.
+            gManager->postObjectEvent(new HsQMLObjectEvent(this));
+        }
+    }
+
     int count = mRefCount.fetchAndAddOrdered(-1);
 
     HSQML_LOG(count == 1 ? 3 : 4,
@@ -82,6 +125,24 @@ void HsQMLObjectProxy::deref(RefSrc src)
     if (count == 1) {
         delete this;
     }
+}
+
+HsQMLObjectEvent::HsQMLObjectEvent(HsQMLObjectProxy* proxy)
+    : QEvent(HsQMLManagerApp::RemoveGCLockEvent)
+    , mProxy(proxy)
+{
+    mProxy->ref(HsQMLObjectProxy::Event);
+}
+
+HsQMLObjectEvent::~HsQMLObjectEvent()
+{
+    mProxy->deref(HsQMLObjectProxy::Event);
+}
+
+void HsQMLObjectEvent::process()
+{
+    Q_ASSERT(type() == HsQMLManagerApp::RemoveGCLockEvent);
+    mProxy->removeGCLock();
 }
 
 HsQMLObject::HsQMLObject(HsQMLObjectProxy* proxy, HsQMLEngine* engine)
@@ -151,6 +212,22 @@ int HsQMLObject::qt_metacall(QMetaObject::Call c, int id, void** a)
     return id;
 }
 
+void HsQMLObject::setGCLock()
+{
+    mGCLock = mEngine->scriptEngine()->newQObject(
+        this, QScriptEngine::ScriptOwnership);
+}
+
+void HsQMLObject::clearGCLock()
+{
+    mGCLock = QScriptValue();
+}
+
+bool HsQMLObject::isGCLocked() const
+{
+    return mGCLock.isValid();
+}
+
 HsQMLObjectProxy* HsQMLObject::proxy() const
 {
     return mProxy;
@@ -209,10 +286,12 @@ extern HsQMLObjectHandle* hsqml_get_object_handle(
         return NULL;
     }
 
-    // Return object proxy
+    // Get object proxy
     HsQMLObject* object = (HsQMLObject*)ptr;
     HsQMLObjectProxy* proxy = object->proxy();
     proxy->ref(HsQMLObjectProxy::Handle);
+    proxy->tryGCLock();
+
     return (HsQMLObjectHandle*)proxy;
 }
 
