@@ -243,11 +243,7 @@ instance TestAction SimpleMethods where
                     Just entry -> if entry == (
                         testObjectType, mockSerial (v :: MockObj TestObject))
                                   then return $ Right ()
-                                  else do
-                                      putStrLn $ show entry
-                                      putStrLn $ show entry
-                                      putStrLn $ show entry
-                                      return $ Left TBadActionData
+                                  else return $ Left TBadActionData
                     _          -> return $ Left TBadActionSlot
             _             -> return $ Left TBadActionCtor]
 
