@@ -8,6 +8,7 @@ module Graphics.QML.Test.Framework where
 
 import Graphics.QML.Objects
 import Graphics.QML.Marshal
+import Graphics.QML.Test.MayGen
 
 import Test.QuickCheck.Gen
 import Test.QuickCheck.Arbitrary
@@ -74,7 +75,7 @@ testBoxType (TestBox _ a) =
 
 class (Typeable a, Show a) => TestAction a where
     legalActionIn  :: a -> TestEnv -> Bool
-    nextActionsFor :: TestEnv -> Maybe (Gen a)
+    nextActionsFor :: TestEnv -> MayGen a
     updateEnvRaw   :: a -> TestEnv -> TestEnv
     actionRemote   :: a -> Int -> (ShowS, ShowS)
     mockObjDef     :: [Member (MockObj a)]
@@ -88,7 +89,7 @@ nextActions :: TestEnv -> Gen TestBox
 nextActions env =
     oneof $ mapMaybe (uncurry f) $ (:[]) $ head $ IntMap.toList $ envJs env
     where f n ((TestType pxy), _) =
-              ((fmap . fmap) (TestBox n . flip asProxyTypeOf pxy) $
+              (mayGen $ fmap (TestBox n . flip asProxyTypeOf pxy) $
                   nextActionsFor env)
 
 updateEnv :: TestBox -> TestEnv -> TestEnv

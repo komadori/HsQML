@@ -4,9 +4,11 @@ module Graphics.QML.Test.SimpleTest where
 
 import Graphics.QML.Objects
 import Graphics.QML.Test.Framework
+import Graphics.QML.Test.MayGen
 
 import Test.QuickCheck.Gen
 import Test.QuickCheck.Arbitrary
+import Control.Applicative
 import Data.Typeable
 import Data.Proxy
 import Data.Char
@@ -136,25 +138,22 @@ instance TestAction SimpleMethods where
             Just (tt, _) -> tt == testObjectType
             _            -> False
     legalActionIn _ _ = True
-    nextActionsFor env =
-        let baseGens = [
-                return SMTrivial,
-                arbitrary >>= return . SMGetInt,
-                arbitrary >>= return . SMSetInt,
-                arbitrary >>= return . SMGetDouble,
-                arbitrary >>= return . SMSetDouble,
-                arbitrary >>= return . SMGetString,
-                arbitrary >>= return . SMSetString,
-                arbitrary >>= return . SMGetText . T.pack,
-                arbitrary >>= return . SMSetText . T.pack,
-                uriGen >>= return . SMGetURI,
-                uriGen >>= return . SMSetURI,
-                return $ SMGetObject $ (+1) $ fst $ IntMap.findMax $ envJs env]
-            availObjs = map fst $ filter (\(_,(tt,_)) -> tt == testObjectType) $
-                IntMap.toList $ envJs env
-            setObjGen = elements availObjs >>= return . SMSetObject
-        in Just $ oneof $ if null availObjs
-               then baseGens else setObjGen : baseGens
+    nextActionsFor env = mayOneof [
+        pure SMTrivial,
+        SMGetInt <$> fromGen arbitrary,
+        SMSetInt <$> fromGen arbitrary,
+        SMGetDouble <$> fromGen arbitrary,
+        SMSetDouble <$> fromGen arbitrary,
+        SMGetString <$> fromGen arbitrary,
+        SMSetString <$> fromGen arbitrary,
+        SMGetText . T.pack <$> fromGen arbitrary,
+        SMSetText . T.pack <$> fromGen arbitrary,
+        SMGetURI <$> fromGen uriGen,
+        SMSetURI <$> fromGen uriGen,
+        pure . SMGetObject . (+1) . fst . IntMap.findMax $ envJs env,
+        SMSetObject <$> mayElements (
+            map fst $ filter (\(_,(tt,_)) -> tt == testObjectType) $
+            IntMap.toList $ envJs env)]
     updateEnvRaw (SMGetObject n) = testEnvStep . testEnvSerial (\s ->
         testEnvSetJ n testObjectType s)
     updateEnvRaw _ = testEnvStep
@@ -257,7 +256,7 @@ instance Show TestObject where
 
 instance TestAction TestObject where
     legalActionIn _ _ = error "TestObject has no actions."
-    nextActionsFor _ = Nothing
+    nextActionsFor _ = noGen
     updateEnvRaw _ e = e
     actionRemote _ _ = error "TestObject has no actions."
     mockObjDef = []
