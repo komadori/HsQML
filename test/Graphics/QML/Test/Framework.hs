@@ -61,6 +61,20 @@ testEnvSetJ :: Int -> TestType -> Serial -> TestEnv -> TestEnv
 testEnvSetJ n tt js (TestEnv s h j) =
     TestEnv s h (IntMap.insert n (tt,js) j)
 
+testEnvIsaJ :: Int -> TestType -> TestEnv -> Bool
+testEnvIsaJ n tt env =
+    case IntMap.lookup n $ envJs env of
+        Just (tt', _) -> tt' == tt
+        _             -> False
+
+testEnvNextJ :: TestEnv -> Int
+testEnvNextJ = (+1) . fst . IntMap.findMax . envJs
+
+testEnvListJ :: TestType -> TestEnv -> [Int]
+testEnvListJ tt env =
+    map fst $ filter (\(_,(tt',_)) ->
+        tt' == tt) $ IntMap.toList $ envJs env
+
 data TestBox = forall a. (TestAction a) => TestBox Int a
 
 instance Show TestBox where
@@ -149,6 +163,7 @@ mockFromSrc (TestBoxSrc ts) = do
 
 data TestFault
     = TExcessAction
+    | TBadAction
     | TBadActionType
     | TBadActionCtor
     | TBadActionSlot
@@ -224,6 +239,12 @@ expectAction mock pred = do
             let (TestStatus (_:bs) _ _ objs) = status
             writeIORef (mockStatus mock) $ TestStatus bs Nothing env' objs
             return v
+
+badAction :: (MakeDefault b) => MockObj a -> IO b
+badAction mock = do
+    status <- readIORef $ mockStatus mock
+    writeIORef (mockStatus mock) $ status {testFault = Just TBadAction} 
+    makeDef
 
 instance (TestAction a) => Object (MockObj a) where
     classDef = defClass mockObjDef

@@ -11,7 +11,8 @@ import System.Exit
 main :: IO ()
 main = do
     rs <- sequence [
-        checkProperty $ TestType (Proxy :: Proxy SimpleMethods)]
+        checkProperty $ TestType (Proxy :: Proxy SimpleMethods),
+        checkProperty $ TestType (Proxy :: Proxy SimpleProperties)]
     if and rs
     then exitSuccess
     else exitFailure
