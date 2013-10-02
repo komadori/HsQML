@@ -4,6 +4,7 @@ import Graphics.QML.Test.Framework
 
 import Test.QuickCheck
 import Test.QuickCheck.Monadic
+import Test.QuickCheck.Test
 
 import Graphics.QML
 import Data.IORef
@@ -52,9 +53,10 @@ testProperty src = monadicIO $ do
     assert $ isNothing $ testFault status
     return ()
 
-checkProperty :: TestType -> IO ()
-checkProperty (TestType pxy) =
-    quickCheck $ testProperty . constrainSrc pxy
+checkProperty :: TestType -> IO Bool
+checkProperty (TestType pxy) = do
+    r <- quickCheckResult $ testProperty . constrainSrc pxy
+    return $ isSuccess r
 
 constrainSrc :: (TestAction a) => Proxy a -> TestBoxSrc a -> TestBoxSrc a
 constrainSrc = flip const

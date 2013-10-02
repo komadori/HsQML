@@ -5,8 +5,13 @@ module Main where
 import Graphics.QML.Test.Framework
 import Graphics.QML.Test.Harness
 import Graphics.QML.Test.SimpleTest
-import Test.QuickCheck
 import Data.Proxy
+import System.Exit
 
 main :: IO ()
-main = checkProperty $ TestType (Proxy :: Proxy SimpleMethods)
+main = do
+    rs <- sequence [
+        checkProperty $ TestType (Proxy :: Proxy SimpleMethods)]
+    if and rs
+    then exitSuccess
+    else exitFailure
