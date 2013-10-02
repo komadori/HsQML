@@ -363,6 +363,24 @@ mkUniformFunc f = \pt pv -> do
   this <- mObjToHs hndl
   runErrIO $ mkMethodFunc 1 (MSHelp $ f this) pv
 
+newtype VoidIO = VoidIO {runVoidIO :: (IO ())}
+
+instance MethodSuffix (MSHelp VoidIO) where
+    mkMethodFunc _ (MSHelp f) pv = errIO $ runVoidIO f
+    mkMethodTypes = Tagged $ MethodTypeInfo [] (TypeName "")
+
+class IsVoidIO a
+instance (IsVoidIO b) => IsVoidIO (a -> b)
+instance IsVoidIO VoidIO
+
+mkSpecialFunc :: forall tt ms.
+    (Marshal tt, MarshalFromObj (MarshalMode tt), MethodSuffix (MSHelp ms),
+        IsVoidIO ms) => (tt -> ms) -> UniformFunc
+mkSpecialFunc f = \pt pv -> do
+    hndl <- hsqmlGetObjectHandle pt
+    this <- mObjToHs hndl
+    runErrIO $ mkMethodFunc 0 (MSHelp $ f this) pv
+
 -- | Defines a named method using a function @f@ in the IO monad.
 --
 -- The first argument to @f@ receives the \"this\" object and hence must match
@@ -411,7 +429,7 @@ defPropertyRW name g s = Member PropertyMember
   (untag (mTypeName :: Tagged tr TypeName))
   []
   (mkUniformFunc g)
-  (Just $ mkUniformFunc s)
+  (Just $ mkSpecialFunc (\a b -> VoidIO $ s a b))
   Nothing
 
 --
