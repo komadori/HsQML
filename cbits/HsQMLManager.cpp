@@ -100,6 +100,10 @@ HsQMLManager::EventLoopStatus HsQMLManager::runEventLoop(
     // Run loop
     int ret = mApp->exec();
 
+    // Remove redundant events
+    QCoreApplication::removePostedEvents(
+        mApp, HsQMLManagerApp::RemoveGCLockEvent);
+
     // Cleanup callbacks
     freeFun(startCb);
     mStartCb = NULL;
