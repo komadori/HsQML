@@ -162,7 +162,8 @@ mockFromSrc (TestBoxSrc ts) = do
     return $ MockObj (Serial 0) statusRef
 
 data TestFault
-    = TExcessAction
+    = TOverAction
+    | TUnderAction
     | TBadAction
     | TBadActionType
     | TBadActionCtor
@@ -228,7 +229,7 @@ expectAction mock pred = do
             TestBox _ a -> case cast a of
                 Just a' -> pred a' >>= return . fmap ((,) (updateEnvRaw a' env))
                 _       -> return $ Left TBadActionType
-        TestStatus [] Nothing _ _       -> return $ Left TExcessAction
+        TestStatus [] Nothing _ _       -> return $ Left TOverAction
         TestStatus _ (Just f) _ _       -> return $ Left f
     case res of
         Left f  -> do

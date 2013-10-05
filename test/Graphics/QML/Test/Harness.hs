@@ -28,6 +28,16 @@ qmlPostscript = unlines [
     "    }",
     "}"]
 
+finishTest :: MockObj a -> IO ()
+finishTest mock = do
+    let statusRef = mockStatus mock
+    status <- readIORef statusRef
+    let status' = case status of
+            TestStatus (_:_) Nothing _ _ -> status {
+                testFault = Just TUnderAction}
+            _                            -> status
+    writeIORef statusRef status'
+
 runTest :: (TestAction a) => TestBoxSrc a -> IO TestStatus
 runTest src = do
     let js = showTestCode (srcTestBoxes src) ""
@@ -41,6 +51,7 @@ runTest src = do
         initialURL = filePathToURI qmlPath,
         contextObject = Just $ anyObjRef go}
     removeFile qmlPath
+    finishTest mock
     status <- readIORef (mockStatus mock)
     if isJust $ testFault status
         then putStrLn $ show status
