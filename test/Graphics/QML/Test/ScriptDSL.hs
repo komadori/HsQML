@@ -98,4 +98,5 @@ saveVar var (Expr rhs) =
 
 assert :: Expr -> Prog
 assert (Expr ex) =
-    Prog (showString "if (!" . ex . showString ") {window.close();}\n") id
+    Prog (showString "if (!" . ex .
+        showString ") {window.close(); throw -1;}\n") id
