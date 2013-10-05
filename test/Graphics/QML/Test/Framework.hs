@@ -115,7 +115,7 @@ updateEnv (TestBox _ a) = updateEnvRaw a
 showTestCode :: [TestBox] -> ShowS
 showTestCode xs =
     let f (TestBox n a) = actionRemote a n
-    in S.showProg $ mconcat $ map f xs
+    in S.showProg $ mconcat $ map f xs ++ [S.end]
 
 newtype TestBoxSrc a = TestBoxSrc { srcTestBoxes :: [TestBox]} deriving Show
 
@@ -243,6 +243,10 @@ expectAction mock pred = do
             let (TestStatus (_:bs) _ _ objs) = status
             writeIORef (mockStatus mock) $ TestStatus bs Nothing env' objs
             return v
+
+expectActionRef :: (TestAction a, MakeDefault b) =>
+    ObjRef (MockObj a) -> (a -> IO (Either TestFault b)) -> IO b
+expectActionRef ref pred = expectAction (fromObjRef ref) pred
 
 badAction :: (MakeDefault b) => MockObj a -> IO b
 badAction mock = do

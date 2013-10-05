@@ -100,3 +100,25 @@ assert :: Expr -> Prog
 assert (Expr ex) =
     Prog (showString "if (!" . ex .
         showString ") {window.close(); throw -1;}\n") id
+
+connect :: Expr -> Expr -> Prog
+connect sig fn = eval $ sig `dot` "connect" `call` [fn]
+
+disconnect :: Expr -> Expr -> Prog
+disconnect sig fn = eval $ sig `dot` "disconnect" `call` [fn]
+
+makeCont :: [String] -> Prog -> Prog -> Prog
+makeCont args (Prog a1 b1) (Prog a2 b2) =
+    Prog (showString "var cont = function(" . farg . showString ") {\n" . a2)
+        (b2 . showString "};\n" . a1 . b1)
+    where farg = foldr1 (.) $ (id:) $ intersperse (showChar ',') $
+                     map showString args
+
+contVar :: Expr
+contVar = sym "cont"
+
+callee :: Expr
+callee = sym "arguments.callee"
+
+end :: Prog
+end = Prog (showString "window.close();\n") id

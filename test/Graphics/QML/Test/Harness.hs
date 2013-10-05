@@ -24,7 +24,6 @@ qmlPrelude = unlines [
 
 qmlPostscript :: String
 qmlPostscript = unlines [
-    "        window.close();",
     "    }",
     "}"]
 
@@ -49,6 +48,7 @@ runTest src = do
     go <- newObject mock
     runEngineLoop defaultEngineConfig {
         initialURL = filePathToURI qmlPath,
+        initialWindowState = HideWindow,
         contextObject = Just $ anyObjRef go}
     removeFile qmlPath
     finishTest mock
