@@ -35,7 +35,7 @@ uriGen = capSize 35 $ do
                       frequency [(9,dchar), (1,listxyz [dchar, dot, dchar])],
                       listxs $ frequency [
                           (9,dchar2), (1,listxyz [dchar, dot, dchar]),
-                          (1,listxyz [dchar, dot, dchar, dot])],
+                          (1,listxyz [dchar, dot, dchar, dot, dchar])],
                       dchar, dot]
         dpart2  = oneof [lower, listxyz [lower, listxs dchar2, dchar]]
         regName = flip suchThat (\x -> length x < 255) $ listxyz [
