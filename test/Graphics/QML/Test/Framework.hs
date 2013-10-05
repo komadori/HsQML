@@ -9,11 +9,14 @@ module Graphics.QML.Test.Framework where
 import Graphics.QML.Objects
 import Graphics.QML.Marshal
 import Graphics.QML.Test.MayGen
+import Graphics.QML.Test.ScriptDSL (Prog)
+import qualified Graphics.QML.Test.ScriptDSL as S
 
 import Test.QuickCheck.Gen
 import Test.QuickCheck.Arbitrary
 import Data.List (mapAccumR)
 import Data.Maybe
+import Data.Monoid
 import Data.Proxy
 import Data.Typeable
 import Data.IORef
@@ -91,7 +94,7 @@ class (Typeable a, Show a) => TestAction a where
     legalActionIn  :: a -> TestEnv -> Bool
     nextActionsFor :: TestEnv -> MayGen a
     updateEnvRaw   :: a -> TestEnv -> TestEnv
-    actionRemote   :: a -> Int -> (ShowS, ShowS)
+    actionRemote   :: a -> Int -> Prog
     mockObjDef     :: [Member (MockObj a)]
 
 legalAction :: TestEnv -> TestBox -> Bool
@@ -111,8 +114,8 @@ updateEnv (TestBox _ a) = updateEnvRaw a
 
 showTestCode :: [TestBox] -> ShowS
 showTestCode xs =
-    uncurry (.) $ foldr (\(a,b) (c,d) -> (a . c, b . d)) (id,id) $ map f xs
-    where f (TestBox n a) = actionRemote a n
+    let f (TestBox n a) = actionRemote a n
+    in S.showProg $ mconcat $ map f xs
 
 newtype TestBoxSrc a = TestBoxSrc { srcTestBoxes :: [TestBox]} deriving Show
 
@@ -173,13 +176,13 @@ data TestFault
     | TInvalid
     deriving Show
 
-newtype Any = Any () deriving Show
+newtype Anything = Anything () deriving Show
 
 data TestStatus = TestStatus {
     testList  :: [TestBox],
     testFault :: Maybe TestFault,
     testEnv   :: TestEnv,
-    testObjs  :: IntMap Any
+    testObjs  :: IntMap Anything
 } deriving Show
 
 testSerial :: TestStatus -> Serial

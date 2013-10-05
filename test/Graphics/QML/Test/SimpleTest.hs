@@ -6,6 +6,8 @@ import Graphics.QML.Objects
 import Graphics.QML.Test.Framework
 import Graphics.QML.Test.MayGen
 import Graphics.QML.Test.GenURI
+import Graphics.QML.Test.ScriptDSL (Expr, Prog)
+import qualified Graphics.QML.Test.ScriptDSL as S
 
 import Test.QuickCheck.Gen
 import Test.QuickCheck.Arbitrary
@@ -22,64 +24,23 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Network.URI
 
-showJDouble :: Double -> ShowS
-showJDouble x | isNaN x                 = showString "(0/0)"
-              | isInfinite x && (x < 0) = showString "(-1/0)"
-              | isInfinite x            = showString "(1/0)"
-              | isNegativeZero x        = showString "-0"
-              | otherwise               = shows x
+makeCall :: Int -> String -> [Expr] -> Prog
+makeCall n name es = S.eval $ S.var n `S.dot` name `S.call` es
 
-showJString :: String -> ShowS
-showJString [] =
-    showString "\"\""
-showJString cs =
-    showChar '"' . (foldr1 (.) $ map f cs) . showChar '"'
-    where f '\"' = showString "\\\""
-          f '\\' = showString "\\\\"
-          f c | ord c < 32 = hexEsc c
-              | ord c > 127 = hexEsc c
-              | otherwise  = showChar c
-          hexEsc c = let h = showHex (ord c)
-                     in showString "\\u" .
-                        showString (replicate (4 - (length $ h "")) '0') . h
+saveCall :: Int -> Int -> String -> [Expr] -> Prog
+saveCall v n name es = S.saveVar v $ S.var n `S.dot` name `S.call` es
 
-showJURI :: URI -> ShowS
-showJURI = showJString . ($ "") . uriToString id
+testCall :: Int -> String -> [Expr] -> Expr -> Prog
+testCall n name es r = S.assert $ S.eq (S.var n `S.dot` name `S.call` es) r
 
-showVar :: Int -> ShowS
-showVar 0 = error "Cannot use context."
-showVar n = showString "x" . shows n
+setProp :: Int -> String -> Expr -> Prog
+setProp n name ex = S.set (S.var n `S.dot` name) ex
 
-showVarDecl :: Int -> ShowS
-showVarDecl 0 = error "Cannot reassign context."
-showVarDecl n = showString "var " . showVar n . showString " = "
+saveProp :: Int -> Int -> String -> Prog
+saveProp v n name = S.saveVar v $ S.var n `S.dot` name
 
-showVarDot :: Int -> ShowS
-showVarDot 0 = id
-showVarDot n = showVar n . showChar '.'
-
-noScope :: ShowS -> (ShowS, ShowS)
-noScope s = (s, id)
-
-showTest :: Int -> String -> ShowS -> (ShowS, ShowS)
-showTest n name value = noScope $
-    showString "if (" . showVarDot n . showString name .
-    showString "() != " . value . showString ") {window.close();}\n"
-
-showCall :: Int -> String -> ShowS -> (ShowS, ShowS)
-showCall n name params = noScope $
-    showVarDot n . showString name .
-    showString "(" . params . showString ");\n"
-
-showGet :: Int -> String -> ShowS -> (ShowS, ShowS)
-showGet n name value = noScope $
-    showString "if (" . showVarDot n . showString name .
-    showString " != " . value . showString ") {window.close();}\n"
-
-showSet :: Int -> String -> ShowS -> (ShowS, ShowS)
-showSet n name value = noScope $
-    showVarDot n . showString name .
-    showString " = " . value . showString ";\n"
+testProp :: Int -> String -> Expr -> Prog
+testProp n name r = S.assert $ S.eq (S.var n `S.dot` name) r
 
 checkArg :: (Show a, Eq a) => a -> a -> IO (Either TestFault ())
 checkArg v w = return $
@@ -121,32 +82,19 @@ instance TestAction SimpleMethods where
     updateEnvRaw (SMGetObject n) = testEnvStep . testEnvSerial (\s ->
         testEnvSetJ n testObjectType s)
     updateEnvRaw _ = testEnvStep
-    actionRemote SMTrivial n =
-        showCall n "trivial" id
-    actionRemote (SMGetInt v) n =
-        showTest n "getInt" (shows v)
-    actionRemote (SMSetInt v) n =
-        showCall n "setInt" (shows v)
-    actionRemote (SMGetDouble v) n =
-        showTest n "getDouble" (showJDouble v)
-    actionRemote (SMSetDouble v) n =
-        showCall n "setDouble" (showJDouble v)
-    actionRemote (SMGetString v) n =
-        showTest n "getString" (showJString v)
-    actionRemote (SMSetString v) n =
-        showCall n "setString" (showJString v)
-    actionRemote (SMGetText v) n =
-        showTest n "getText" (showJString $ T.unpack v)
-    actionRemote (SMSetText v) n =
-        showCall n "setText" (showJString $ T.unpack v)
-    actionRemote (SMGetURI v) n =
-        showTest n "getURI" (showJURI v)
-    actionRemote (SMSetURI v) n =
-        showCall n "setURI" (showJURI v)
-    actionRemote (SMGetObject v) n =
-        noScope $ showVarDecl v . showVarDot n . showString "getObject();\n"
-    actionRemote (SMSetObject v) n =
-        showCall n "setObject" (showVar v)
+    actionRemote SMTrivial n = makeCall n "trivial" []
+    actionRemote (SMGetInt v) n = testCall n "getInt" [] $ S.literal v
+    actionRemote (SMSetInt v) n = makeCall n "setInt" [S.literal v]
+    actionRemote (SMGetDouble v) n = testCall n "getDouble" [] $ S.literal v
+    actionRemote (SMSetDouble v) n = makeCall n "setDouble" [S.literal v]
+    actionRemote (SMGetString v) n = testCall n "getString" [] $ S.literal v
+    actionRemote (SMSetString v) n = makeCall n "setString" [S.literal v]
+    actionRemote (SMGetText v) n = testCall n "getText" [] $ S.literal v
+    actionRemote (SMSetText v) n = makeCall n "setText" [S.literal v]
+    actionRemote (SMGetURI v) n = testCall n "getURI" [] $ S.literal v
+    actionRemote (SMSetURI v) n = makeCall n "setURI" [S.literal v]
+    actionRemote (SMGetObject v) n = saveCall v n "getObject" []
+    actionRemote (SMSetObject v) n = makeCall n "setObject" [S.var v]
     mockObjDef = [
         defMethod "trivial" $ \m -> expectAction m $ \a -> case a of
             SMTrivial -> return $ Right ()
@@ -224,32 +172,19 @@ instance TestAction SimpleProperties where
     updateEnvRaw (SPGetObject n) = testEnvStep . testEnvSerial (\s ->
         testEnvSetJ n testObjectType s)
     updateEnvRaw _ = testEnvStep
-    actionRemote (SPGetIntRO v) n =
-        showGet n "propIntRO" (shows v)
-    actionRemote (SPGetInt v) n =
-        showGet n "propIntR" (shows v)
-    actionRemote (SPSetInt v) n =
-        showSet n "propIntW" (shows v)
-    actionRemote (SPGetDouble v) n =
-        showGet n "propDoubleR" (showJDouble v)
-    actionRemote (SPSetDouble v) n =
-        showSet n "propDoubleW" (showJDouble v)
-    actionRemote (SPGetString v) n =
-        showGet n "propStringR" (showJString v)
-    actionRemote (SPSetString v) n =
-        showSet n "propStringW" (showJString v)
-    actionRemote (SPGetText v) n =
-        showGet n "propTextR" (showJString $ T.unpack v)
-    actionRemote (SPSetText v) n =
-        showSet n "propTextW" (showJString $ T.unpack v)
-    actionRemote (SPGetURI v) n =
-        showGet n "propURIR" (showJURI v)
-    actionRemote (SPSetURI v) n =
-        showSet n "propURIW" (showJURI v)
-    actionRemote (SPGetObject v) n =
-        noScope $ showVarDecl v . showVarDot n . showString "propObjectR;\n"
-    actionRemote (SPSetObject v) n =
-        showSet n "propObjectW" (showVar v)
+    actionRemote (SPGetIntRO v) n = testProp n "propIntRO" $ S.literal v
+    actionRemote (SPGetInt v) n = testProp n "propIntR" $ S.literal v
+    actionRemote (SPSetInt v) n = setProp n "propIntW" $ S.literal v
+    actionRemote (SPGetDouble v) n = testProp n "propDoubleR" $ S.literal v
+    actionRemote (SPSetDouble v) n = setProp n "propDoubleW" $ S.literal v
+    actionRemote (SPGetString v) n = testProp n "propStringR" $ S.literal v
+    actionRemote (SPSetString v) n = setProp n "propStringW" $ S.literal v
+    actionRemote (SPGetText v) n = testProp n "propTextR" $ S.literal v
+    actionRemote (SPSetText v) n = setProp n "propTextW" $ S.literal v
+    actionRemote (SPGetURI v) n = testProp n "propURIR" $ S.literal v
+    actionRemote (SPSetURI v) n = setProp n "propURIW" $ S.literal v
+    actionRemote (SPGetObject v) n = saveProp v n "propObjectR"
+    actionRemote (SPSetObject v) n = setProp n "propObjectW" $ S.var v
     mockObjDef = [
         -- There are seperate properties for testing accessors and mutators
         -- becasue QML produces spurious reads when writing.
