@@ -46,6 +46,7 @@ checkArg v w = return $
 
 data SimpleMethods
     = SMTrivial
+    | SMTernary Int32 Int32 Int32 Int32
     | SMGetInt Int32
     | SMSetInt Int32
     | SMGetDouble Double
@@ -65,6 +66,9 @@ instance TestAction SimpleMethods where
     legalActionIn _ _ = True
     nextActionsFor env = mayOneof [
         pure SMTrivial,
+        SMTernary <$> 
+            fromGen arbitrary <*> fromGen arbitrary <*>
+            fromGen arbitrary <*> fromGen arbitrary,
         SMGetInt <$> fromGen arbitrary,
         SMSetInt <$> fromGen arbitrary,
         SMGetDouble <$> fromGen arbitrary,
@@ -81,6 +85,8 @@ instance TestAction SimpleMethods where
         testEnvSetJ n testObjectType s)
     updateEnvRaw _ = testEnvStep
     actionRemote SMTrivial n = makeCall n "trivial" []
+    actionRemote (SMTernary v1 v2 v3 v4) n = testCall n "ternary" [
+        S.literal v1, S.literal v2, S.literal v3] $ S.literal v4
     actionRemote (SMGetInt v) n = testCall n "getInt" [] $ S.literal v
     actionRemote (SMSetInt v) n = makeCall n "setInt" [S.literal v]
     actionRemote (SMGetDouble v) n = testCall n "getDouble" [] $ S.literal v
@@ -97,6 +103,10 @@ instance TestAction SimpleMethods where
         defMethod "trivial" $ \m -> expectAction m $ \a -> case a of
             SMTrivial -> return $ Right ()
             _         -> return $ Left TBadActionCtor,
+        defMethod "ternary" $ \m v1 v2 v3 -> expectAction m $ \a -> case a of
+            SMTernary w1 w2 w3 w4 ->
+                (fmap . fmap) (const w4) $ checkArg (v1,v2,v3) (w1,w2,w3)
+            _          -> return $ Left TBadActionCtor,
         defMethod "getInt" $ \m -> expectAction m $ \a -> case a of
             SMGetInt v -> return $ Right v
             _          -> return $ Left TBadActionCtor,

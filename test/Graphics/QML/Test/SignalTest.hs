@@ -25,6 +25,7 @@ data SignalTest1
     = ST1TrivialMethod
     | ST1FireNoArgs
     | ST1FireInt Int32
+    | ST1FireThreeInts Int32 Int32 Int32
     | ST1FireDouble Double
     | ST1FireString String
     | ST1FireText Text
@@ -42,6 +43,11 @@ data IntSignal deriving Typeable
 
 instance SignalKey IntSignal where
     type SignalParams IntSignal = Int32 -> IO ()
+
+data ThreeIntsSignal deriving Typeable
+
+instance SignalKey ThreeIntsSignal where
+    type SignalParams ThreeIntsSignal = Int32 -> Int32 -> Int32 -> IO ()
 
 data DoubleSignal deriving Typeable
 
@@ -85,6 +91,8 @@ instance TestAction SignalTest1 where
         pure ST1TrivialMethod,
         pure ST1FireNoArgs,
         ST1FireInt <$> fromGen arbitrary,
+        ST1FireThreeInts <$>
+            fromGen arbitrary <*> fromGen arbitrary <*> fromGen arbitrary,
         ST1FireDouble <$> fromGen arbitrary,
         ST1FireString <$> fromGen arbitrary,
         ST1FireText . T.pack <$> fromGen arbitrary,
@@ -100,6 +108,12 @@ instance TestAction SignalTest1 where
         chainSignal n [] "noArgsSignal" "fireNoArgs"
     actionRemote (ST1FireInt v) n =
         testSignal n "intSignal" "fireInt" $ S.literal v
+    actionRemote (ST1FireThreeInts v1 v2 v3) n =
+        chainSignal n ["arg1","arg2","arg3"]
+            "threeIntsSignal" "fireThreeInts" `mappend`
+        (S.assert $ S.sym "arg1" `S.eq` S.literal v1) `mappend`
+        (S.assert $ S.sym "arg2" `S.eq` S.literal v2) `mappend`
+        (S.assert $ S.sym "arg3" `S.eq` S.literal v3)
     actionRemote (ST1FireDouble v) n =
         testSignal n "doubleSignal" "fireDouble" $ S.literal v
     actionRemote (ST1FireString v) n =
@@ -131,6 +145,15 @@ instance TestAction SignalTest1 where
                 return $ Right ()
             _            -> return $ Left TBadActionCtor),
         defSignal (Tagged "intSignal" :: Tagged IntSignal String),
+        defMethod "fireThreeInts" $ \m -> (expectActionRef m $ \a -> case a of
+            ST1FireThreeInts v1 v2 v3 -> do
+                fireSignal (Tagged m
+                    :: Tagged ThreeIntsSignal (ObjRef (MockObj SignalTest1)))
+                    v1 v2 v3
+                return $ Right ()
+            _                         -> return $ Left TBadActionCtor),
+        defSignal (Tagged "threeIntsSignal" ::
+            Tagged ThreeIntsSignal String),
         defMethod "fireDouble" $ \m -> (expectActionRef m $ \a -> case a of
             ST1FireDouble v -> do
                 fireSignal (Tagged m
