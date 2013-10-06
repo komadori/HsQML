@@ -9,6 +9,7 @@ import Test.QuickCheck.Test
 import Graphics.QML
 import Data.IORef
 import Data.Proxy
+import Data.Typeable
 import Data.Maybe
 import System.IO
 import System.Directory
@@ -66,6 +67,7 @@ testProperty src = monadicIO $ do
 
 checkProperty :: TestType -> IO Bool
 checkProperty (TestType pxy) = do
+    putStrLn $ "Checking " ++ show (typeOf $ asProxyTypeOf undefined pxy)
     r <- quickCheckResult $ testProperty . constrainSrc pxy
     return $ isSuccess r
 
