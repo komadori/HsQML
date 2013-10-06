@@ -1,10 +1,10 @@
 Name:               hsqml
-Version:            0.1.1
+Version:            0.2.0.0
 Cabal-version:      >= 1.10
 Build-type:         Custom
 License:            BSD3
 License-file:       LICENSE
-Copyright:          (c) 2010-2012 Robin KAY
+Copyright:          (c) 2010-2013 Robin KAY
 Author:             Robin KAY
 Maintainer:         komadori@gekkou.co.uk
 Stability:          experimental
@@ -89,7 +89,7 @@ Test-Suite hsqml-test1
         text       == 0.11.*,
         tagged     >= 0.4 && < 0.8,
         QuickCheck >= 2.4 && < 2.7,
-        hsqml      == 0.1.*
+        hsqml      == 0.2.*
     if flag(ThreadedTestSuite)
         GHC-options: -threaded
 
