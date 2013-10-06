@@ -22,6 +22,11 @@ Flag UsePkgConfig
         Use pkg-config for libraries instead of the platform default mechanism.
     Default: False
 
+Flag ThreadedTestSuite
+    Description:
+        Build test executable with the threaded RTS.
+    Default: True
+
 Library
     Default-language: Haskell2010
     Build-depends:
@@ -85,6 +90,8 @@ Test-Suite hsqml-test1
         tagged     >= 0.4 && < 0.7,
         QuickCheck >= 2.4 && < 2.7,
         hsqml      == 0.1.*
+    if flag(ThreadedTestSuite)
+        GHC-options: -threaded
 
 Source-repository head
     type:     darcs
