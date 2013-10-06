@@ -1,6 +1,5 @@
 #include <cstdlib>
 #include <HsFFI.h>
-#include <QtCore/QAtomicInt>
 #include <QtCore/QMetaObject>
 #include <QtCore/QMetaType>
 #include <QtCore/QString>
@@ -14,7 +13,7 @@ enum MDFields {
     MD_PROPERTY_COUNT = 6,
 };
 
-QAtomicInt gClassId;
+static const char* cRefSrcNames[] = {"Hndl", "Proxy"};
 
 HsQMLClass::HsQMLClass(
     unsigned int*  metaData,
@@ -41,6 +40,8 @@ HsQMLClass::HsQMLClass(
 
     // Add reference
     ref(Handle);
+
+    gManager->updateCounter(HsQMLManager::ClassCount, 1);
 }
 
 HsQMLClass::~HsQMLClass()
@@ -59,6 +60,8 @@ HsQMLClass::~HsQMLClass()
     std::free(mMethods);
     std::free(mProperties);
     delete mMetaObject;
+
+    gManager->updateCounter(HsQMLManager::ClassCount, -1);
 }
 
 const char* HsQMLClass::name()
@@ -101,8 +104,8 @@ void HsQMLClass::ref(RefSrc src)
     int count = mRefCount.fetchAndAddOrdered(1);
 
     HSQML_LOG(count == 0 ? 1 : 2,
-        QString().sprintf("%s Class, name=%s, src=%d, count=%d.",
-        count ? "Ref" : "New", name(), src, count+1));
+        QString().sprintf("%s Class, name=%s, src=%s, count=%d.",
+        count ? "Ref" : "New", name(), cRefSrcNames[src], count+1));
 }
 
 void HsQMLClass::deref(RefSrc src)
@@ -110,8 +113,8 @@ void HsQMLClass::deref(RefSrc src)
     int count = mRefCount.fetchAndAddOrdered(-1);
 
     HSQML_LOG(count == 1 ? 1 : 2,
-        QString().sprintf("%s Class, name=%s, src=%d, count=%d.",
-        count > 1 ? "Deref" : "Delete", name(), src, count));
+        QString().sprintf("%s Class, name=%s, src=%s, count=%d.",
+        count > 1 ? "Deref" : "Delete", name(), cRefSrcNames[src], count));
 
     if (count == 1) {
         delete this;
@@ -120,7 +123,7 @@ void HsQMLClass::deref(RefSrc src)
 
 extern "C" int hsqml_get_next_class_id()
 {
-    return gClassId.fetchAndAddRelaxed(1);
+    return gManager->updateCounter(HsQMLManager::ClassSerial, 1);
 }
 
 extern "C" HsQMLClassHandle* hsqml_create_class(

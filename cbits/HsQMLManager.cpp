@@ -2,10 +2,31 @@
 #include <cstdlib>
 #include <QtCore/QBasicTimer>
 #include <QtCore/QMetaType>
+#include <QtCore/QMutexLocker>
 #include <QtCore/QThread>
 
 #include "HsQMLManager.h"
 #include "HsQMLObject.h"
+
+static const char* cCounterNames[] = {
+    "ClassCounter",
+    "ObjectCounter",
+    "QObjectCounter",
+    "ClassSerial",
+    "ObjectSerial"
+};
+
+extern "C" void hsqml_dump_counters()
+{
+    Q_ASSERT (gManager);
+    if (gManager->checkLogLevel(1)) {
+        for (int i=0; i<HsQMLManager::TotalCounters; i++) {
+            gManager->log(QString().sprintf("%s = %d.",
+                cCounterNames[i], gManager->updateCounter(
+                    static_cast<HsQMLManager::CounterId>(i), 0)));
+        }
+    }
+}
 
 QAtomicPointer<HsQMLManager> gManager;
 
@@ -13,6 +34,7 @@ HsQMLManager::HsQMLManager(
     void (*freeFun)(HsFunPtr),
     void (*freeStable)(HsStablePtr))
     : mLogLevel(0)
+    , mAtExit(false)
     , mFreeFun(freeFun)
     , mFreeStable(freeStable)
     , mLock(QMutex::Recursive)
@@ -27,13 +49,21 @@ HsQMLManager::HsQMLManager(
 
     const char* env = std::getenv("HSQML_DEBUG_LOG_LEVEL");
     if (env) {
-        mLogLevel = QString(env).toInt();
+        setLogLevel(QString(env).toInt());
     }
 }
 
 void HsQMLManager::setLogLevel(int ll)
 {
     mLogLevel = ll;
+    if (ll > 0 && !mAtExit) {
+        if (atexit(&hsqml_dump_counters) == 0) {
+            mAtExit = true;
+        }
+        else {
+            log("Failed to register callback with atexit().");
+        }
+    }
 }
 
 bool HsQMLManager::checkLogLevel(int ll)
@@ -44,6 +74,11 @@ bool HsQMLManager::checkLogLevel(int ll)
 void HsQMLManager::log(const QString& msg)
 {
     std::cerr << "HsQML: " << msg.toStdString() << std::endl;
+}
+
+int HsQMLManager::updateCounter(CounterId id, int delta)
+{
+    return mCounters[id].fetchAndAddRelaxed(delta);
 }
 
 void HsQMLManager::freeFun(HsFunPtr funPtr)

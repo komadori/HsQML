@@ -273,6 +273,7 @@ getClassRec cdef = do
 
 createClass :: forall tt. (Object tt) => TypeRep -> ClassDef tt -> IO ClassRec
 createClass typRep cdef = do
+  hsqmlInit
   classId <- hsqmlGetNextClassId
   let constrs t = typeRepTyCon t : (concatMap constrs $ typeRepArgs t)
       name = foldr (\c s -> showString (tyConName c) .
@@ -286,7 +287,6 @@ createClass typRep cdef = do
   metaStrDataPtr <- crlToNewArray return (mStrData moc)
   methodsPtr <- crlToNewArray maybeMarshalFunc (mFuncMethods moc)
   propsPtr <- crlToNewArray maybeMarshalFunc (mFuncProperties moc)
-  hsqmlInit
   maybeHndl <- hsqmlCreateClass
       metaDataPtr metaStrDataPtr typRep methodsPtr propsPtr
   case maybeHndl of

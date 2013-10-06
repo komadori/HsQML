@@ -29,6 +29,7 @@ public:
 private:
     HsStablePtr mHaskell;
     HsQMLClass* mKlass;
+    int mSerial;
     HsQMLObject* volatile mObject;
     QAtomicInt mRefCount;
     QAtomicInt mHndlCount;

@@ -6,19 +6,24 @@
 #include "HsQMLClass.h"
 #include "HsQMLManager.h"
 
+static const char* cRefSrcNames[] = {"Hndl", "Obj", "Event"};
+
 HsQMLObjectProxy::HsQMLObjectProxy(HsStablePtr haskell, HsQMLClass* klass)
     : mHaskell(haskell)
     , mKlass(klass)
+    , mSerial(gManager->updateCounter(HsQMLManager::ObjectSerial, 1))
     , mObject(NULL)
     , mRefCount(0)
 {
     ref(Handle);
     mKlass->ref(HsQMLClass::ObjProxy);
+    gManager->updateCounter(HsQMLManager::ObjectCount, 1);
 }
 
 HsQMLObjectProxy::~HsQMLObjectProxy()
 {
     mKlass->deref(HsQMLClass::ObjProxy);
+    gManager->updateCounter(HsQMLManager::ObjectCount, -1);
 }
 
 HsStablePtr HsQMLObjectProxy::haskell() const
@@ -40,8 +45,8 @@ HsQMLObject* HsQMLObjectProxy::object(HsQMLEngine* engine)
         tryGCLock();
 
         HSQML_LOG(5,
-            QString().sprintf("New QObject, class=%s, ptr=%p, proxy=%p.",
-            mKlass->name(), mObject, this));
+            QString().sprintf("New QObject, class=%s, id=%d, qptr=%p.",
+            mKlass->name(), mSerial, mObject));
     }
     return mObject;
 }
@@ -53,8 +58,8 @@ void HsQMLObjectProxy::clearObject()
     mObject = NULL;
 
     HSQML_LOG(5,
-        QString().sprintf("Release QObject, class=%s, ptr=%p, proxy=%p.",
-        mKlass->name(), mObject, this));
+        QString().sprintf("Release QObject, class=%s, id=%d, qptr=%p.",
+        mKlass->name(), mSerial, mObject));
 }
 
 void HsQMLObjectProxy::tryGCLock()
@@ -65,8 +70,8 @@ void HsQMLObjectProxy::tryGCLock()
         mObject->setGCLock();
 
         HSQML_LOG(5,
-            QString().sprintf("Lock QObject, class=%s, ptr=%p, proxy=%p.",
-            mKlass->name(), mObject, this));
+            QString().sprintf("Lock QObject, class=%s, id=%d, qptr=%p.",
+            mKlass->name(), mSerial, mObject));
     }
 }
 
@@ -78,8 +83,8 @@ void HsQMLObjectProxy::removeGCLock()
         mObject->clearGCLock();
 
         HSQML_LOG(5,
-            QString().sprintf("Unlock QObject, class=%s, ptr=%p, proxy=%p.",
-            mKlass->name(), mObject, this));
+            QString().sprintf("Unlock QObject, class=%s, id=%d, qptr=%p.",
+            mKlass->name(), mSerial, mObject));
     }
 }
 
@@ -96,8 +101,9 @@ void HsQMLObjectProxy::ref(RefSrc src)
     int count = mRefCount.fetchAndAddOrdered(1);
 
     HSQML_LOG(count == 0 ? 3 : 4,
-        QString().sprintf("%s ObjProxy, class=%s, ptr=%p, src=%d, count=%d.",
-        count ? "Ref" : "New", mKlass->name(), this, src, count+1));
+        QString().sprintf("%s ObjProxy, class=%s, id=%d, src=%s, count=%d.",
+        count ? "Ref" : "New", mKlass->name(),
+        mSerial, cRefSrcNames[src], count+1));
 
     if (src == Handle) {
         mHndlCount.fetchAndAddOrdered(1);
@@ -119,8 +125,9 @@ void HsQMLObjectProxy::deref(RefSrc src)
     int count = mRefCount.fetchAndAddOrdered(-1);
 
     HSQML_LOG(count == 1 ? 3 : 4,
-        QString().sprintf("%s ObjProxy, class=%s, ptr=%p, src=%d, count=%d.",
-        count > 1 ? "Deref" : "Delete", mKlass->name(), this, src, count));
+        QString().sprintf("%s ObjProxy, class=%s, id=%d, src=%s, count=%d.",
+        count > 1 ? "Deref" : "Delete", mKlass->name(),
+        mSerial, cRefSrcNames[src], count));
 
     if (count == 1) {
         delete this;
@@ -154,12 +161,14 @@ HsQMLObject::HsQMLObject(HsQMLObjectProxy* proxy, HsQMLEngine* engine)
     QDeclarativeEngine::setObjectOwnership(
         this, QDeclarativeEngine::JavaScriptOwnership);
     mProxy->ref(HsQMLObjectProxy::Object);
+    gManager->updateCounter(HsQMLManager::QObjectCount, 1);
 }
 
 HsQMLObject::~HsQMLObject()
 {
     mProxy->clearObject();
     mProxy->deref(HsQMLObjectProxy::Object);
+    gManager->updateCounter(HsQMLManager::QObjectCount, -1);
 }
 
 const QMetaObject* HsQMLObject::metaObject() const

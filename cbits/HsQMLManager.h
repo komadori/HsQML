@@ -2,8 +2,8 @@
 #define HSQML_MANAGER_H
 
 #include <QtCore/QAtomicPointer>
+#include <QtCore/QAtomicInt>
 #include <QtCore/QMutex>
-#include <QtCore/QMutexLocker>
 #include <QtCore/QString>
 #include <QtGui/QApplication>
 
@@ -18,12 +18,22 @@ class HsQMLObjectEvent;
 class HsQMLManager
 {
 public:
+    enum CounterId {
+        ClassCount,
+        ObjectCount,
+        QObjectCount,
+        ClassSerial,
+        ObjectSerial,
+        TotalCounters
+    }; 
+
     HsQMLManager(
         void (*)(HsFunPtr),
         void (*)(HsStablePtr));
     void setLogLevel(int);
     bool checkLogLevel(int);
     void log(const QString&);
+    int updateCounter(CounterId, int);
     void freeFun(HsFunPtr);
     void freeStable(HsStablePtr);
     bool isEventThread();
@@ -43,6 +53,8 @@ private:
     Q_DISABLE_COPY(HsQMLManager)
 
     int mLogLevel;
+    QAtomicInt mCounters[TotalCounters];
+    bool mAtExit;
     void (*mFreeFun)(HsFunPtr);
     void (*mFreeStable)(HsStablePtr);
     HsQMLManagerApp* mApp;
