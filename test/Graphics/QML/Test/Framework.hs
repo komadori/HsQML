@@ -254,6 +254,21 @@ badAction mock = do
     writeIORef (mockStatus mock) $ status {testFault = Just TBadAction} 
     makeDef
 
+forkMockObj :: (TestAction b) => MockObj a -> IO (ObjRef (MockObj b))
+forkMockObj m = do
+    status <- mockGetStatus m
+    newObject $ MockObj (testSerial status) $ mockStatus m
+
+checkMockObj :: forall a b. (TestAction b) =>
+    MockObj a -> MockObj b -> Int -> IO (Either TestFault ())
+checkMockObj m v w = do
+    status <- mockGetStatus m
+    case IntMap.lookup w $ envJs $ testEnv status of
+        Just entry -> if entry == (TestType (Proxy :: Proxy b), mockSerial v)
+                      then return $ Right ()
+                      else return $ Left TBadActionData
+        _          -> return $ Left TBadActionSlot
+
 instance (TestAction a) => Object (MockObj a) where
     classDef = defClass mockObjDef
 
