@@ -99,12 +99,12 @@ class (Typeable a, Show a) => TestAction a where
 
 legalAction :: TestEnv -> TestBox -> Bool
 legalAction env tb@(TestBox n a) =
-    (fst $ fromJust $ IntMap.lookup n $ envJs env) == testBoxType tb &&
+    (fmap fst $ IntMap.lookup n $ envJs env) == Just (testBoxType tb) &&
         legalActionIn a env
 
 nextActions :: TestEnv -> Gen TestBox
 nextActions env =
-    oneof $ mapMaybe (uncurry f) $ (:[]) $ head $ IntMap.toList $ envJs env
+    oneof $ mapMaybe (uncurry f) $ IntMap.toList $ envJs env
     where f n ((TestType pxy), _) =
               (mayGen $ fmap (TestBox n . flip asProxyTypeOf pxy) $
                   nextActionsFor env)
