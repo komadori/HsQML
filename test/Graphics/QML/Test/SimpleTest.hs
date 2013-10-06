@@ -10,12 +10,9 @@ import Graphics.QML.Test.TestObject
 import Graphics.QML.Test.ScriptDSL (Expr, Prog)
 import qualified Graphics.QML.Test.ScriptDSL as S
 
-import Test.QuickCheck.Gen
 import Test.QuickCheck.Arbitrary
 import Control.Applicative
 import Data.Typeable
-import Data.Char
-import Numeric
 
 import Data.Int
 import Data.Text (Text)
@@ -206,7 +203,7 @@ instance TestAction SimpleProperties where
                 _          -> return $ Left TBadActionCtor)
             (\m _ -> badAction m),
         defPropertyRW "propIntW"
-            (\m -> makeDef)
+            (\_ -> makeDef)
             (\m v -> expectAction m $ \a -> case a of
                 SPSetInt w -> checkArg v w
                 _          -> return $ Left TBadActionCtor),
@@ -216,7 +213,7 @@ instance TestAction SimpleProperties where
                 _             -> return $ Left TBadActionCtor)
             (\m _ -> badAction m),
         defPropertyRW "propDoubleW"
-            (\m -> makeDef)
+            (\_ -> makeDef)
             (\m v -> expectAction m $ \a -> case a of
                 SPSetDouble w -> checkArg v w
                 _             -> return $ Left TBadActionCtor),
@@ -226,7 +223,7 @@ instance TestAction SimpleProperties where
                 _             -> return $ Left TBadActionCtor)
             (\m _ -> badAction m),
         defPropertyRW "propStringW"
-            (\m -> makeDef)
+            (\_ -> makeDef)
             (\m v -> expectAction m $ \a -> case a of
                 SPSetString w -> checkArg v w
                 _             -> return $ Left TBadActionCtor),
@@ -236,7 +233,7 @@ instance TestAction SimpleProperties where
                 _           -> return $ Left TBadActionCtor)
             (\m _ -> badAction m),
         defPropertyRW "propTextW"
-            (\m -> makeDef)
+            (\_ -> makeDef)
             (\m v -> expectAction m $ \a -> case a of
                 SPSetText w -> checkArg v w
                 _           -> return $ Left TBadActionCtor),
@@ -246,7 +243,7 @@ instance TestAction SimpleProperties where
                 _          -> return $ Left TBadActionCtor)
             (\m _ -> badAction m),
         defPropertyRW "propURIW"
-            (\m -> makeDef)
+            (\_ -> makeDef)
             (\m v -> expectAction m $ \a -> case a of
                 SPSetURI w -> checkArg v w
                 _          -> return $ Left TBadActionCtor),
@@ -256,7 +253,7 @@ instance TestAction SimpleProperties where
                 _             -> return $ Left TBadActionCtor)
             (\m _ -> badAction m),
         defPropertyRW "propObjectW"
-            (\m -> makeDef)
+            (\_ -> makeDef)
             (\m v -> expectAction m $ \a -> case a of
                 SPSetObject w -> setTestObject m (fromObjRef v) w
                 _             -> return $ Left TBadActionCtor)]

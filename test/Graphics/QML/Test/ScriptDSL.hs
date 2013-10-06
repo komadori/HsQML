@@ -73,10 +73,12 @@ call (Expr f) ps = Expr (
     f . showChar '(' . (
         foldr1 (.) $ (id:) $ intersperse (showChar ',') $ map unExpr ps) .
     showChar ')')
+call _ _ = error "cannot call the context object"
 
 binOp :: String -> Expr -> Expr -> Expr
 binOp op (Expr lhs) (Expr rhs) = Expr (
     showChar '(' . lhs . showString op . rhs . showChar ')')
+binOp _ _ _ = error "cannot operate on the context object"
 
 eq :: Expr -> Expr -> Expr
 eq = binOp " == "
@@ -86,20 +88,24 @@ neq = binOp " != "
 
 eval :: Expr -> Prog
 eval (Expr ex) = Prog (ex . showString ";\n") id
+eval _ = error "cannot eval the context object"
 
 set :: Expr -> Expr -> Prog
 set (Expr lhs) (Expr rhs) =
     Prog (lhs . showString " = " . rhs . showString ";\n") id
+set _ _ = error "cannot set the context object"
 
 saveVar :: Int -> Expr -> Prog
-saveVar var (Expr rhs) =
-    Prog (showString "var x" . shows var . showString " = " .
+saveVar v (Expr rhs) =
+    Prog (showString "var x" . shows v . showString " = " .
         rhs . showString ";\n") id
+saveVar _ _ = error "cannot save the context object"
 
 assert :: Expr -> Prog
 assert (Expr ex) =
     Prog (showString "if (!" . ex .
         showString ") {window.close(); throw -1;}\n") id
+assert _ = error "cannot assert the context object"
 
 connect :: Expr -> Expr -> Prog
 connect sig fn = eval $ sig `dot` "connect" `call` [fn]

@@ -7,7 +7,7 @@ import Graphics.QML.Test.Framework
 import Graphics.QML.Test.MayGen
 import Graphics.QML.Test.GenURI
 import Graphics.QML.Test.TestObject
-import Graphics.QML.Test.ScriptDSL (Expr, Prog(Prog))
+import Graphics.QML.Test.ScriptDSL (Expr, Prog)
 import qualified Graphics.QML.Test.ScriptDSL as S
 
 import Test.QuickCheck.Arbitrary
