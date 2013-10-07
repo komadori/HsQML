@@ -8,10 +8,10 @@ Copyright:          (c) 2010-2013 Robin KAY
 Author:             Robin KAY
 Maintainer:         komadori@gekkou.co.uk
 Stability:          experimental
-Homepage:           http://www.gekkou.co.uk/
+Homepage:           http://www.gekkou.co.uk/software/hsqml/
 Category:           Graphics
 Synopsis:           Haskell binding for Qt Quick
-Extra-source-files: cbits/*.cpp cbits/*.h test/Graphics/QML/Test/*.hs
+Extra-source-files: CHANGELOG cbits/*.cpp cbits/*.h test/Graphics/QML/Test/*.hs
 Description:
     A Haskell binding for Qt Quick.
 

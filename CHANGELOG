@@ -1,0 +1,25 @@
+HsQML - Release History
+
+release-0.2.0.0 - 2013.10.07
+
+  * Added support for firing QML signals.
+  * Added dynamic object references.
+  * Added MacOS support.
+  * Added QuickCheck-based test suite.
+  * Added envionment variable to control logging.
+  * New design for marshalling type-classes.
+  * New API for Engine management.
+  * Relexed Cabal dependency constraints.
+  * Fixed linking problem on some Linux systems.
+  * Fixed support for non-threaded RTS.
+  * Fixed various object lifetime issues.
+  * Fixed crash in property marshaller.
+  * Fixed crash in logging code.
+
+release-0.1.1 - 2012.09.11
+
+  * Fix running test suite on Windows.
+
+release-0.1.0 - 2012.09.10
+
+  * Initial release.
