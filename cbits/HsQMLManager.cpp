@@ -37,6 +37,7 @@ HsQMLManager::HsQMLManager(
     , mAtExit(false)
     , mFreeFun(freeFun)
     , mFreeStable(freeStable)
+    , mApp(NULL)
     , mLock(QMutex::Recursive)
     , mRunning(false)
     , mRunCount(0)
