@@ -11,7 +11,7 @@ Stability:          experimental
 Homepage:           http://www.gekkou.co.uk/
 Category:           Graphics
 Synopsis:           Haskell binding for Qt Quick
-Extra-source-files: cbits/*.cpp cbits/*.h
+Extra-source-files: cbits/*.cpp cbits/*.h test/Graphics/QML/Test/*.hs
 Description:
     A Haskell binding for Qt Quick.
 
