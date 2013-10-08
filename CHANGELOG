@@ -1,6 +1,6 @@
 HsQML - Release History
 
-release-0.2.0.0 - 2013.10.07
+release-0.2.0.0 - 2013.10.08
 
   * Added support for firing QML signals.
   * Added dynamic object references.
