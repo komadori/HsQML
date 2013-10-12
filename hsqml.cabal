@@ -49,6 +49,7 @@ Library
         Graphics.QML.Internal.BindCore
         Graphics.QML.Internal.JobQueue
         Graphics.QML.Internal.Marshal
+        Graphics.QML.Internal.MetaObj
         Graphics.QML.Internal.Objects
     Hs-source-dirs: src
     C-sources:
