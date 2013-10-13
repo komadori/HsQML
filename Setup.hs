@@ -155,7 +155,8 @@ mocProgram = Program {
 }
 
 qtVersionRange :: VersionRange
-qtVersionRange = orLaterVersion $ Version [4,7] []
+qtVersionRange = intersectVersionRanges
+  (orLaterVersion $ Version [4,7] []) (earlierVersion $ Version [5,0] [])
 
 copyWithQt ::
   PackageDescription -> LocalBuildInfo -> UserHooks -> CopyFlags -> IO ()
