@@ -74,7 +74,8 @@ Library
         if os(darwin) && !flag(UsePkgConfig)
             Frameworks: QtCore QtGui QtScript QtDeclarative
         else
-            Pkgconfig-depends: QtScript >= 4.7, QtDeclarative >= 4.7
+            Pkgconfig-depends:
+                QtScript >= 4.7 && < 5.0, QtDeclarative >= 4.7 && < 5.0
         Extra-libraries: stdc++
 
 Test-Suite hsqml-test1
