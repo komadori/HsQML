@@ -1,5 +1,10 @@
 HsQML - Release History
 
+release-0.2.0.1 - 2013.11.12
+
+  * Added check that MacOS uses primordial thread for event loop.
+  * Fixed missing upper bound on Qt version constraint.
+
 release-0.2.0.0 - 2013.10.08
 
   * Added support for firing QML signals.
