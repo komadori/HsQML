@@ -4,6 +4,9 @@
 #include <QtCore/QMetaType>
 #include <QtCore/QMutexLocker>
 #include <QtCore/QThread>
+#ifdef Q_WS_MAC
+#include <pthread.h>
+#endif
 
 #include "HsQMLManager.h"
 #include "HsQMLObject.h"
@@ -113,6 +116,14 @@ HsQMLManager::EventLoopStatus HsQMLManager::runEventLoop(
     if (mApp && !isEventThread()) {
         return HSQML_EVLOOP_WRONG_THREAD;
     }
+
+#ifdef Q_WS_MAC
+    if (!pthread_main_np()) {
+        // Cocoa can only be run on the primordial thread and exec() doesn't
+        // check this.
+        return HSQML_EVLOOP_WRONG_THREAD;
+    }
+#endif
 
     // Create application object
     if (!mApp) {
