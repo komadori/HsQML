@@ -1,29 +1,23 @@
 #!/usr/bin/runhaskell 
 module Main where
 
-import Data.List
-import Distribution.Simple
-import Distribution.Simple.LocalBuildInfo
-import Distribution.Simple.PackageIndex
-import Distribution.Simple.Setup
-import Distribution.Simple.Utils (rawSystemExit)
-import qualified Distribution.InstalledPackageInfo as I
-import Distribution.PackageDescription
-import System.Directory
-import System.FilePath
-
 import Control.Monad
 import Data.Char
+import Data.List
 import Data.Maybe
-import qualified Distribution.ModuleName as ModuleName
+import Distribution.Simple
 import Distribution.Simple.BuildPaths
+import Distribution.Simple.LocalBuildInfo
 import Distribution.Simple.Program
 import Distribution.Simple.Program.Ld
 import Distribution.Simple.Register
+import Distribution.Simple.Setup
 import Distribution.Simple.Utils
 import Distribution.Text
-import Distribution.Version
 import Distribution.Verbosity
+import qualified Distribution.InstalledPackageInfo as I
+import qualified Distribution.ModuleName as ModuleName
+import Distribution.PackageDescription
 import System.FilePath
 
 main :: IO ()
@@ -111,9 +105,9 @@ needsGHCiFix pkgDesc lbi =
 
 mkGHCiFixLibPkgId :: PackageDescription -> PackageIdentifier
 mkGHCiFixLibPkgId pkgDesc =
-  let id = packageId pkgDesc
-      (PackageName name) = pkgName id
-  in id {pkgName = PackageName $ "cbits-" ++ name}
+  let pid = packageId pkgDesc
+      (PackageName name) = pkgName pid
+  in pid {pkgName = PackageName $ "cbits-" ++ name}
 
 mkGHCiFixLibName :: PackageDescription -> String
 mkGHCiFixLibName pkgDesc =
@@ -133,7 +127,6 @@ buildGHCiFix verb pkgDesc lbi lib = do
     (stubObjs ++ hsObjs)
   (ghc,_) <- requireProgram verb ghcProgram (withPrograms lbi)
   let bi = libBuildInfo lib
-      bDir = buildDir lbi
   runProgram verb ghc (
     ["-shared","-o",bDir </> (mkGHCiFixLibName pkgDesc)] ++
     (ldOptions bi) ++ (map ("-l" ++) $ extraLibs bi) ++
@@ -173,7 +166,7 @@ copyWithQt pkgDesc lbi hooks flags = do
 regWithQt :: 
   PackageDescription -> LocalBuildInfo -> UserHooks -> RegisterFlags -> IO ()
 regWithQt pkg@PackageDescription { library       = Just lib  }
-         lbi@LocalBuildInfo     { libraryConfig = Just clbi } hooks flags = do
+          lbi@LocalBuildInfo     { libraryConfig = Just clbi } hooks flags = do
   let verb    = fromFlag $ regVerbosity flags
       inplace = fromFlag $ regInPlace flags
       dist    = fromFlag $ regDistPref flags
@@ -187,9 +180,8 @@ regWithQt pkg@PackageDescription { library       = Just lib  }
         else instPkgInfo
   case flagToMaybe $ regGenPkgConf flags of
     Just regFile -> do
-      let regFile = fromMaybe (display (packageId pkg) <.> "conf")
-            (fromFlag $ regGenPkgConf flags)
-      writeUTF8File regFile $ I.showInstalledPackageInfo instPkgInfo'
+      writeUTF8File (fromMaybe (display (packageId pkg) <.> "conf") regFile) $
+        I.showInstalledPackageInfo instPkgInfo'
     _ | fromFlag (regGenScript flags) ->
       die "Registration scripts are not implemented."
       | otherwise -> 
