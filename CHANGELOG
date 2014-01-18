@@ -1,5 +1,10 @@
 HsQML - Release History
 
+release-0.2.0.2 - 2014.01.18
+
+  * Added support for Cabal 1.18 API.
+  * Relaxed Cabal dependency constraint on 'text'.
+
 release-0.2.0.1 - 2013.11.12
 
   * Added check that MacOS uses primordial thread for event loop.
@@ -14,7 +19,7 @@ release-0.2.0.0 - 2013.10.08
   * Added envionment variable to control logging.
   * New design for marshalling type-classes.
   * New API for Engine management.
-  * Relexed Cabal dependency constraints.
+  * Relaxed Cabal dependency constraints.
   * Fixed linking problem on some Linux systems.
   * Fixed support for non-threaded RTS.
   * Fixed various object lifetime issues.
