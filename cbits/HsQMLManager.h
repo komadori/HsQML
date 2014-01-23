@@ -5,7 +5,7 @@
 #include <QtCore/QAtomicInt>
 #include <QtCore/QMutex>
 #include <QtCore/QString>
-#include <QtGui/QApplication>
+#include <QtWidgets/QApplication>
 
 #include "hsqml.h"
 #include "HsQMLEngine.h"
@@ -104,6 +104,20 @@ private:
     QApplication mApp;
 };
 
-extern QAtomicPointer<HsQMLManager> gManager;
+class ManagerPointer : public QAtomicPointer<HsQMLManager>
+{
+public:
+    HsQMLManager* operator->() const
+    {
+        return load();
+    }
+
+    operator HsQMLManager*() const
+    {
+        return load();
+    }
+};
+
+extern ManagerPointer gManager;
 
 #endif /*HSQML_MANAGER_H*/

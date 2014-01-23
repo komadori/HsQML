@@ -26,11 +26,8 @@ uriGen = capSize 35 $ do
         dchar   = oneof [lower, digit]
         dchar2  = frequency [(9,lower), (5,digit), (1,dash)]
         unres   = frequency [(9,alphnum), (1,mark)]
-        escNum  = oneof [choose (0,31), choose (128,255)] :: Gen Int
-        pad     = \n x -> replicate (n - length x) '0' ++ x
-        escape  = fmap (('%':) . pad 2 . flip showHex "") escNum
-        scheme  = listxyz [alpha, listxs $ frequency [
-            (9,alphnum), (1,sextra)]]
+        scheme  = listxyz [lower, listxs $ frequency [
+            (9,dchar), (1,sextra)]]
         dpart1  = listxyz [
                       frequency [(9,dchar), (1,listxyz [dchar, dot, dchar])],
                       listxs $ frequency [
@@ -42,7 +39,7 @@ uriGen = capSize 35 $ do
             frequency [(9,dpart1), (1,return "")],
             dpart2, oneof [dot, return ""]]
         segment = fmap ('/':) $ listxs $ frequency [
-            (9,unres), (1,escape), (1,rextra)]
+            (9,unres), (1,rextra)]
         path   = listxs1 segment
     schemeStr <- scheme
     regNameStr <- regName

@@ -61,7 +61,7 @@ extern "C" void hsqml_marshal_url(
 {
     QUrl* url = (QUrl*)hndl;
     QByteArray cstr(buf, bufLen);
-    url->setEncodedUrl(cstr, QUrl::StrictMode);
+    *url = QUrl::fromEncoded(cstr, QUrl::StrictMode);
 }
 
 extern "C" int hsqml_unmarshal_url(

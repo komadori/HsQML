@@ -1,5 +1,5 @@
 Name:               hsqml
-Version:            0.2.0.2
+Version:            0.3.0.0
 Cabal-version:      >= 1.14
 Build-type:         Custom
 License:            BSD3
@@ -68,14 +68,15 @@ Library
     Build-tools: c2hs
     if os(windows) && !flag(UsePkgConfig)
         Include-dirs: /QT_ROOT/include
-        Extra-libraries: QtCore4, QtGui4, QtScript4, QtDeclarative4, stdc++
+        Extra-libraries: QtCore5, QtGui5, QtScript5, QtDeclarative5, stdc++
         Extra-lib-dirs: /SYS_ROOT/bin /QT_ROOT/bin
     else
         if os(darwin) && !flag(UsePkgConfig)
             Frameworks: QtCore QtGui QtScript QtDeclarative
         else
             Pkgconfig-depends:
-                QtScript >= 4.7 && < 5.0, QtDeclarative >= 4.7 && < 5.0
+                Qt5Script >= 5.0 && < 6.0,
+                Qt5Declarative >= 5.0 && < 6.0
         Extra-libraries: stdc++
 
 Test-Suite hsqml-test1
@@ -91,7 +92,7 @@ Test-Suite hsqml-test1
         text       >= 0.11 && < 1.2,
         tagged     >= 0.4 && < 0.8,
         QuickCheck >= 2.4 && < 2.7,
-        hsqml      == 0.2.*
+        hsqml      == 0.3.*
     if flag(ThreadedTestSuite)
         GHC-options: -threaded
 

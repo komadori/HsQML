@@ -66,7 +66,7 @@ void HsQMLObjectProxy::tryGCLock()
 {
     Q_ASSERT(gManager->isEventThread());
 
-    if (mObject && mHndlCount > 0 && !mObject->isGCLocked()) {
+    if (mObject && mHndlCount.loadAcquire() > 0 && !mObject->isGCLocked()) {
         mObject->setGCLock();
 
         HSQML_LOG(5,
@@ -79,7 +79,7 @@ void HsQMLObjectProxy::removeGCLock()
 {
     Q_ASSERT(gManager->isEventThread());
 
-    if (mObject && mHndlCount == 0 && mObject->isGCLocked()) {
+    if (mObject && mHndlCount.loadAcquire() == 0 && mObject->isGCLocked()) {
         mObject->clearGCLock();
 
         HSQML_LOG(5,
@@ -174,7 +174,7 @@ HsQMLObject::~HsQMLObject()
 const QMetaObject* HsQMLObject::metaObject() const
 {
     return QObject::d_ptr->metaObject ?
-        QObject::d_ptr->metaObject : mKlass->metaObj();
+        QObject::d_ptr->dynamicMetaObject() : mKlass->metaObj();
 }
 
 void* HsQMLObject::qt_metacast(const char* clname)

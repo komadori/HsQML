@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <cstring>
 #include <HsFFI.h>
 #include <QtCore/QMetaObject>
 #include <QtCore/QMetaType>
@@ -17,26 +18,43 @@ static const char* cRefSrcNames[] = {"Hndl", "Proxy"};
 
 HsQMLClass::HsQMLClass(
     unsigned int*  metaData,
-    char*          metaStrData,
+    unsigned int*  metaStrInfo,
+    char*          metaStrChar,
     HsStablePtr    hsTypeRep,
     HsQMLUniformFunc* methods,
     HsQMLUniformFunc* properties)
     : mRefCount(0)
     , mMetaData(metaData)
-    , mMetaStrData(metaStrData)
     , mHsTypeRep(hsTypeRep)
     , mMethodCount(metaData[MD_METHOD_COUNT])
     , mPropertyCount(metaData[MD_PROPERTY_COUNT])
     , mMethods(methods)
     , mProperties(properties)
 {
+    // Create string data
+    unsigned int strCount = metaStrInfo[0];
+    unsigned int strLength = metaStrInfo[strCount];
+    size_t arrayOff = strCount*sizeof(QByteArrayData);
+    size_t arraySize = arrayOff+strLength;
+    mMetaStrData.reset(new char[arraySize]);
+    for (int i=0; i<strCount; i++) {
+        int start = i > 0 ? metaStrInfo[i] : 0;
+        int size = metaStrInfo[i+1] - start;
+        int offset = arrayOff-(i*sizeof(QByteArrayData))+start;
+        QByteArrayData data = {
+            Q_REFCOUNT_INITIALIZE_STATIC, size-1, 0, 0, offset};
+        new(&mMetaStrData[i*sizeof(QByteArrayData)]) QByteArrayData(data);
+    }
+    std::memcpy(&mMetaStrData[arrayOff], metaStrChar, strLength);
+
     // Create meta-object
-    QMetaObject tmp = {
+    QMetaObject metaObj = {
           &QObject::staticMetaObject,
-          mMetaStrData,
+          reinterpret_cast<QByteArrayData*>(mMetaStrData.data()),
           mMetaData,
+          0,
           0};
-    mMetaObject = new QMetaObject(tmp);
+    mMetaObject = metaObj;
 
     // Add reference
     ref(Handle);
@@ -56,17 +74,15 @@ HsQMLClass::~HsQMLClass()
     }
     gManager->freeStable(mHsTypeRep);
     std::free(mMetaData);
-    std::free(mMetaStrData);
     std::free(mMethods);
     std::free(mProperties);
-    delete mMetaObject;
 
     gManager->updateCounter(HsQMLManager::ClassCount, -1);
 }
 
 const char* HsQMLClass::name()
 {
-    return mMetaObject->className();
+    return mMetaObject.className();
 } 
 
 HsStablePtr HsQMLClass::hsTypeRep()
@@ -96,7 +112,7 @@ const HsQMLUniformFunc* HsQMLClass::properties()
 
 const QMetaObject* HsQMLClass::metaObj()
 {
-    return mMetaObject;
+    return &mMetaObject;
 }
 
 void HsQMLClass::ref(RefSrc src)
@@ -128,13 +144,14 @@ extern "C" int hsqml_get_next_class_id()
 
 extern "C" HsQMLClassHandle* hsqml_create_class(
     unsigned int*  metaData,
-    char*          metaStrData,
+    unsigned int*  metaStrInfo,
+    char*          metaStrChar,
     HsStablePtr    hsTypeRep,
     HsQMLUniformFunc* methods,
     HsQMLUniformFunc* properties)
 {
     HsQMLClass* klass = new HsQMLClass(
-            metaData, metaStrData, hsTypeRep, methods, properties);
+        metaData, metaStrInfo, metaStrChar, hsTypeRep, methods, properties);
     return (HsQMLClassHandle*)klass;
 }
 

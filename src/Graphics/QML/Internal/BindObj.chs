@@ -48,6 +48,7 @@ newClassHandle p =
 
 {#fun unsafe hsqml_create_class as ^
   {id `Ptr CUInt',
+   id `Ptr CUInt',
    id `Ptr CChar',
    marshalStable* `TypeRep',
    id `Ptr (FunPtr UniformFunc)',

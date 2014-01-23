@@ -2,9 +2,9 @@
 #define HSQML_WINDOW_H
 
 #include <QtCore/QUrl>
-#include <QtGui/QMainWindow>
-#include <QtGui/QGraphicsScene>
-#include <QtGui/QGraphicsView>
+#include <QtWidgets/QMainWindow>
+#include <QtWidgets/QGraphicsScene>
+#include <QtWidgets/QGraphicsView>
 #include <QtDeclarative/QDeclarativeContext>
 #include <QtDeclarative/QDeclarativeItem>
 

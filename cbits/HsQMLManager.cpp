@@ -31,7 +31,7 @@ extern "C" void hsqml_dump_counters()
     }
 }
 
-QAtomicPointer<HsQMLManager> gManager;
+ManagerPointer gManager;
 
 HsQMLManager::HsQMLManager(
     void (*freeFun)(HsFunPtr),

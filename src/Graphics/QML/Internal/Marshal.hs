@@ -17,7 +17,7 @@ import System.IO
 -- | Represents a QML type name.
 newtype TypeName = TypeName {
   typeName :: String
-}
+} deriving (Eq, Ord)
 
 type ErrIO a = MaybeT IO a
 

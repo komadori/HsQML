@@ -45,6 +45,8 @@ module Graphics.QML.Objects (
   objBidiMarshaller
 ) where
 
+import System.IO
+
 import Graphics.QML.Internal.BindCore
 import Graphics.QML.Internal.BindObj
 import Graphics.QML.Internal.JobQueue
@@ -258,11 +260,12 @@ createClass typRep cdef = do
       sigMap = Map.fromList $ flip zip [0..] $ map (fromJust . memberKey) sigs
       maybeMarshalFunc = maybe (return nullFunPtr) marshalFunc
   metaDataPtr <- crlToNewArray return (mData moc)
-  metaStrDataPtr <- crlToNewArray return (mStrData moc)
+  metaStrInfoPtr <- crlToNewArray return (mStrInfo moc)
+  metaStrCharPtr <- crlToNewArray return (mStrChar moc)
   methodsPtr <- crlToNewArray maybeMarshalFunc (mFuncMethods moc)
   propsPtr <- crlToNewArray maybeMarshalFunc (mFuncProperties moc)
   maybeHndl <- hsqmlCreateClass
-      metaDataPtr metaStrDataPtr typRep methodsPtr propsPtr
+      metaDataPtr metaStrInfoPtr metaStrCharPtr typRep methodsPtr propsPtr
   case maybeHndl of
       Just hndl -> return $ ClassRec hndl sigMap
       Nothing -> error ("Failed to create QML class '"++name++"'.")

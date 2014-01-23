@@ -28,6 +28,9 @@ data CRList a = CRList {
 crlEmpty :: CRList a
 crlEmpty = CRList 0 []
 
+crlSingle :: a -> CRList a
+crlSingle x = CRList 1 [x]
+
 crlAppend1 :: CRList a -> a -> CRList a
 crlAppend1 (CRList n xs) x = CRList (n+1) (x:xs)
 
@@ -49,6 +52,9 @@ crlToNewArray f (CRList len lst) = do
           pokeElemOff p n' x'
           pokeRev p xs n'
 
+crlToList :: CRList a -> [a]
+crlToList (CRList _ lst) = reverse lst
+
 --
 -- Meta Object Compiler
 --
@@ -57,8 +63,10 @@ data MOCState = MOCState {
   mData            :: CRList CUInt,
   mDataMethodsIdx  :: Maybe Int,
   mDataPropsIdx    :: Maybe Int,
-  mStrData         :: CRList CChar,
-  mStrDataMap      :: Map String CUInt,
+  mStrChar         :: CRList CChar,
+  mStrInfo         :: CRList CUInt,
+  mStrMap          :: Map String CUInt,
+  mParamMap        :: Map [TypeName] CUInt,
   mFuncMethods     :: CRList (Maybe UniformFunc),
   mFuncProperties  :: CRList (Maybe UniformFunc),
   mMethodCount     :: Int,
@@ -69,8 +77,8 @@ data MOCState = MOCState {
 -- | Generate MOC meta-data from a class name and member list.
 compileClass :: String -> [Member tt] -> MOCState
 compileClass name ms = 
-  let enc = flip execState newMOCState $ do
-        writeInt 5                           -- Revision
+  let enc = flip execState (newMOCState enc) $ do
+        writeInt 7                           -- Revision
         writeString name                     -- Class name
         writeInt 0 >> writeInt 0             -- Class info
         writeIntegral $
@@ -85,6 +93,8 @@ compileClass name ms =
         writeInt 0 >> writeInt 0             -- Constructors
         writeInt 0                           -- Flags
         writeIntegral $ mSignalCount enc     -- Signals
+        mapM_ writeMethodParams $ filterMembers SignalMember ms
+        mapM_ writeMethodParams $ filterMembers MethodMember ms
         mapM_ writeMethod $ filterMembers SignalMember ms
         mapM_ writeMethod $ filterMembers MethodMember ms
         mapM_ writeProperty $ filterMembers PropertyMember ms
@@ -95,10 +105,12 @@ filterMembers :: MemberKind -> [Member tt] -> [Member tt]
 filterMembers k ms =
   filter (\m -> k == memberKind m) ms
 
-newMOCState :: MOCState
-newMOCState =
-  MOCState crlEmpty Nothing Nothing crlEmpty Map.empty crlEmpty crlEmpty 0 0 0
-
+newMOCState :: MOCState -> MOCState
+newMOCState enc = MOCState
+    crlEmpty Nothing Nothing crlEmpty (crlSingle strCount) Map.empty
+    Map.empty crlEmpty crlEmpty 0 0 0
+    where strCount = fromIntegral $ Map.size $ mStrMap enc
+ 
 writeInt :: CUInt -> State MOCState ()
 writeInt int = do
   state <- get
@@ -112,29 +124,49 @@ writeIntegral int =
 writeString :: String -> State MOCState ()
 writeString str = do
   state <- get
-  let msd    = mStrData state
-      msdMap = mStrDataMap state
-  case (Map.lookup str msdMap) of
+  let msChr = mStrChar state
+      msInf = mStrInfo state
+      msMap = mStrMap state
+  case (Map.lookup str msMap) of
     Just idx -> writeInt idx
     Nothing  -> do
-      let idx = crlLen msd
-          msd' = msd `crlAppend` (map castCharToCChar str) `crlAppend1` 0
-          msdMap' = Map.insert str (fromIntegral idx) msdMap
+      let idx = crlLen msInf - 1
+          msChr' = msChr `crlAppend` (map castCharToCChar str) `crlAppend1` 0
+          msInf' = msInf `crlAppend1` (fromIntegral $ crlLen msChr')
+          msMap' = Map.insert str (fromIntegral idx) msMap
       put $ state {
-        mStrData = msd',
-        mStrDataMap = msdMap'}
+        mStrChar = msChr',
+        mStrInfo = msInf',
+        mStrMap = msMap'}
       writeIntegral idx
+
+writeMethodParams :: Member tt -> State MOCState ()
+writeMethodParams m = do
+  state <- get
+  let types = memberTypes m
+      datal = mData state
+      mpMap = mParamMap state
+  case (Map.lookup types mpMap) of
+    Just idx -> return ()
+    Nothing  -> do
+      let idx = crlLen datal
+          mpMap' = Map.insert types (fromIntegral idx) mpMap
+      put $ state {
+        mParamMap = mpMap'}
+      mapM_ writeInt $ map typeNameToId types
+      mapM_ writeString $ replicate (length $ memberParams m) ""
 
 writeMethod :: Member tt -> State MOCState ()
 writeMethod m = do
   idx <- get >>= return . crlLen . mData
-  writeString $ methodSignature m
-  writeString $ methodParameters m
-  writeString $ typeName $ memberType m
+  paramMap <- get >>= return . mParamMap
+  writeString $ memberName m
+  writeIntegral $ length $ memberParams m
+  writeInt $ fromMaybe 0 $ flip Map.lookup paramMap $ memberTypes m
   writeString ""
   let (mc,sc,flags) = case memberKind m of
         SignalMember -> (0,1,mfMethodSignal)
-        _            -> (1,0,0)
+        _            -> (1,0,mfMethodMethod)
   writeInt (mfAccessPublic .|. mfMethodScriptable .|. flags)
   state <- get
   put $ state {
@@ -148,7 +180,7 @@ writeProperty :: Member tt -> State MOCState ()
 writeProperty p = do
   idx <- get >>= return . crlLen . mData
   writeString $ memberName p
-  writeString $ typeName $ memberType p
+  writeInt $ typeNameToId $ memberType p
   writeInt (pfReadable .|. pfScriptable .|.
     if (isJust $ memberFunAux p) then pfWritable else 0)
   state <- get
@@ -160,20 +192,17 @@ writeProperty p = do
   }
   return ()
 
-foldr0 :: (a -> a -> a) -> a -> [a] -> a
-foldr0 _ x [] = x
-foldr0 f _ xs = foldr1 f xs
+memberTypes :: Member tt -> [TypeName]
+memberTypes m = memberType m : memberParams m
 
-methodSignature :: Member tt -> String
-methodSignature method =
-  let paramTypes = memberParams method
-  in (showString (memberName method) . showChar '(' .
-       foldr0 (\l r -> l . showChar ',' . r) id
-         (map (showString . typeName) paramTypes) . showChar ')') ""
-
-methodParameters :: Member tt -> String
-methodParameters method =
-  replicate (flip (-) 1 $ length $ memberParams method) ','
+typeNameToId :: TypeName -> CUInt
+typeNameToId (TypeName "int") = 2
+typeNameToId (TypeName "double") = 6
+typeNameToId (TypeName "QString") = 10
+typeNameToId (TypeName "QUrl") = 17
+typeNameToId (TypeName "QObject*") = 39
+typeNameToId (TypeName "") = 43
+typeNameToId (TypeName str) = error $ "Unknown TypeName: " ++ str
 
 --
 -- Constants

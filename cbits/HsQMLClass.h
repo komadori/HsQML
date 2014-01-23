@@ -3,6 +3,7 @@
 
 #include <QtCore/QObject>
 #include <QtCore/QAtomicInt>
+#include <QtCore/QScopedArrayPointer>
 
 #include "hsqml.h"
 
@@ -10,8 +11,8 @@ class HsQMLClass
 {
 public:
     HsQMLClass(
-        unsigned int*, char*, HsStablePtr,
-        HsQMLUniformFunc*, HsQMLUniformFunc*);
+        unsigned int*, unsigned int*, char*,
+        HsStablePtr, HsQMLUniformFunc*, HsQMLUniformFunc*);
     ~HsQMLClass();
     const char* name();
     HsStablePtr hsTypeRep();
@@ -27,13 +28,13 @@ public:
 private:
     QAtomicInt mRefCount;
     unsigned int* mMetaData;
-    char* mMetaStrData;
+    QScopedArrayPointer<char> mMetaStrData;
     HsStablePtr mHsTypeRep;
     int mMethodCount;
     int mPropertyCount;
     HsQMLUniformFunc* mMethods;
     HsQMLUniformFunc* mProperties;
-    QMetaObject* mMetaObject;
+    QMetaObject mMetaObject;
 };
 
 #endif /*HSQML_CLASS_H*/
