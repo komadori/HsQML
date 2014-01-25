@@ -48,7 +48,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Data.List
 import Data.Maybe
-import Data.Traversable as T
+import Data.Traversable
 import Data.Typeable
 import System.FilePath (isAbsolute, splitDirectories, pathSeparators)
 import Network.URI (URI(URI), URIAuth(URIAuth), nullURI, uriPath)
@@ -106,7 +106,7 @@ runEngineImpl config stopCb = do
         maybeTitle = getWindowTitle state
         setTitle = isJust maybeTitle
         titleStr = fromMaybe "" maybeTitle
-    hndl <- T.sequence $ fmap mHsToObj $ obj
+    hndl <- sequenceA $ fmap mHsToObj $ obj
     mHsToAlloc url $ \urlPtr -> do
         mHsToAlloc titleStr $ \titlePtr -> do
             hsqmlCreateEngine hndl urlPtr showWin setTitle titlePtr stopCb
