@@ -13,7 +13,7 @@ module Graphics.QML.Engine (
     HideWindow),
   EngineConfig(
     EngineConfig,
-    initialURL,
+    initialDocument,
     initialWindowState,
     contextObject),
   defaultEngineConfig,
@@ -29,8 +29,10 @@ module Graphics.QML.Engine (
   requireEventLoop,
   EventLoopException(),
 
-  -- * Utilities
-  filePathToURI
+  -- * Document Paths
+  DocumentPath(),
+  fileDocument,
+  uriDocument
 ) where
 
 import Graphics.QML.Internal.JobQueue
@@ -51,7 +53,6 @@ import Data.Maybe
 import Data.Traversable
 import Data.Typeable
 import System.FilePath (isAbsolute, splitDirectories, pathSeparators)
-import Network.URI (URI(URI), URIAuth(URIAuth), nullURI, uriPath)
 
 -- | Specifies the intial state of the display window.
 data InitialWindowState
@@ -67,8 +68,8 @@ data InitialWindowState
 
 -- | Holds parameters for configuring a QML runtime engine.
 data EngineConfig = EngineConfig {
-  -- | URL for the first QML document to be loaded.
-  initialURL         :: URI,
+  -- | Path to the first QML document to be loaded.
+  initialDocument    :: DocumentPath,
   -- | Window state for the initial QML document.
   initialWindowState :: InitialWindowState,
   -- | Context 'Object' made available to QML script code.
@@ -79,7 +80,7 @@ data EngineConfig = EngineConfig {
 -- working directory into a visible window with no context object.
 defaultEngineConfig :: EngineConfig
 defaultEngineConfig = EngineConfig {
-  initialURL         = nullURI {uriPath = "main.qml"},
+  initialDocument    = DocumentPath "main.qml",
   initialWindowState = ShowWindow,
   contextObject      = Nothing
 }
@@ -100,16 +101,16 @@ runEngineImpl :: EngineConfig -> IO () -> IO Engine
 runEngineImpl config stopCb = do
     hsqmlInit
     let obj = contextObject config
-        url = initialURL config
+        DocumentPath res = initialDocument config
         state = initialWindowState config
         showWin = isWindowShown state
         maybeTitle = getWindowTitle state
         setTitle = isJust maybeTitle
         titleStr = fromMaybe "" maybeTitle
     hndl <- sequenceA $ fmap mHsToObj $ obj
-    mHsToAlloc url $ \urlPtr -> do
+    mHsToAlloc res $ \resPtr -> do
         mHsToAlloc titleStr $ \titlePtr -> do
-            hsqmlCreateEngine hndl urlPtr showWin setTitle titlePtr stopCb
+            hsqmlCreateEngine hndl resPtr showWin setTitle titlePtr stopCb
     return Engine
 
 -- | Starts a new QML engine using the supplied configuration and blocks until
@@ -220,9 +221,12 @@ data EventLoopException
 
 instance Exception EventLoopException
 
--- | Convenience function for converting local file paths into URIs.
-filePathToURI :: FilePath -> URI
-filePathToURI fp =
+-- | Path to a QML document file.
+newtype DocumentPath = DocumentPath String
+
+-- | Converts a local file path into a 'DocumentPath'.
+fileDocument :: FilePath -> DocumentPath
+fileDocument fp =
     let ds = splitDirectories fp
         abs = isAbsolute fp
         fixHead =
@@ -232,6 +236,8 @@ filePathToURI fp =
         mapHead f (x:xs) = f x : xs
         afp = intercalate "/" $ mapHead fixHead ds
         rfp = intercalate "/" ds
-    in if abs
-       then URI "file:" (Just $ URIAuth "" "" "") afp "" ""
-       else URI "" Nothing rfp "" ""
+    in DocumentPath $ if abs then "file://" ++ afp else rfp
+
+-- | Converts a URI string into a 'DocumentPath'.
+uriDocument :: String -> DocumentPath
+uriDocument = DocumentPath

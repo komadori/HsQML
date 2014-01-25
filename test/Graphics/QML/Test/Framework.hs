@@ -26,7 +26,6 @@ import qualified Data.IntMap as IntMap
 import Data.Int
 import Data.Text (Text)
 import qualified Data.Text as T
-import Network.URI
 
 data TestType = forall a. (TestAction a) => TestType (Proxy a)
 
@@ -219,9 +218,6 @@ instance MakeDefault [a] where
 
 instance MakeDefault Text where
     makeDef = return T.empty
-
-instance MakeDefault URI where
-    makeDef = return $ URI "" Nothing "" "" ""
 
 expectAction :: (TestAction a, MakeDefault b) =>
     MockObj a -> (a -> IO (Either TestFault b)) -> IO b

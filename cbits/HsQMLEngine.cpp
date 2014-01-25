@@ -41,7 +41,7 @@ HsQMLEngine::HsQMLEngine(const HsQMLEngineConfig& config)
     // Create window
     HsQMLWindow* win = new HsQMLWindow(this);
     win->setParent(this);
-    win->setSource(config.initialURL);
+    win->setSource(QUrl(config.initialURL));
     win->setVisible(config.showWindow);
     if (config.setWindowTitle) {
         win->setTitle(config.windowTitle);
@@ -74,7 +74,7 @@ QScriptEngine* HsQMLEngine::scriptEngine()
 
 extern "C" void hsqml_create_engine(
     HsQMLObjectHandle* contextObject,
-    HsQMLUrlHandle* initialURL,
+    HsQMLStringHandle* initialURL,
     int showWindow,
     int setWindowTitle,
     HsQMLStringHandle* windowTitle,
@@ -82,7 +82,7 @@ extern "C" void hsqml_create_engine(
 {
     HsQMLEngineConfig config;
     config.contextObject = reinterpret_cast<HsQMLObjectProxy*>(contextObject);
-    config.initialURL = *reinterpret_cast<QUrl*>(initialURL);
+    config.initialURL = *reinterpret_cast<QString*>(initialURL);
     config.showWindow = static_cast<bool>(showWindow);
     if (setWindowTitle) {
         config.setWindowTitle = true;

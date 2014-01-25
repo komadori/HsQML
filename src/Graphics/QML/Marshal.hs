@@ -38,11 +38,6 @@ import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
-import Network.URI (
-    URI (URI), URIAuth (URIAuth),
-    parseURIReference, unEscapeString,
-    uriToString, escapeURIString, nullURI,
-    isUnescapedInURI)
 
 --
 -- Int32/int built-in type
@@ -121,40 +116,3 @@ instance Marshal String where
     mValBidi_valToHs = fmap T.unpack . mValToHs,
     mValBidi_hsToVal = \txt ptr -> mHsToVal (T.pack txt) ptr,
     mValBidi_hsToAlloc = \txt f -> mHsToAlloc (T.pack txt) f}
-
---
--- URI/QUrl built-in type
---
-
-mapURIStrings :: (String -> String) -> URI -> URI
-mapURIStrings f (URI scheme auth path query frag) =
-    URI (f scheme) (mapAuth auth) (f path) (f query) (f frag)
-    where mapAuth (Just (URIAuth user name port)) =
-              Just $ URIAuth (f user) (f name) (f port)
-          mapAuth Nothing = Nothing
-
-instance Marshal URI where
-  type MarshalMode URI = ValBidi
-  marshaller = MValBidi {
-    mValBidi_typeName = Tagged $ TypeName "QUrl",
-    mValBidi_valToHs = \ptr -> errIO $ do
-      pair <- alloca (\bufPtr -> do
-        len <- hsqmlUnmarshalUrl (HsQMLUrlHandle $ castPtr ptr) bufPtr
-        buf <- peek bufPtr
-        return (castPtr buf, fromIntegral len))
-      str <- peekCStringLen pair
-      free $ fst pair
-      return $ mapURIStrings unEscapeString $
-        fromMaybe nullURI $ parseURIReference str,
-    mValBidi_hsToVal = \uri ptr ->
-      let str = uriToString id (mapURIStrings
-                  (escapeURIString isUnescapedInURI) uri) ""
-      in withCStringLen str (\(buf, bufLen) ->
-           hsqmlMarshalUrl buf bufLen (HsQMLUrlHandle $ castPtr ptr)),
-    mValBidi_hsToAlloc = \uri f ->
-      allocaBytes hsqmlUrlSize $ \ptr -> do
-        hsqmlInitUrl $ HsQMLUrlHandle ptr
-        mHsToVal uri (castPtr ptr)
-        ret <- f (castPtr ptr)
-        hsqmlDeinitUrl $ HsQMLUrlHandle ptr
-        return ret}

@@ -48,7 +48,7 @@ runTest src = do
     mock <- mockFromSrc src
     go <- newObject mock
     runEngineLoop defaultEngineConfig {
-        initialURL = filePathToURI qmlPath,
+        initialDocument = fileDocument qmlPath,
         initialWindowState = HideWindow,
         contextObject = Just $ anyObjRef go}
     removeFile qmlPath

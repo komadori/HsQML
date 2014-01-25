@@ -5,7 +5,6 @@ module Graphics.QML.Test.SignalTest where
 import Graphics.QML.Objects
 import Graphics.QML.Test.Framework
 import Graphics.QML.Test.MayGen
-import Graphics.QML.Test.GenURI
 import Graphics.QML.Test.TestObject
 import Graphics.QML.Test.ScriptDSL (Expr, Prog)
 import qualified Graphics.QML.Test.ScriptDSL as S
@@ -19,7 +18,6 @@ import Data.Typeable
 import Data.Int
 import Data.Text (Text)
 import qualified Data.Text as T
-import Network.URI
 
 data SignalTest1
     = ST1TrivialMethod
@@ -29,7 +27,6 @@ data SignalTest1
     | ST1FireDouble Double
     | ST1FireString String
     | ST1FireText Text
-    | ST1FireURI URI
     | ST1FireObject Int
     | ST1CheckObject Int
     deriving (Show, Typeable)
@@ -64,11 +61,6 @@ data TextSignal deriving Typeable
 instance SignalKey TextSignal where
     type SignalParams TextSignal = Text -> IO ()
 
-data URISignal deriving Typeable
-
-instance SignalKey URISignal where
-    type SignalParams URISignal = URI -> IO ()
-
 data ObjectSignal deriving Typeable
 
 instance SignalKey ObjectSignal where
@@ -96,7 +88,6 @@ instance TestAction SignalTest1 where
         ST1FireDouble <$> fromGen arbitrary,
         ST1FireString <$> fromGen arbitrary,
         ST1FireText . T.pack <$> fromGen arbitrary,
-        ST1FireURI <$> fromGen uriGen,
         pure . ST1FireObject $ testEnvNextJ env,
         ST1CheckObject <$> mayElements (testEnvListJ testObjectType env)]
     updateEnvRaw (ST1FireObject n) = testEnvStep . testEnvSerial (\s ->
@@ -120,8 +111,6 @@ instance TestAction SignalTest1 where
         testSignal n "stringSignal" "fireString" $ S.literal v
     actionRemote (ST1FireText v) n =
         testSignal n "textSignal" "fireText" $ S.literal v
-    actionRemote (ST1FireURI v) n =
-        testSignal n "uriSignal" "fireURI" $ S.literal v
     actionRemote (ST1FireObject v) n =
         chainSignal n ["obj"] "objectSignal" "fireObject" `mappend`
         (S.saveVar v $ S.sym "obj")
@@ -175,13 +164,6 @@ instance TestAction SignalTest1 where
                 return $ Right ()
             _             -> return $ Left TBadActionCtor),
         defSignal (Tagged "textSignal" :: Tagged TextSignal String),
-        defMethod "fireURI" $ \m -> (expectActionRef m $ \a -> case a of
-            ST1FireURI v -> do
-                fireSignal (Tagged m
-                    :: Tagged URISignal (ObjRef (MockObj SignalTest1))) v
-                return $ Right ()
-            _            -> return $ Left TBadActionCtor),
-        defSignal (Tagged "uriSignal" :: Tagged URISignal String),
         defMethod "fireObject" $ \m -> (expectActionRef m $ \a -> case a of
             ST1FireObject _ -> do
                 (Right obj) <- getTestObject $ fromObjRef m

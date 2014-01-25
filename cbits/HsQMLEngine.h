@@ -24,7 +24,7 @@ struct HsQMLEngineConfig
     {}
 
     HsQMLObjectProxy* contextObject;
-    QUrl initialURL;
+    QString initialURL;
     bool showWindow;
     bool setWindowTitle;
     QString windowTitle;

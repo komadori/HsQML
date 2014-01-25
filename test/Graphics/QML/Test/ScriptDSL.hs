@@ -8,7 +8,6 @@ import Data.List
 import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
-import Network.URI
 import Numeric
 
 data Expr = Global | Expr {unExpr :: ShowS}
@@ -53,9 +52,6 @@ instance Literal [Char] where
 
 instance Literal Text where
     literal = literal . T.unpack
-
-instance Literal URI where
-    literal = literal . ($ "") . uriToString id
 
 var :: Int -> Expr
 var 0 = Global

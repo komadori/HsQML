@@ -5,7 +5,6 @@ module Graphics.QML.Test.SimpleTest where
 import Graphics.QML.Objects
 import Graphics.QML.Test.Framework
 import Graphics.QML.Test.MayGen
-import Graphics.QML.Test.GenURI
 import Graphics.QML.Test.TestObject
 import Graphics.QML.Test.ScriptDSL (Expr, Prog)
 import qualified Graphics.QML.Test.ScriptDSL as S
@@ -17,7 +16,6 @@ import Data.Typeable
 import Data.Int
 import Data.Text (Text)
 import qualified Data.Text as T
-import Network.URI
 
 makeCall :: Int -> String -> [Expr] -> Prog
 makeCall n name es = S.eval $ S.var n `S.dot` name `S.call` es
@@ -52,8 +50,6 @@ data SimpleMethods
     | SMSetString String
     | SMGetText Text
     | SMSetText Text
-    | SMGetURI URI
-    | SMSetURI URI
     | SMGetObject Int
     | SMSetObject Int
     deriving (Show, Typeable)
@@ -74,8 +70,6 @@ instance TestAction SimpleMethods where
         SMSetString <$> fromGen arbitrary,
         SMGetText . T.pack <$> fromGen arbitrary,
         SMSetText . T.pack <$> fromGen arbitrary,
-        SMGetURI <$> fromGen uriGen,
-        SMSetURI <$> fromGen uriGen,
         pure . SMGetObject $ testEnvNextJ env,
         SMSetObject <$> mayElements (testEnvListJ testObjectType env)]
     updateEnvRaw (SMGetObject n) = testEnvStep . testEnvSerial (\s ->
@@ -92,8 +86,6 @@ instance TestAction SimpleMethods where
     actionRemote (SMSetString v) n = makeCall n "setString" [S.literal v]
     actionRemote (SMGetText v) n = testCall n "getText" [] $ S.literal v
     actionRemote (SMSetText v) n = makeCall n "setText" [S.literal v]
-    actionRemote (SMGetURI v) n = testCall n "getURI" [] $ S.literal v
-    actionRemote (SMSetURI v) n = makeCall n "setURI" [S.literal v]
     actionRemote (SMGetObject v) n = saveCall v n "getObject" []
     actionRemote (SMSetObject v) n = makeCall n "setObject" [S.var v]
     mockObjDef = [
@@ -128,12 +120,6 @@ instance TestAction SimpleMethods where
         defMethod "setText" $ \m v -> expectAction m $ \a -> case a of
             SMSetText w -> checkArg v w
             _           -> return $ Left TBadActionCtor,
-        defMethod "getURI" $ \m -> expectAction m $ \a -> case a of
-            SMGetURI v -> return $ Right v
-            _          -> return $ Left TBadActionCtor,
-        defMethod "setURI" $ \m v -> expectAction m $ \a -> case a of
-            SMSetURI w -> checkArg v w
-            _          -> return $ Left TBadActionCtor,
         defMethod "getObject" $ \m -> expectAction m $ \a -> case a of
             SMGetObject _ -> getTestObject m
             _             -> return $ Left TBadActionCtor,
@@ -151,8 +137,6 @@ data SimpleProperties
     | SPSetString String
     | SPGetText Text
     | SPSetText Text
-    | SPGetURI URI
-    | SPSetURI URI
     | SPGetObject Int
     | SPSetObject Int
     deriving (Show, Typeable)
@@ -170,8 +154,6 @@ instance TestAction SimpleProperties where
         SPSetString <$> fromGen arbitrary,
         SPGetText . T.pack <$> fromGen arbitrary,
         SPSetText . T.pack <$> fromGen arbitrary,
-        SPGetURI <$> fromGen uriGen,
-        SPSetURI <$> fromGen uriGen,
         pure . SPGetObject $ testEnvNextJ env,
         SPSetObject <$> mayElements (testEnvListJ testObjectType env)]
     updateEnvRaw (SPGetObject n) = testEnvStep . testEnvSerial (\s ->
@@ -186,8 +168,6 @@ instance TestAction SimpleProperties where
     actionRemote (SPSetString v) n = setProp n "propStringW" $ S.literal v
     actionRemote (SPGetText v) n = testProp n "propTextR" $ S.literal v
     actionRemote (SPSetText v) n = setProp n "propTextW" $ S.literal v
-    actionRemote (SPGetURI v) n = testProp n "propURIR" $ S.literal v
-    actionRemote (SPSetURI v) n = setProp n "propURIW" $ S.literal v
     actionRemote (SPGetObject v) n = saveProp v n "propObjectR"
     actionRemote (SPSetObject v) n = setProp n "propObjectW" $ S.var v
     mockObjDef = [
@@ -237,16 +217,6 @@ instance TestAction SimpleProperties where
             (\m v -> expectAction m $ \a -> case a of
                 SPSetText w -> checkArg v w
                 _           -> return $ Left TBadActionCtor),
-        defPropertyRW "propURIR"
-            (\m -> expectAction m $ \a -> case a of
-                SPGetURI v -> return $ Right v
-                _          -> return $ Left TBadActionCtor)
-            (\m _ -> badAction m),
-        defPropertyRW "propURIW"
-            (\_ -> makeDef)
-            (\m v -> expectAction m $ \a -> case a of
-                SPSetURI w -> checkArg v w
-                _          -> return $ Left TBadActionCtor),
         defPropertyRW "propObjectR"
             (\m -> expectAction m $ \a -> case a of
                 SPGetObject _ -> getTestObject m
