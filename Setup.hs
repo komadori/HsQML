@@ -169,6 +169,11 @@ mkGHCiFixLibName :: PackageDescription -> String
 mkGHCiFixLibName pkgDesc =
   ("lib" ++ display (mkGHCiFixLibPkgId pkgDesc)) <.> dllExtension
 
+mkGHCiFixLibRefName :: PackageDescription -> String
+mkGHCiFixLibRefName pkgDesc =
+  prefix ++ display (mkGHCiFixLibPkgId pkgDesc)
+  where prefix = if dllExtension == "dll" then "lib" else ""
+
 buildGHCiFix ::
   Verbosity -> PackageDescription -> LocalBuildInfo -> Library -> IO ()
 buildGHCiFix verb pkgDesc lbi lib = do
@@ -232,8 +237,7 @@ regWithQt pkg@PackageDescription { library = Just lib } lbi _ flags = do
     verb pkg lib lbi clbi inplace dist
   let instPkgInfo' = if (needsGHCiFix pkg lbi)
         then instPkgInfo {I.extraGHCiLibraries =
-          (display $ mkGHCiFixLibPkgId pkg) :
-          I.extraGHCiLibraries instPkgInfo}
+          mkGHCiFixLibRefName pkg : I.extraGHCiLibraries instPkgInfo}
         else instPkgInfo
   case flagToMaybe $ regGenPkgConf flags of
     Just regFile -> do
