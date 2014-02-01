@@ -27,6 +27,11 @@ Flag ThreadedTestSuite
         Build test executable with the threaded RTS.
     Default: True
 
+Flag ForceGHCiLib
+    Description:
+        Force enable GHCi workaround library if not using shared libraries.
+    Default: True
+
 Library
     Default-language: Haskell2010
     Build-depends:
@@ -65,6 +70,8 @@ Library
         cbits/HsQMLWindow.h
     X-separate-cbits: True
     Build-tools: c2hs
+    if flag(ForceGHCiLib)
+        X-force-ghci-lib: True
     if os(windows) && !flag(UsePkgConfig)
         Include-dirs: /QT_ROOT/include
         Extra-libraries: QtCore5, QtGui5, QtScript5, QtDeclarative5, stdc++

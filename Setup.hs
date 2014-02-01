@@ -71,6 +71,13 @@ main = defaultMainWithHooks simpleUserHooks {
   copyHook = copyWithQt, instHook = instWithQt,
   regHook = regWithQt}
 
+getCustomFlag :: String -> PackageDescription -> Bool
+getCustomFlag name pkgDesc =
+  fromMaybe False $ do
+    lib <- library pkgDesc
+    str <- lookup name $ customFieldsBI $ libBuildInfo lib
+    simpleParse str
+
 confWithQt :: (GenericPackageDescription, HookedBuildInfo) -> ConfigFlags ->
   IO LocalBuildInfo
 confWithQt (gpd,hbi) flags = do
@@ -83,9 +90,16 @@ confWithQt (gpd,hbi) flags = do
       condLib' = mapCondTree fixCondLib condLib
       gpd' = gpd {condLibrary = Just $ condLib'}
   lbi <- confHook simpleUserHooks (gpd',hbi) flags
+  -- Find Qt moc program and store in database
   (_,_,db') <- requireProgramVersion verb
     mocProgram qtVersionRange (withPrograms lbi)
-  return $ lbi {withPrograms = db'}
+  -- Force enable GHCi workaround library if flag set and not using shared libs 
+  let forceGHCiLib =
+        (getCustomFlag "x-force-ghci-lib" $ localPkgDescr lbi) &&
+        (not $ withSharedLib lbi)
+  -- Update LocalBuildInfo
+  return lbi {withPrograms = db',
+              withGHCiLib = withGHCiLib lbi || forceGHCiLib}
 
 mapCondTree :: (a -> a) -> CondTree v c a -> CondTree v c a
 mapCondTree f (CondNode val cnstr cs) =
@@ -143,10 +157,7 @@ fixQtBuild verb lbi build = do
 
 needsGHCiFix :: PackageDescription -> LocalBuildInfo -> Bool
 needsGHCiFix pkgDesc lbi =
-  (withGHCiLib lbi &&) $ fromMaybe False $ do
-    lib <- library pkgDesc
-    str <- lookup "x-separate-cbits" $ customFieldsBI $ libBuildInfo lib
-    simpleParse str
+  withGHCiLib lbi && getCustomFlag "x-separate-cbits" pkgDesc
 
 mkGHCiFixLibPkgId :: PackageDescription -> PackageIdentifier
 mkGHCiFixLibPkgId pkgDesc =
