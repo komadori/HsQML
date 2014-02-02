@@ -1,5 +1,10 @@
 HsQML - Release History
 
+release-0.2.0.3 - 2014.02.01
+
+  * Added mechanism to force enable GHCi workaround library.
+  * Fixed reference name of extra GHCi librar
+
 release-0.2.0.2 - 2014.01.18
 
   * Added support for Cabal 1.18 API.
