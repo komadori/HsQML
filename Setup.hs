@@ -201,11 +201,11 @@ mocProgram = Program {
   programFindLocation = adaptFindLoc $
     \verb -> findProgramLocation verb "moc",
   programFindVersion = \verb path -> do
-    (_,line,_) <- rawSystemStdErr verb path ["-v"]
+    (oLine,eLine,_) <- rawSystemStdErr verb path ["-v"]
     return $
-      findSubseq (stripPrefix "(Qt ") line >>=
-      Just . takeWhile (\c -> isDigit c || c == '.') >>=
-      simpleParse,
+      (findSubseq (stripPrefix "(Qt ") eLine `mplus`
+       findSubseq (stripPrefix "moc ") oLine) >>=
+      simpleParse . takeWhile (\c -> isDigit c || c == '.'),
   programPostConf = noPostConf
 }
 
