@@ -74,11 +74,12 @@ Library
         X-force-ghci-lib: True
     if os(windows) && !flag(UsePkgConfig)
         Include-dirs: /QT_ROOT/include
-        Extra-libraries: QtCore5, QtGui5, QtScript5, QtDeclarative5, stdc++
+        Extra-libraries:
+            Qt5Core, Qt5Gui, Qt5Widgets, Qt5Script, Qt5Declarative, stdc++
         Extra-lib-dirs: /SYS_ROOT/bin /QT_ROOT/bin
     else
         if os(darwin) && !flag(UsePkgConfig)
-            Frameworks: QtCore QtGui QtScript QtDeclarative
+            Frameworks: QtCore QtGui QtWidgets QtScript QtDeclarative
         else
             Pkgconfig-depends:
                 Qt5Script >= 5.0 && < 6.0,
