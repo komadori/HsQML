@@ -4,7 +4,7 @@
 #include <QtCore/QMetaType>
 #include <QtCore/QMutexLocker>
 #include <QtCore/QThread>
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
 #include <pthread.h>
 #endif
 
@@ -117,7 +117,7 @@ HsQMLManager::EventLoopStatus HsQMLManager::runEventLoop(
         return HSQML_EVLOOP_WRONG_THREAD;
     }
 
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     if (!pthread_main_np()) {
         // Cocoa can only be run on the primordial thread and exec() doesn't
         // check this.
