@@ -80,6 +80,9 @@ Library
     else
         if os(darwin) && !flag(UsePkgConfig)
             Frameworks: QtCore QtGui QtWidgets QtScript QtDeclarative
+            CC-options: -F /QT_ROOT/lib
+            GHC-options: -framework-path /QT_ROOT/lib
+            X-framework-dirs: /QT_ROOT/lib
         else
             Pkgconfig-depends:
                 Qt5Script >= 5.0 && < 6.0,
@@ -99,6 +102,9 @@ Test-Suite hsqml-test1
         tagged     >= 0.4 && < 0.8,
         QuickCheck >= 2.4 && < 2.7,
         hsqml      == 0.3.*
+    if os(darwin) && !flag(UsePkgConfig)
+        -- Library not registered yet
+        GHC-options: -framework-path /QT_ROOT/lib
     if flag(ThreadedTestSuite)
         GHC-options: -threaded
 

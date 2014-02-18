@@ -71,12 +71,15 @@ main = defaultMainWithHooks simpleUserHooks {
   copyHook = copyWithQt, instHook = instWithQt,
   regHook = regWithQt}
 
+getCustomStr :: String -> PackageDescription -> String
+getCustomStr name pkgDesc =
+  fromMaybe "" $ do
+    lib <- library pkgDesc
+    lookup name $ customFieldsBI $ libBuildInfo lib
+
 getCustomFlag :: String -> PackageDescription -> Bool
 getCustomFlag name pkgDesc =
-  fromMaybe False $ do
-    lib <- library pkgDesc
-    str <- lookup name $ customFieldsBI $ libBuildInfo lib
-    simpleParse str
+  fromMaybe False . simpleParse $ getCustomStr name pkgDesc
 
 confWithQt :: (GenericPackageDescription, HookedBuildInfo) -> ConfigFlags ->
   IO LocalBuildInfo
@@ -84,11 +87,12 @@ confWithQt (gpd,hbi) flags = do
   let verb = fromFlag $ configVerbosity flags
   mocPath <- findProgramLocation verb "moc"
   cppPath <- findProgramLocation verb "cpp"
-  let condLib = fromJust $ condLibrary gpd
-      fixCondLib lib = lib {
-        libBuildInfo = substPaths mocPath cppPath $ libBuildInfo lib} 
-      condLib' = mapCondTree fixCondLib condLib
-      gpd' = gpd {condLibrary = Just $ condLib'}
+  let mapLibBI = fmap . mapCondTree . mapBI $ substPaths mocPath cppPath
+      gpd' = gpd {
+        condLibrary = mapLibBI $ condLibrary gpd,
+        condExecutables = mapAllBI mocPath cppPath $ condExecutables gpd,
+        condTestSuites = mapAllBI mocPath cppPath $ condTestSuites gpd,
+        condBenchmarks = mapAllBI mocPath cppPath $ condBenchmarks gpd}
   lbi <- confHook simpleUserHooks (gpd',hbi) flags
   -- Find Qt moc program and store in database
   (_,_,db') <- requireProgramVersion verb
@@ -101,6 +105,11 @@ confWithQt (gpd,hbi) flags = do
   return lbi {withPrograms = db',
               withGHCiLib = withGHCiLib lbi || forceGHCiLib}
 
+mapAllBI :: (HasBuildInfo a) => Maybe FilePath -> Maybe FilePath ->
+  [(x, CondTree c v a)] -> [(x, CondTree c v a)]
+mapAllBI mocPath cppPath =
+  mapSnd . mapCondTree . mapBI $ substPaths mocPath cppPath
+
 mapCondTree :: (a -> a) -> CondTree v c a -> CondTree v c a
 mapCondTree f (CondNode val cnstr cs) =
   CondNode (f val) cnstr $ map updateChildren cs
@@ -110,16 +119,14 @@ mapCondTree f (CondNode val cnstr cs) =
 substPaths :: Maybe FilePath -> Maybe FilePath -> BuildInfo -> BuildInfo
 substPaths mocPath cppPath build =
   let toRoot = takeDirectory . takeDirectory . fromMaybe ""
-      substPath = replacePrefix "/QT_ROOT" (toRoot mocPath) .
-        replacePrefix "/SYS_ROOT" (toRoot cppPath)
-  in build {extraLibDirs = map substPath $ extraLibDirs build,
-            includeDirs = map substPath $ includeDirs build}
-
-replacePrefix :: (Eq a) => [a] -> [a] -> [a] -> [a]
-replacePrefix old new xs =
-  case stripPrefix old xs of
-    Just ys -> new ++ ys
-    Nothing -> xs
+      substPath = replace "/QT_ROOT" (toRoot mocPath) .
+        replace "/SYS_ROOT" (toRoot cppPath)
+  in build {ccOptions = map substPath $ ccOptions build,
+            ldOptions = map substPath $ ldOptions build,
+            extraLibDirs = map substPath $ extraLibDirs build,
+            includeDirs = map substPath $ includeDirs build,
+            options = mapSnd (map substPath) $ options build,
+            customFieldsBI = mapSnd substPath $ customFieldsBI build}
 
 buildWithQt ::
   PackageDescription -> LocalBuildInfo -> UserHooks -> BuildFlags -> IO ()
@@ -128,10 +135,7 @@ buildWithQt pkgDesc lbi hooks flags = do
     libs' <- maybeMapM (\lib -> fmap (\lib' ->
       lib {libBuildInfo = lib'}) $ fixQtBuild verb lbi $ libBuildInfo lib) $
       library pkgDesc
-    exes' <- mapM (\exe -> fmap (\exe' ->
-      exe {buildInfo = exe'}) $ fixQtBuild verb lbi $ buildInfo exe) $
-      executables pkgDesc
-    let pkgDesc' = pkgDesc {library = libs', executables = exes'}
+    let pkgDesc' = pkgDesc {library = libs'}
         lbi' = if (needsGHCiFix pkgDesc lbi)
                  then lbi {withGHCiLib = False, splitObjs = False} else lbi
     buildHook simpleUserHooks pkgDesc' lbi' hooks flags
@@ -235,10 +239,15 @@ regWithQt pkg@PackageDescription { library = Just lib } lbi _ flags = do
       clbi    = extractCLBI lbi
   instPkgInfo <- generateRegistrationInfo
     verb pkg lib lbi clbi inplace dist
-  let instPkgInfo' = if (needsGHCiFix pkg lbi)
-        then instPkgInfo {I.extraGHCiLibraries =
-          mkGHCiFixLibRefName pkg : I.extraGHCiLibraries instPkgInfo}
-        else instPkgInfo
+  let instPkgInfo' = instPkgInfo {
+        -- Add extra library for GHCi workaround
+        I.extraGHCiLibraries =
+          (if needsGHCiFix pkg lbi then [mkGHCiFixLibRefName pkg] else []) ++
+            I.extraGHCiLibraries instPkgInfo,
+        -- Add directories to framework search path
+        I.frameworkDirs =
+          words (getCustomStr "x-framework-dirs" pkg) ++
+            I.frameworkDirs instPkgInfo}
   case flagToMaybe $ regGenPkgConf flags of
     Just regFile -> do
       writeUTF8File (fromMaybe (display (packageId pkg) <.> "conf") regFile) $
@@ -267,8 +276,26 @@ instWithQt pkgDesc lbi hooks flags = do
   copyWithQt pkgDesc lbi hooks copyFlags
   when (hasLibs pkgDesc) $ regWithQt pkgDesc lbi hooks regFlags
 
+class HasBuildInfo a where
+  mapBI :: (BuildInfo -> BuildInfo) -> a -> a
+
+instance HasBuildInfo Library where
+  mapBI f x = x {libBuildInfo = f $ libBuildInfo x} 
+
+instance HasBuildInfo Executable where
+  mapBI f x = x {buildInfo = f $ buildInfo x} 
+
+instance HasBuildInfo TestSuite where
+  mapBI f x = x {testBuildInfo = f $ testBuildInfo x} 
+
+instance HasBuildInfo Benchmark where
+  mapBI f x = x {benchmarkBuildInfo = f $ benchmarkBuildInfo x} 
+
 maybeMapM :: (Monad m) => (a -> m b) -> (Maybe a) -> m (Maybe b)
 maybeMapM f = maybe (return Nothing) $ liftM Just . f
+
+mapSnd :: (a -> a) -> [(x, a)] -> [(x, a)]
+mapSnd f = map (\(x,y) -> (x,f y))
 
 findSubseq :: ([a] -> Maybe b) -> [a] -> Maybe b
 findSubseq f [] = f []
@@ -276,3 +303,11 @@ findSubseq f xs@(_:ys) =
   case f xs of
     Nothing -> findSubseq f ys
     Just r  -> Just r
+
+replace :: (Eq a) => [a] -> [a] -> [a] -> [a]
+replace [] _ xs = xs
+replace _ _ [] = []
+replace src dst xs@(x:xs') =
+  case stripPrefix src xs of
+    Just xs'' -> dst ++ replace src dst xs''
+    Nothing  -> x : replace src dst xs'
