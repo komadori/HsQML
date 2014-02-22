@@ -1,6 +1,6 @@
 #include "hsqml.h"
-#include "HsQMLManager.h"
-#include "HsQMLWindow.h"
+#include "Manager.h"
+#include "Window.h"
 
 HsQMLWindow::HsQMLWindow(HsQMLEngine* engine)
     : QObject(engine)

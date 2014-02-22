@@ -2,9 +2,9 @@
 #include <QtCore/QString>
 #include <QtDeclarative/QDeclarativeEngine>
 
-#include "HsQMLObject.h"
-#include "HsQMLClass.h"
-#include "HsQMLManager.h"
+#include "Object.h"
+#include "Class.h"
+#include "Manager.h"
 
 static const char* cRefSrcNames[] = {"Hndl", "Obj", "Event"};
 

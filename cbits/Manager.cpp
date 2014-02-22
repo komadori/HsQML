@@ -8,8 +8,8 @@
 #include <pthread.h>
 #endif
 
-#include "HsQMLManager.h"
-#include "HsQMLObject.h"
+#include "Manager.h"
+#include "Object.h"
 
 static const char* cCounterNames[] = {
     "ClassCounter",

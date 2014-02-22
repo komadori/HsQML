@@ -8,7 +8,7 @@
 #include <QtWidgets/QApplication>
 
 #include "hsqml.h"
-#include "HsQMLEngine.h"
+#include "Engine.h"
 
 #define HSQML_LOG(ll, msg) if (gManager->checkLogLevel(ll)) gManager->log(msg)
 

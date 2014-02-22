@@ -6,8 +6,8 @@
 #include <QtCore/QString>
 
 #include "hsqml.h"
-#include "HsQMLClass.h"
-#include "HsQMLManager.h"
+#include "Class.h"
+#include "Manager.h"
 
 enum MDFields {
     MD_METHOD_COUNT   = 4,

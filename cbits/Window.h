@@ -8,7 +8,7 @@
 #include <QtDeclarative/QDeclarativeContext>
 #include <QtDeclarative/QDeclarativeItem>
 
-#include "HsQMLManager.h"
+#include "Manager.h"
 
 class QDeclarativeComponent;
 

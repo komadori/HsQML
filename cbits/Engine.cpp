@@ -1,7 +1,7 @@
-#include "HsQMLManager.h"
-#include "HsQMLEngine.h"
-#include "HsQMLObject.h"
-#include "HsQMLWindow.h"
+#include "Manager.h"
+#include "Engine.h"
+#include "Object.h"
+#include "Window.h"
 
 HsQMLScriptHack::HsQMLScriptHack(QDeclarativeEngine* declEng)
     : mEngine(NULL)

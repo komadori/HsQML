@@ -57,17 +57,17 @@ Library
         Graphics.QML.Internal.Objects
     Hs-source-dirs: src
     C-sources:
-        cbits/HsQMLClass.cpp
-        cbits/HsQMLEngine.cpp
-        cbits/HsQMLIntrinsics.cpp
-        cbits/HsQMLManager.cpp
-        cbits/HsQMLObject.cpp
-        cbits/HsQMLWindow.cpp
+        cbits/Class.cpp
+        cbits/Engine.cpp
+        cbits/Intrinsics.cpp
+        cbits/Manager.cpp
+        cbits/Object.cpp
+        cbits/Window.cpp
     Include-dirs: cbits
     X-moc-headers:
-        cbits/HsQMLEngine.h
-        cbits/HsQMLManager.h
-        cbits/HsQMLWindow.h
+        cbits/Engine.h
+        cbits/Manager.h
+        cbits/Window.h
     X-separate-cbits: True
     Build-tools: c2hs
     if flag(ForceGHCiLib)
