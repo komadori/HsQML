@@ -7,14 +7,9 @@
 -- | Functions for starting QML engines, displaying content in a window.
 module Graphics.QML.Engine (
   -- * Engines
-  InitialWindowState(
-    ShowWindow,
-    ShowWindowWithTitle,
-    HideWindow),
   EngineConfig(
     EngineConfig,
     initialDocument,
-    initialWindowState,
     contextObject),
   defaultEngineConfig,
   Engine,
@@ -54,24 +49,10 @@ import Data.Traversable
 import Data.Typeable
 import System.FilePath (isAbsolute, splitDirectories, pathSeparators)
 
--- | Specifies the intial state of the display window.
-data InitialWindowState
-  -- | A visible window should be created for the initial document with a
-  -- default title.
-  = ShowWindow
-  -- | A visible window should be created for the initial document with the
-  -- given title.
-  | ShowWindowWithTitle String
-  -- | A window should be created for the initial document, but it will remain
-  -- hidden until made visible by the QML script.
-  | HideWindow
-
 -- | Holds parameters for configuring a QML runtime engine.
 data EngineConfig = EngineConfig {
   -- | Path to the first QML document to be loaded.
   initialDocument    :: DocumentPath,
-  -- | Window state for the initial QML document.
-  initialWindowState :: InitialWindowState,
   -- | Context 'Object' made available to QML script code.
   contextObject      :: Maybe AnyObjRef
 }
@@ -81,18 +62,8 @@ data EngineConfig = EngineConfig {
 defaultEngineConfig :: EngineConfig
 defaultEngineConfig = EngineConfig {
   initialDocument    = DocumentPath "main.qml",
-  initialWindowState = ShowWindow,
   contextObject      = Nothing
 }
-
-isWindowShown :: InitialWindowState -> Bool
-isWindowShown ShowWindow = True
-isWindowShown (ShowWindowWithTitle _) = True
-isWindowShown HideWindow = False
-
-getWindowTitle :: InitialWindowState -> Maybe String
-getWindowTitle (ShowWindowWithTitle t) = Just t
-getWindowTitle _ = Nothing
 
 -- | Represents a QML engine.
 data Engine = Engine
@@ -102,15 +73,9 @@ runEngineImpl config stopCb = do
     hsqmlInit
     let obj = contextObject config
         DocumentPath res = initialDocument config
-        state = initialWindowState config
-        showWin = isWindowShown state
-        maybeTitle = getWindowTitle state
-        setTitle = isJust maybeTitle
-        titleStr = fromMaybe "" maybeTitle
     hndl <- sequenceA $ fmap mHsToObj $ obj
     mHsToAlloc res $ \resPtr -> do
-        mHsToAlloc titleStr $ \titlePtr -> do
-            hsqmlCreateEngine hndl resPtr showWin setTitle titlePtr stopCb
+        hsqmlCreateEngine hndl resPtr stopCb
     return Engine
 
 -- | Starts a new QML engine using the supplied configuration and blocks until

@@ -117,9 +117,6 @@ extern void hsqml_fire_signal(
 /* Engine */
 extern void hsqml_create_engine(
     HsQMLObjectHandle*,
-    HsQMLUrlHandle*,
-    int,
-    int,
     HsQMLStringHandle*,
     HsQMLTrivialCb stopCb);
 

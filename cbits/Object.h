@@ -4,7 +4,7 @@
 #include <QtCore/QObject>
 #include <QtCore/QAtomicInt>
 #include <QtCore/QEvent>
-#include <QtScript/QScriptValue>
+#include <QtQml/QJSValue>
 
 class HsQMLEngine;
 class HsQMLClass;
@@ -65,7 +65,7 @@ private:
     HsStablePtr mHaskell;
     HsQMLClass* mKlass;
     HsQMLEngine* mEngine;
-    QScriptValue mGCLock;
+    QJSValue mGCLock;
 };
 
 #endif /*HSQML_OBJECT_H*/

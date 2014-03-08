@@ -62,12 +62,10 @@ Library
         cbits/Intrinsics.cpp
         cbits/Manager.cpp
         cbits/Object.cpp
-        cbits/Window.cpp
     Include-dirs: cbits
     X-moc-headers:
         cbits/Engine.h
         cbits/Manager.h
-        cbits/Window.h
     X-separate-cbits: True
     Build-tools: c2hs
     if flag(ForceGHCiLib)
@@ -75,18 +73,21 @@ Library
     if os(windows) && !flag(UsePkgConfig)
         Include-dirs: /QT_ROOT/include
         Extra-libraries:
-            Qt5Core, Qt5Gui, Qt5Widgets, Qt5Script, Qt5Declarative, stdc++
+            Qt5Core, Qt5Gui, Qt5Widgets, Qt5Qml, Qt5Quick, stdc++
         Extra-lib-dirs: /SYS_ROOT/bin /QT_ROOT/bin
     else
         if os(darwin) && !flag(UsePkgConfig)
-            Frameworks: QtCore QtGui QtWidgets QtScript QtDeclarative
+            Frameworks: QtCore QtGui QtWidgets QtQml QtQuick
             CC-options: -F /QT_ROOT/lib
             GHC-options: -framework-path /QT_ROOT/lib
             X-framework-dirs: /QT_ROOT/lib
         else
             Pkgconfig-depends:
-                Qt5Script >= 5.0 && < 6.0,
-                Qt5Declarative >= 5.0 && < 6.0
+                Qt5Core    >= 5.0 && < 6.0,
+                Qt5Gui     >= 5.0 && < 6.0,
+                Qt5Widgets >= 5.0 && < 6.0,
+                Qt5Qml     >= 5.0 && < 6.0,
+                Qt5Quick   >= 5.0 && < 6.0
         Extra-libraries: stdc++
 
 Test-Suite hsqml-test1

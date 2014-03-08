@@ -123,4 +123,4 @@ callee :: Expr
 callee = sym "arguments.callee"
 
 end :: Prog
-end = Prog (showString "window.close();\n") id
+end = Prog (showString "Qt.quit();\n") id

@@ -1,6 +1,6 @@
 #include <HsFFI.h>
 #include <QtCore/QString>
-#include <QtDeclarative/QDeclarativeEngine>
+#include <QtQml/QQmlEngine>
 
 #include "Object.h"
 #include "Class.h"
@@ -158,8 +158,8 @@ HsQMLObject::HsQMLObject(HsQMLObjectProxy* proxy, HsQMLEngine* engine)
     , mKlass(proxy->klass())
     , mEngine(engine)
 {
-    QDeclarativeEngine::setObjectOwnership(
-        this, QDeclarativeEngine::JavaScriptOwnership);
+    QQmlEngine::setObjectOwnership(
+        this, QQmlEngine::JavaScriptOwnership);
     mProxy->ref(HsQMLObjectProxy::Object);
     gManager->updateCounter(HsQMLManager::QObjectCount, 1);
 }
@@ -223,18 +223,17 @@ int HsQMLObject::qt_metacall(QMetaObject::Call c, int id, void** a)
 
 void HsQMLObject::setGCLock()
 {
-    mGCLock = mEngine->scriptEngine()->newQObject(
-        this, QScriptEngine::ScriptOwnership);
+    mGCLock = mEngine->declEngine()->newQObject(this);
 }
 
 void HsQMLObject::clearGCLock()
 {
-    mGCLock = QScriptValue();
+    mGCLock = QJSValue(QJSValue::NullValue);
 }
 
 bool HsQMLObject::isGCLocked() const
 {
-    return mGCLock.isValid();
+    return mGCLock.isQObject();
 }
 
 HsQMLObjectProxy* HsQMLObject::proxy() const

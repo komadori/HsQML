@@ -4,10 +4,9 @@
 #include <QtCore/QScopedPointer>
 #include <QtCore/QString>
 #include <QtCore/QUrl>
-#include <QtScript/QScriptEngine>
-#include <QtScript/QScriptValue>
-#include <QtDeclarative/QDeclarativeEngine>
-#include <QtDeclarative/QDeclarativeExpression>
+#include <QtQml/QQmlEngine>
+#include <QtQml/QQmlContext>
+#include <QtQml/QQmlComponent>
 
 #include "hsqml.h"
 
@@ -18,31 +17,12 @@ struct HsQMLEngineConfig
 {
     HsQMLEngineConfig()
         : contextObject(NULL)
-        , showWindow(false)
-        , setWindowTitle(false)
         , stopCb(NULL)
     {}
 
     HsQMLObjectProxy* contextObject;
     QString initialURL;
-    bool showWindow;
-    bool setWindowTitle;
-    QString windowTitle;
     HsQMLTrivialCb stopCb;
-};
-
-class HsQMLScriptHack : public QObject
-{
-    Q_OBJECT
-
-public:
-    HsQMLScriptHack(QDeclarativeEngine*);
-    Q_INVOKABLE virtual QObject* self();
-    Q_INVOKABLE virtual void hack(QScriptValue);
-    QScriptEngine* scriptEngine() const;
-
-private:
-    QScriptEngine* mEngine;
 };
 
 class HsQMLEngine : public QObject
@@ -52,16 +32,16 @@ class HsQMLEngine : public QObject
 public:
     HsQMLEngine(const HsQMLEngineConfig&);
     ~HsQMLEngine();
-    virtual void childEvent(QChildEvent*);
-    QDeclarativeEngine* declEngine();
-    QScriptEngine* scriptEngine();
+    bool eventFilter(QObject*, QEvent*);
+    QQmlEngine* declEngine();
 
 private:
     Q_DISABLE_COPY(HsQMLEngine)
 
-    QDeclarativeEngine mDeclEngine;
-    QScriptEngine* mScriptEngine;
-    QScopedPointer<QObject> mContextObj;
+    Q_SLOT void componentStatus(QQmlComponent::Status);
+    QQmlEngine mEngine;
+    QQmlComponent mComponent;
+    QList<QObject*> mObjects;
     HsQMLTrivialCb mStopCb;
 };
 

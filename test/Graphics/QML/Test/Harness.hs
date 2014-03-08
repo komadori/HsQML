@@ -16,11 +16,10 @@ import System.Directory
 
 qmlPrelude :: String
 qmlPrelude = unlines [
-    "import Qt 4.7",
-    "Rectangle {",
-    "    id: page;",
-    "    width: 100; height: 100;",
-    "    color: 'green';",
+    "import QtQuick 2.0",
+    "import QtQuick.Window 2.0",
+    "Window {",
+    "    id: page; visible: false;",
     "    Component.onCompleted: {"]
 
 qmlPostscript :: String
@@ -49,7 +48,6 @@ runTest src = do
     go <- newObject mock
     runEngineLoop defaultEngineConfig {
         initialDocument = fileDocument qmlPath,
-        initialWindowState = HideWindow,
         contextObject = Just $ anyObjRef go}
     removeFile qmlPath
     finishTest mock

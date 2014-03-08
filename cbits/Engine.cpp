@@ -1,51 +1,31 @@
+#include <QtQuick/QQuickItem>
+#include <QtQuick/QQuickWindow>
+
 #include "Manager.h"
 #include "Engine.h"
 #include "Object.h"
-#include "Window.h"
-
-HsQMLScriptHack::HsQMLScriptHack(QDeclarativeEngine* declEng)
-    : mEngine(NULL)
-{
-    QDeclarativeEngine::setObjectOwnership(
-        this, QDeclarativeEngine::CppOwnership);
-    QDeclarativeExpression expr(declEng->rootContext(), this, "hack(self());");
-    expr.evaluate();
-    Q_ASSERT(!expr.hasError());
-}
-
-QObject* HsQMLScriptHack::self()
-{
-    return this;
-}
-
-void HsQMLScriptHack::hack(QScriptValue value)
-{
-    mEngine = value.engine();
-}
-
-QScriptEngine* HsQMLScriptHack::scriptEngine() const
-{
-    return mEngine;
-}
 
 HsQMLEngine::HsQMLEngine(const HsQMLEngineConfig& config)
-    : mScriptEngine(HsQMLScriptHack(&mDeclEngine).scriptEngine())
+    : mComponent(&mEngine)
     , mStopCb(config.stopCb)
 {
+    // Connect signals
+    QObject::connect(
+        &mEngine, SIGNAL(quit()),
+        this, SLOT(deleteLater()));
+    QObject::connect(
+        &mComponent, SIGNAL(statusChanged(QQmlComponent::Status)),
+        this, SLOT(componentStatus(QQmlComponent::Status)));
+
     // Obtain, re-parent, and set QML global object
     if (config.contextObject) {
-        mContextObj.reset(config.contextObject->object(this));
-        mDeclEngine.rootContext()->setContextObject(mContextObj.data());
+        QObject* ctx = config.contextObject->object(this);
+        mEngine.rootContext()->setContextObject(ctx);
+        mObjects << ctx;
     }
 
-    // Create window
-    HsQMLWindow* win = new HsQMLWindow(this);
-    win->setParent(this);
-    win->setSource(QUrl(config.initialURL));
-    win->setVisible(config.showWindow);
-    if (config.setWindowTitle) {
-        win->setTitle(config.windowTitle);
-    }
+    // Load document
+    mComponent.loadUrl(QUrl(config.initialURL));
 }
 
 HsQMLEngine::~HsQMLEngine()
@@ -53,41 +33,72 @@ HsQMLEngine::~HsQMLEngine()
     // Call stop callback
     mStopCb();
     gManager->freeFun(reinterpret_cast<HsFunPtr>(mStopCb));
+
+    // Delete owned objects
+    qDeleteAll(mObjects);
 }
 
-void HsQMLEngine::childEvent(QChildEvent* ev)
+bool HsQMLEngine::eventFilter(QObject* obj, QEvent* ev)
 {
-    if (ev->removed() && children().size() == 0) {
+    if (QEvent::Close == ev->type()) {
         deleteLater();
     }
+    return false;
 }
 
-QDeclarativeEngine* HsQMLEngine::declEngine()
+QQmlEngine* HsQMLEngine::declEngine()
 {
-    return &mDeclEngine;
+    return &mEngine;
 }
 
-QScriptEngine* HsQMLEngine::scriptEngine()
+void HsQMLEngine::componentStatus(QQmlComponent::Status status)
 {
-    return mScriptEngine;
+    switch (status) {
+    case QQmlComponent::Ready: {
+        QObject* obj = mComponent.create();
+        mObjects << obj;
+        QQuickWindow* win = qobject_cast<QQuickWindow*>(obj);
+        QQuickItem* item = qobject_cast<QQuickItem*>(obj);
+        if (item) {
+            win = new QQuickWindow();
+            mObjects << win;
+            item->setParentItem(win->contentItem());
+            int width = item->width();
+            int height = item->height();
+            if (width < 1 || height < 1) {
+                width = item->implicitWidth();
+                height = item->implicitHeight();
+            }
+            win->setWidth(width);
+            win->setHeight(height);
+            win->contentItem()->setWidth(width);
+            win->contentItem()->setHeight(height);
+            win->setTitle("HsQML Window");
+            win->show();
+        }
+        if (win) {
+            win->installEventFilter(this);
+            mEngine.setIncubationController(win->incubationController());
+        }
+        break;}
+    case QQmlComponent::Error: {
+        QList<QQmlError> errs = mComponent.errors();
+        for (QList<QQmlError>::iterator it = errs.begin();
+             it != errs.end(); ++it) {
+            HSQML_LOG(0, it->toString());
+        }
+        break;}
+    }
 }
 
 extern "C" void hsqml_create_engine(
     HsQMLObjectHandle* contextObject,
     HsQMLStringHandle* initialURL,
-    int showWindow,
-    int setWindowTitle,
-    HsQMLStringHandle* windowTitle,
     HsQMLTrivialCb stopCb)
 {
     HsQMLEngineConfig config;
     config.contextObject = reinterpret_cast<HsQMLObjectProxy*>(contextObject);
     config.initialURL = *reinterpret_cast<QString*>(initialURL);
-    config.showWindow = static_cast<bool>(showWindow);
-    if (setWindowTitle) {
-        config.setWindowTitle = true;
-        config.windowTitle = *reinterpret_cast<QString*>(windowTitle);
-    }
     config.stopCb = stopCb;
 
     Q_ASSERT (gManager);

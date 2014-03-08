@@ -71,9 +71,6 @@ cIntToEnum = toEnum . fromIntegral
 {#fun hsqml_create_engine as ^
   {withMaybeHsQMLObjectHandle* `Maybe HsQMLObjectHandle',
    castPtr `Ptr ()',
-   fromBool `Bool',
-   fromBool `Bool',
-   castPtr `Ptr ()',
    withTrivialCb* `TrivialCb'} ->
   `()' #}
 
