@@ -199,7 +199,6 @@ typeNameToId :: TypeName -> CUInt
 typeNameToId (TypeName "int") = 2
 typeNameToId (TypeName "double") = 6
 typeNameToId (TypeName "QString") = 10
-typeNameToId (TypeName "QUrl") = 17
 typeNameToId (TypeName "QObject*") = 39
 typeNameToId (TypeName "") = 43
 typeNameToId (TypeName str) = error $ "Unknown TypeName: " ++ str

@@ -56,23 +56,6 @@ extern UTF16* hsqml_marshal_string(
 extern int hsqml_unmarshal_string(
     HsQMLStringHandle*, UTF16**);
 
-/* URL */
-typedef char HsQMLUrlHandle;
-
-extern size_t hsqml_get_url_size();
-
-extern void hsqml_init_url(
-    HsQMLUrlHandle*);
-
-extern void hsqml_deinit_url(
-    HsQMLUrlHandle*);
-
-extern void hsqml_marshal_url(
-    char*, int, HsQMLUrlHandle*);
-
-extern int hsqml_unmarshal_url(
-    HsQMLUrlHandle*, char**);
-
 /* Class */
 typedef char HsQMLClassHandle;
 

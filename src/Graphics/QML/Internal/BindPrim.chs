@@ -43,35 +43,3 @@ hsqmlStringSize = unsafePerformIO $ hsqmlGetStringSize
   {id `HsQMLStringHandle',
    id `Ptr (Ptr CUShort)'} ->
   `Int' #}
-
---
--- URL
---
-
-{#pointer *HsQMLUrlHandle as ^ newtype #}
-
-{#fun unsafe hsqml_get_url_size as ^
-  {} ->
-  `Int' fromIntegral #}
-
-hsqmlUrlSize :: Int
-hsqmlUrlSize = unsafePerformIO $ hsqmlGetUrlSize
-
-{#fun unsafe hsqml_init_url as ^
-  {id `HsQMLUrlHandle'} ->
-  `()' #}
-
-{#fun unsafe hsqml_deinit_url as ^
-  {id `HsQMLUrlHandle'} ->
-  `()' #}
-
-{#fun unsafe hsqml_marshal_url as ^
-  {id `Ptr CChar',
-   `Int',
-   id `HsQMLUrlHandle'} ->
-  `()' #}
-
-{#fun unsafe hsqml_unmarshal_url as ^
-  {id `HsQMLUrlHandle',
-   id `Ptr (Ptr CChar)'} ->
-  `Int' #}
