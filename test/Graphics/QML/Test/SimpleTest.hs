@@ -39,6 +39,9 @@ checkArg :: (Show a, Eq a) => a -> a -> IO (Either TestFault ())
 checkArg v w = return $
     if v == w then Right () else Left TBadActionData
 
+retVoid :: IO ()
+retVoid = return ()
+
 data SimpleMethods
     = SMTrivial
     | SMTernary Int32 Int32 Int32 Int32
@@ -52,7 +55,7 @@ data SimpleMethods
     | SMSetText Text
     | SMGetObject Int
     | SMSetObject Int
-    deriving (Show, Typeable)
+    deriving (Eq, Show, Typeable)
 
 instance TestAction SimpleMethods where
     legalActionIn (SMSetObject n) env = testEnvIsaJ n testObjectType env
@@ -89,9 +92,7 @@ instance TestAction SimpleMethods where
     actionRemote (SMGetObject v) n = saveCall v n "getObject" []
     actionRemote (SMSetObject v) n = makeCall n "setObject" [S.var v]
     mockObjDef = [
-        defMethod "trivial" $ \m -> expectAction m $ \a -> case a of
-            SMTrivial -> return $ Right ()
-            _         -> return $ Left TBadActionCtor,
+        defMethod "trivial" $ \m -> checkAction m SMTrivial retVoid,
         defMethod "ternary" $ \m v1 v2 v3 -> expectAction m $ \a -> case a of
             SMTernary w1 w2 w3 w4 ->
                 (fmap . fmap) (const w4) $ checkArg (v1,v2,v3) (w1,w2,w3)
@@ -99,27 +100,19 @@ instance TestAction SimpleMethods where
         defMethod "getInt" $ \m -> expectAction m $ \a -> case a of
             SMGetInt v -> return $ Right v
             _          -> return $ Left TBadActionCtor,
-        defMethod "setInt" $ \m v -> expectAction m $ \a -> case a of
-            SMSetInt w -> checkArg v w
-            _          -> return $ Left TBadActionCtor,
+        defMethod "setInt" $ \m v -> checkAction m (SMSetInt v) retVoid,
         defMethod "getDouble" $ \m -> expectAction m $ \a -> case a of
             SMGetDouble v -> return $ Right v
             _             -> return $ Left TBadActionCtor,
-        defMethod "setDouble" $ \m v -> expectAction m $ \a -> case a of
-            SMSetDouble w -> checkArg v w
-            _             -> return $ Left TBadActionCtor,
+        defMethod "setDouble" $ \m v -> checkAction m (SMSetDouble v) retVoid,
         defMethod "getString" $ \m -> expectAction m $ \a -> case a of
             SMGetString v -> return $ Right v
             _             -> return $ Left TBadActionCtor,
-        defMethod "setString" $ \m v -> expectAction m $ \a -> case a of
-            SMSetString w -> checkArg v w
-            _             -> return $ Left TBadActionCtor,
+        defMethod "setString" $ \m v -> checkAction m (SMSetString v) retVoid,
         defMethod "getText" $ \m -> expectAction m $ \a -> case a of
             SMGetText v -> return $ Right v
             _           -> return $ Left TBadActionCtor,
-        defMethod "setText" $ \m v -> expectAction m $ \a -> case a of
-            SMSetText w -> checkArg v w
-            _           -> return $ Left TBadActionCtor,
+        defMethod "setText" $ \m v -> checkAction m (SMSetText v) retVoid,
         defMethod "getObject" $ \m -> expectAction m $ \a -> case a of
             SMGetObject _ -> getTestObject m
             _             -> return $ Left TBadActionCtor,
@@ -139,7 +132,7 @@ data SimpleProperties
     | SPSetText Text
     | SPGetObject Int
     | SPSetObject Int
-    deriving (Show, Typeable)
+    deriving (Eq, Show, Typeable)
 
 instance TestAction SimpleProperties where
     legalActionIn (SPSetObject n) env = testEnvIsaJ n testObjectType env
@@ -183,40 +176,28 @@ instance TestAction SimpleProperties where
                 _          -> return $ Left TBadActionCtor)
             (\m _ -> badAction m),
         defPropertyRW "propIntW"
-            (\_ -> makeDef)
-            (\m v -> expectAction m $ \a -> case a of
-                SPSetInt w -> checkArg v w
-                _          -> return $ Left TBadActionCtor),
+            (\_ -> makeDef) (\m v -> checkAction m (SPSetInt v) retVoid),
         defPropertyRW "propDoubleR"
             (\m -> expectAction m $ \a -> case a of
                 SPGetDouble v -> return $ Right v
                 _             -> return $ Left TBadActionCtor)
             (\m _ -> badAction m),
         defPropertyRW "propDoubleW"
-            (\_ -> makeDef)
-            (\m v -> expectAction m $ \a -> case a of
-                SPSetDouble w -> checkArg v w
-                _             -> return $ Left TBadActionCtor),
+            (\_ -> makeDef) (\m v -> checkAction m (SPSetDouble v) retVoid),
         defPropertyRW "propStringR"
             (\m -> expectAction m $ \a -> case a of
                 SPGetString v -> return $ Right v
                 _             -> return $ Left TBadActionCtor)
             (\m _ -> badAction m),
         defPropertyRW "propStringW"
-            (\_ -> makeDef)
-            (\m v -> expectAction m $ \a -> case a of
-                SPSetString w -> checkArg v w
-                _             -> return $ Left TBadActionCtor),
+            (\_ -> makeDef) (\m v -> checkAction m (SPSetString v) retVoid),
         defPropertyRW "propTextR"
             (\m -> expectAction m $ \a -> case a of
                 SPGetText v -> return $ Right v
                 _           -> return $ Left TBadActionCtor)
             (\m _ -> badAction m),
         defPropertyRW "propTextW"
-            (\_ -> makeDef)
-            (\m v -> expectAction m $ \a -> case a of
-                SPSetText w -> checkArg v w
-                _           -> return $ Left TBadActionCtor),
+            (\_ -> makeDef) (\m v -> checkAction m (SPSetText v) retVoid),
         defPropertyRW "propObjectR"
             (\m -> expectAction m $ \a -> case a of
                 SPGetObject _ -> getTestObject m

@@ -244,6 +244,17 @@ expectActionRef :: (TestAction a, MakeDefault b) =>
     ObjRef (MockObj a) -> (a -> IO (Either TestFault b)) -> IO b
 expectActionRef ref pred = expectAction (fromObjRef ref) pred
 
+checkAction :: (TestAction a, Eq a, MakeDefault b) =>
+    MockObj a -> a -> IO b -> IO b
+checkAction mock action next = expectAction mock $ \expected -> do
+    if expected == action
+    then fmap Right $ next
+    else return . Left $
+        if fakeToConstr expected /= fakeToConstr action
+        then TBadActionCtor
+        else TBadActionData
+    where fakeToConstr = takeWhile (/= ' ') . show
+
 badAction :: (MakeDefault b) => MockObj a -> IO b
 badAction mock = do
     status <- readIORef $ mockStatus mock
