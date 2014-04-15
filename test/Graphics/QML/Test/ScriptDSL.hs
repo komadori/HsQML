@@ -100,7 +100,7 @@ saveVar _ _ = error "cannot save the context object"
 assert :: Expr -> Prog
 assert (Expr ex) =
     Prog (showString "if (!" . ex .
-        showString ") {window.close(); throw -1;}\n") id
+        showString ") {Qt.quit(); throw -1;}\n") id
 assert _ = error "cannot assert the context object"
 
 connect :: Expr -> Expr -> Prog
