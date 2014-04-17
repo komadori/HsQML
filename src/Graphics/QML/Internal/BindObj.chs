@@ -4,6 +4,8 @@
 
 module Graphics.QML.Internal.BindObj where
 
+{#import Graphics.QML.Internal.BindPrim #}
+
 import Control.Exception (bracket_)
 import Data.Typeable
 import Foreign.C.Types
@@ -90,20 +92,28 @@ withActiveObject hndl action =
         (hsqmlObjectSetActive Nothing)
         action
 
-{#fun unsafe hsqml_object_get_haskell as ^
-  {withHsQMLObjectHandle* `HsQMLObjectHandle'} ->
-  `a' fromStable* #}
-
 {#fun unsafe hsqml_object_get_hs_typerep as ^
   {withHsQMLObjectHandle* `HsQMLObjectHandle'} ->
   `TypeRep' fromStable* #}
+
+{#fun unsafe hsqml_object_get_hs_value as ^
+  {withHsQMLObjectHandle* `HsQMLObjectHandle'} ->
+  `a' fromStable* #}
 
 {#fun unsafe hsqml_object_get_pointer as ^
   {withHsQMLObjectHandle* `HsQMLObjectHandle'} ->
   `Ptr ()' id #}
 
-{#fun unsafe hsqml_get_object_handle as ^
+{#fun unsafe hsqml_object_get_jval as ^
+  {withHsQMLObjectHandle* `HsQMLObjectHandle'} ->
+  `HsQMLJValHandle' id #}
+
+{#fun unsafe hsqml_get_object_from_pointer as ^
   {id `Ptr ()'} ->
+  `HsQMLObjectHandle' newObjectHandle* #}
+
+{#fun unsafe hsqml_get_object_from_jval as ^
+  {id `HsQMLJValHandle'} ->
   `HsQMLObjectHandle' newObjectHandle* #}
 
 {#fun hsqml_fire_signal as ^

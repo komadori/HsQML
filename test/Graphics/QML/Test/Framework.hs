@@ -207,6 +207,9 @@ instance (TestAction a) => MakeDefault (ObjRef (MockObj a)) where
 instance MakeDefault () where
     makeDef = return ()
 
+instance MakeDefault Bool where
+    makeDef = return False
+
 instance MakeDefault Int32 where
     makeDef = return 0
 
@@ -218,6 +221,9 @@ instance MakeDefault [a] where
 
 instance MakeDefault Text where
     makeDef = return T.empty
+
+instance MakeDefault (Maybe a) where
+    makeDef = return Nothing
 
 expectAction :: (TestAction a, MakeDefault b) =>
     MockObj a -> (a -> IO (Either TestFault b)) -> IO b

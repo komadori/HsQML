@@ -236,6 +236,11 @@ bool HsQMLObject::isGCLocked() const
     return mGCLock.isQObject();
 }
 
+QJSValue* HsQMLObject::gcLockVar()
+{
+    return &mGCLock;
+}
+
 HsQMLObjectProxy* HsQMLObject::proxy() const
 {
     return mProxy;
@@ -272,7 +277,7 @@ extern "C" HsStablePtr hsqml_object_get_hs_typerep(
     return proxy->klass()->hsTypeRep();
 }
 
-extern HsStablePtr hsqml_object_get_haskell(
+extern HsStablePtr hsqml_object_get_hs_value(
     HsQMLObjectHandle* hndl)
 {
     HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
@@ -282,11 +287,19 @@ extern HsStablePtr hsqml_object_get_haskell(
 extern void* hsqml_object_get_pointer(
     HsQMLObjectHandle* hndl)
 {
-    HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
+    HsQMLObjectProxy* proxy = reinterpret_cast<HsQMLObjectProxy*>(hndl);
     return (void*)proxy->object(gManager->activeEngine());
 }
 
-extern HsQMLObjectHandle* hsqml_get_object_handle(
+extern HsQMLJValHandle* hsqml_object_get_jval(
+    HsQMLObjectHandle* hndl)
+{
+    HsQMLObjectProxy* proxy = reinterpret_cast<HsQMLObjectProxy*>(hndl);
+    HsQMLObject* obj = proxy->object(gManager->activeEngine());
+    return reinterpret_cast<HsQMLJValHandle*>(obj->gcLockVar());
+}
+
+extern HsQMLObjectHandle* hsqml_get_object_from_pointer(
     void* ptr)
 {
     // Return NULL if the input pointer is NULL
@@ -301,6 +314,13 @@ extern HsQMLObjectHandle* hsqml_get_object_handle(
     proxy->tryGCLock();
 
     return (HsQMLObjectHandle*)proxy;
+}
+
+extern HsQMLObjectHandle* hsqml_get_object_from_jval(
+    HsQMLJValHandle* jvalHndl)
+{
+    QJSValue* jval = reinterpret_cast<QJSValue*>(jvalHndl);
+    return hsqml_get_object_from_pointer(jval->toQObject());
 }
 
 extern void hsqml_finalise_object_handle(

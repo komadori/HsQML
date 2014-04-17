@@ -12,14 +12,23 @@ import Data.Int
 import Data.Proxy
 import System.Exit
 
+import Data.Int
+
 main :: IO ()
 main = do
     rs <- sequence [
-        checkProperty $ TestType (Proxy :: Proxy SimpleMethods),
-        checkProperty $ TestType (Proxy :: Proxy SimpleProperties),
-        checkProperty $ TestType (Proxy :: Proxy SignalTest1),
-        checkProperty $ TestType (Proxy :: Proxy ObjectA),
-        checkProperty $ TestType (Proxy :: Proxy (DataTest Int32))]
+        checkProperty 100 $ TestType (Proxy :: Proxy SimpleMethods),
+        checkProperty 100 $ TestType (Proxy :: Proxy SimpleProperties),
+        checkProperty 100 $ TestType (Proxy :: Proxy SignalTest1),
+        checkProperty 100 $ TestType (Proxy :: Proxy ObjectA),
+        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest Bool)),
+        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest Int32)),
+        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest Double)),
+        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest String)),
+        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest (Maybe Bool))),
+        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest (Maybe Int32))),
+        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest (Maybe Double))),
+        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest (Maybe String)))]
     if and rs
     then exitSuccess
     else exitFailure

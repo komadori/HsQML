@@ -6,6 +6,7 @@
 
 module Graphics.QML.Internal.Marshal where
 
+import Graphics.QML.Internal.BindPrim
 import Graphics.QML.Internal.BindObj
 
 import Control.Monad.Trans.Maybe
@@ -28,17 +29,21 @@ errIO = MaybeT . fmap Just
 
 newtype TypeId = TypeId Int deriving (Eq, Ord)
 
-tyInt, tyDouble, tyString, tyObject, tyVoid :: TypeId
+tyInt, tyDouble, tyString, tyObject, tyVoid, tyJSValue :: TypeId
 tyInt     = TypeId 2
 tyDouble  = TypeId 6
 tyString  = TypeId 10
 tyObject  = TypeId 39
 tyVoid    = TypeId 43
+tyJSValue = TypeId $ hsqmlJValTypeId
 
 type MTypeCValFunc t = Tagged t TypeId
 type MFromCValFunc t = Ptr () -> ErrIO t
 type MToCValFunc t = t -> Ptr () -> IO ()
 type MWithCValFunc t = (forall b. t -> (Ptr () -> IO b) -> IO b)
+
+type MFromJValFunc t = HsQMLJValHandle -> ErrIO t
+type MWithJValFunc t = (forall b. t -> (HsQMLJValHandle -> IO b) -> IO b)
 
 type MFromHndlFunc t = HsQMLObjectHandle -> IO t
 type MToHndlFunc t = t -> IO HsQMLObjectHandle
@@ -139,6 +144,8 @@ data Marshaller t m = Marshaller {
     mFromCVal_ :: !(MFromCValFunc t),
     mToCVal_   :: !(MToCValFunc t),
     mWithCVal_ :: !(MWithCValFunc t),
+    mFromJVal_ :: !(MFromJValFunc t),
+    mWithJVal_ :: !(MWithJValFunc t),
     mFromHndl_ :: !(MFromHndlFunc t),
     mToHndl_   :: !(MToHndlFunc t)
 }
@@ -155,6 +162,12 @@ mToCVal = mToCVal_ (marshaller :: Marshaller t (MarshalMode t))
 mWithCVal :: forall t. (Marshal t) => MWithCValFunc t
 mWithCVal = mWithCVal_ (marshaller :: Marshaller t (MarshalMode t))
 
+mFromJVal :: forall t. (Marshal t) => MFromJValFunc t
+mFromJVal = mFromJVal_ (marshaller :: Marshaller t (MarshalMode t))
+
+mWithJVal :: forall t. (Marshal t) => MWithJValFunc t
+mWithJVal = mWithJVal_ (marshaller :: Marshaller t (MarshalMode t))
+
 mFromHndl :: forall t. (Marshal t) => MFromHndlFunc t
 mFromHndl = mFromHndl_ (marshaller :: Marshaller t (MarshalMode t))
 
@@ -170,11 +183,28 @@ unimplToCVal = \_ _ -> error "Type does not support mToCVal."
 unimplWithCVal :: MWithCValFunc t
 unimplWithCVal = \_ _ -> error "Type does not support mWithCVal."
 
+unimplFromJVal :: MFromJValFunc t
+unimplFromJVal = \_ -> error "Type does not support mFromJVal."
+
+unimplWithJVal :: MWithJValFunc t
+unimplWithJVal = \_ _ -> error "Type does not support mWithJVal."
+
 unimplFromHndl :: MFromHndlFunc t
 unimplFromHndl = \_ -> error "Type does not support mFromHndl."
 
 unimplToHndl :: MToHndlFunc t
 unimplToHndl = \_ -> error "Type does not support mToHndl."
+
+jvalFromCVal :: (Marshal t) => MFromCValFunc t
+jvalFromCVal = mFromJVal . HsQMLJValHandle . castPtr
+
+jvalToCVal :: (Marshal t) => MToCValFunc t
+jvalToCVal = \val ptr -> mWithJVal val $ \jval ->
+    hsqmlSetJval (HsQMLJValHandle $ castPtr ptr) jval
+
+jvalWithCVal :: (Marshal t) => MWithCValFunc t
+jvalWithCVal = \val f -> mWithJVal val $ \(HsQMLJValHandle ptr) ->
+    f $ castPtr ptr
 
 instance Marshal () where
     type MarshalMode () = ModeRetVoid
@@ -183,6 +213,7 @@ instance Marshal () where
         mFromCVal_ = unimplFromCVal,
         mToCVal_ = \_ _ -> return (),
         mWithCVal_ = unimplWithCVal,
+        mFromJVal_ = unimplFromJVal,
+        mWithJVal_ = unimplWithJVal,
         mFromHndl_ = unimplFromHndl,
         mToHndl_ = unimplToHndl}
-

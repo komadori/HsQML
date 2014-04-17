@@ -50,11 +50,60 @@ extern void hsqml_init_string(
 extern void hsqml_deinit_string(
     HsQMLStringHandle*);
 
-extern UTF16* hsqml_marshal_string(
+extern UTF16* hsqml_write_string(
     int, HsQMLStringHandle*);
 
-extern int hsqml_unmarshal_string(
+extern int hsqml_read_string(
     HsQMLStringHandle*, UTF16**);
+
+/* JSValue */
+typedef char HsQMLJValHandle;
+
+extern size_t hsqml_get_jval_size();
+
+extern int hsqml_get_jval_typeid();
+
+extern void hsqml_init_jval_null(
+    HsQMLJValHandle* hndl, int);
+
+extern void hsqml_set_jval(
+    HsQMLJValHandle*, HsQMLJValHandle*);
+
+extern void hsqml_deinit_jval(
+    HsQMLJValHandle*);
+
+extern void hsqml_init_jval_bool(
+    HsQMLJValHandle*, int);
+
+extern int hsqml_is_jval_bool(
+    HsQMLJValHandle* hndl);
+
+extern int hsqml_get_jval_bool(
+    HsQMLJValHandle* hndl);
+
+extern void hsqml_init_jval_int(
+    HsQMLJValHandle*, int);
+
+extern void hsqml_init_jval_double(
+    HsQMLJValHandle*, double);
+
+extern int hsqml_is_jval_number(
+    HsQMLJValHandle*);
+
+extern int hsqml_get_jval_int(
+    HsQMLJValHandle*);
+
+extern double hsqml_get_jval_double(
+    HsQMLJValHandle*);
+
+extern void hsqml_init_jval_string(
+    HsQMLJValHandle*, HsQMLStringHandle*);
+
+extern int hsqml_is_jval_string(
+    HsQMLJValHandle*);
+
+extern void hsqml_get_jval_string(
+    HsQMLJValHandle*, HsQMLStringHandle*);
 
 /* Class */
 typedef char HsQMLClassHandle;
@@ -82,14 +131,20 @@ extern void hsqml_object_set_active(
 extern HsStablePtr hsqml_object_get_hs_typerep(
     HsQMLObjectHandle*);
 
-extern HsStablePtr hsqml_object_get_haskell(
+extern HsStablePtr hsqml_object_get_hs_value(
     HsQMLObjectHandle*);
 
 extern void* hsqml_object_get_pointer(
     HsQMLObjectHandle*);
 
-extern HsQMLObjectHandle* hsqml_get_object_handle(
+extern HsQMLJValHandle* hsqml_object_get_jval(
+    HsQMLObjectHandle*);
+
+extern HsQMLObjectHandle* hsqml_get_object_from_pointer(
     void*);
+
+extern HsQMLObjectHandle* hsqml_get_object_from_jval(
+    HsQMLJValHandle*);
 
 extern void hsqml_finalise_object_handle(
     HsQMLObjectHandle*);

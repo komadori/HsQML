@@ -63,6 +63,7 @@ import Data.Tagged
 import Data.Typeable
 import Data.IORef
 import Foreign.Ptr
+import Foreign.ForeignPtr
 import Foreign.Storable
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
@@ -81,7 +82,7 @@ data ObjRef tt = ObjRef {
 instance (Object tt) => Marshal (ObjRef tt) where
     type MarshalMode (ObjRef tt) = ModeObjBidi tt
     marshaller = Marshaller {
-        mTypeCVal_ = Tagged tyObject,
+        mTypeCVal_ = retag (mTypeCVal :: Tagged AnyObjRef TypeId),
         mFromCVal_ = \ptr -> do
             any <- mFromCVal ptr
             MaybeT $ return $ fromAnyObjRef any,
@@ -89,6 +90,11 @@ instance (Object tt) => Marshal (ObjRef tt) where
             mToCVal (AnyObjRef $ objHndl obj) ptr,
         mWithCVal_ = \obj f ->
             mWithCVal (AnyObjRef $ objHndl obj) f,
+        mFromJVal_ = \ptr -> do
+            any <- mFromJVal ptr
+            MaybeT $ return $ fromAnyObjRef any,
+        mWithJVal_ = \obj f ->
+            mWithJVal (AnyObjRef $ objHndl obj) f,
         mFromHndl_ = \hndl ->
             return $ ObjRef hndl,
         mToHndl_ = \obj ->
@@ -110,7 +116,7 @@ fromObjRef =
 
 fromObjRefIO :: ObjRef tt -> IO tt
 fromObjRefIO =
-    hsqmlObjectGetHaskell . objHndl 
+    hsqmlObjectGetHsValue . objHndl 
 
 -- | Represents an instance of a QML class which wraps an arbitrary Haskell
 -- type. Unlike 'ObjRef', an 'AnyObjRef' only carries the type of its Haskell
@@ -122,18 +128,19 @@ data AnyObjRef = AnyObjRef {
 instance Marshal AnyObjRef where
     type MarshalMode AnyObjRef = ModeObjBidi ()
     marshaller = Marshaller {
-        mTypeCVal_ = Tagged tyObject,
-        mFromCVal_ = \ptr -> MaybeT $ do
-            objPtr <- peek (castPtr ptr)
-            hndl <- hsqmlGetObjectHandle objPtr
+        mTypeCVal_ = Tagged tyJSValue,
+        mFromCVal_ = jvalFromCVal,
+        mToCVal_ = jvalToCVal,
+        mWithCVal_ = jvalWithCVal,
+        mFromJVal_ = \ptr -> MaybeT $ do
+            hndl <- hsqmlGetObjectFromJval ptr
             return $ if isNullObjectHandle hndl
                 then Nothing else Just $ AnyObjRef hndl,
-        mToCVal_ = \obj ptr -> do
-            objPtr <- hsqmlObjectGetPointer $ anyObjHndl obj
-            poke (castPtr ptr) objPtr,
-        mWithCVal_ = \obj f ->
-            alloca $ \(ptr :: Ptr (Ptr ())) ->
-                flip mToCVal (castPtr ptr) obj >> f (castPtr ptr),
+        mWithJVal_ = \(AnyObjRef hndl@(HsQMLObjectHandle ptr)) f -> do
+            jval <- hsqmlObjectGetJval hndl
+            ret <- f jval
+            touchForeignPtr ptr
+            return ret,
         mFromHndl_ = \hndl ->
             return $ AnyObjRef hndl,
         mToHndl_ = \obj ->
@@ -175,7 +182,9 @@ objSimpleMarshaller = Marshaller {
     mFromCVal_ = \ptr -> (errIO . fromObjRefIO) =<< mFromCVal ptr,
     mToCVal_ = unimplToCVal,
     mWithCVal_ = unimplWithCVal,
-    mFromHndl_ = hsqmlObjectGetHaskell,
+    mFromJVal_ = \ptr -> (errIO . fromObjRefIO) =<< mFromJVal ptr,
+    mWithJVal_ = unimplWithJVal,
+    mFromHndl_ = hsqmlObjectGetHsValue,
     mToHndl_ = unimplToHndl}
 
 -- | Provides a bidirectional QML-to-Haskell and Haskell-to-QML 'Marshaller'
@@ -201,7 +210,9 @@ objBidiMarshaller newFn = Marshaller {
     mFromCVal_ = \ptr -> (errIO . fromObjRefIO) =<< mFromCVal ptr,
     mToCVal_ = \obj ptr -> flip mToCVal ptr =<< newFn obj,
     mWithCVal_ = \obj f -> flip mWithCVal f =<< newFn obj,
-    mFromHndl_ = hsqmlObjectGetHaskell,
+    mFromJVal_ = \ptr -> (errIO . fromObjRefIO) =<< mFromJVal ptr,
+    mWithJVal_ = \obj f -> flip mWithJVal f =<< newFn obj,
+    mFromHndl_ = hsqmlObjectGetHsValue,
     mToHndl_ = fmap objHndl . newFn}
 
 --
@@ -319,7 +330,7 @@ mkUniformFunc :: forall tt ms.
   (Marshal tt, CanGetObjFrom tt ~ Yes, MethodSuffix (MSHelp ms)) =>
   (tt -> ms) -> UniformFunc
 mkUniformFunc f = \pt pv -> do
-  hndl <- hsqmlGetObjectHandle pt
+  hndl <- hsqmlGetObjectFromPointer pt
   this <- mFromHndl hndl
   runErrIO $ mkMethodFunc 1 (MSHelp $ f this) pv
 
@@ -337,7 +348,7 @@ mkSpecialFunc :: forall tt ms.
     (Marshal tt, CanGetObjFrom tt ~ Yes, MethodSuffix (MSHelp ms),
         IsVoidIO ms) => (tt -> ms) -> UniformFunc
 mkSpecialFunc f = \pt pv -> do
-    hndl <- hsqmlGetObjectHandle pt
+    hndl <- hsqmlGetObjectFromPointer pt
     this <- mFromHndl hndl
     runErrIO $ mkMethodFunc 0 (MSHelp $ f this) pv
 

@@ -34,6 +34,7 @@ import Graphics.QML.Internal.BindPrim
 import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.Objects
 
+import Control.Monad.Trans.Maybe
 import Data.Maybe
 import Data.Tagged
 import Data.Int
@@ -45,6 +46,24 @@ import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
+
+--
+-- Boolean built-in type
+--
+
+instance Marshal Bool where
+    type MarshalMode Bool = ModeBidi
+    marshaller = Marshaller {
+        mTypeCVal_ = Tagged tyJSValue,
+        mFromCVal_ = jvalFromCVal,
+        mToCVal_ = jvalToCVal,
+        mWithCVal_ = jvalWithCVal,
+        mFromJVal_ = \ptr ->
+            MaybeT $ fromJVal hsqmlIsJvalBool hsqmlGetJvalBool ptr,
+        mWithJVal_ = \bool f ->
+            withJVal hsqmlInitJvalBool bool f,
+        mFromHndl_ = unimplFromHndl,
+        mToHndl_ = unimplToHndl}
 
 --
 -- Int32/int built-in type
@@ -61,6 +80,11 @@ instance Marshal Int32 where
         mWithCVal_ = \int f ->
             alloca $ \(ptr :: Ptr CInt) ->
                 mToCVal int (castPtr ptr) >> f (castPtr ptr),
+        mFromJVal_ = \ptr ->
+            MaybeT $ fromJVal hsqmlIsJvalNumber (
+                fmap fromIntegral . hsqmlGetJvalInt) ptr,
+        mWithJVal_ = \int f ->
+            withJVal hsqmlInitJvalInt (fromIntegral int) f,
         mFromHndl_ = unimplFromHndl,
         mToHndl_ = unimplToHndl}
 
@@ -71,6 +95,8 @@ instance Marshal Int where
         mFromCVal_ = fmap (fromIntegral :: Int32 -> Int) . mFromCVal,
         mToCVal_ = \int ptr -> mToCVal (fromIntegral int :: Int32) ptr,
         mWithCVal_ = \int f -> mWithCVal (fromIntegral int :: Int32) f,
+        mFromJVal_ = fmap (fromIntegral :: Int32 -> Int) . mFromJVal,
+        mWithJVal_ = \int f -> mWithJVal (fromIntegral int :: Int32) f,
         mFromHndl_ = unimplFromHndl,
         mToHndl_ = unimplToHndl}
 
@@ -89,6 +115,11 @@ instance Marshal Double where
         mWithCVal_ = \num f ->
             alloca $ \(ptr :: Ptr CDouble) ->
                 mToCVal num (castPtr ptr) >> f (castPtr ptr),
+        mFromJVal_ = \ptr ->
+            MaybeT $ fromJVal hsqmlIsJvalNumber (
+                fmap realToFrac . hsqmlGetJvalDouble) ptr,
+        mWithJVal_ = \num f ->
+            withJVal hsqmlInitJvalDouble (realToFrac num) f,
         mFromHndl_ = unimplFromHndl,
         mToHndl_ = unimplToHndl}
 
@@ -102,19 +133,28 @@ instance Marshal Text where
         mTypeCVal_ = Tagged tyString,
         mFromCVal_ = \ptr -> errIO $ do
             pair <- alloca (\bufPtr -> do
-                len <- hsqmlUnmarshalString (
+                len <- hsqmlReadString (
                     HsQMLStringHandle $ castPtr ptr) bufPtr
                 buf <- peek bufPtr
                 return (castPtr buf, fromIntegral len))
             uncurry T.fromPtr pair,
         mToCVal_ = \txt ptr -> do
-            array <- hsqmlMarshalString
+            array <- hsqmlWriteString
                 (T.lengthWord16 txt) (HsQMLStringHandle $ castPtr ptr)
             T.unsafeCopyToPtr txt (castPtr array),
         mWithCVal_ = \txt f ->
             withStrHndl $ \(HsQMLStringHandle ptr) -> do
                 mToCVal txt $ castPtr ptr
                 f $ castPtr ptr,
+        mFromJVal_ = \jval ->
+            MaybeT $ withStrHndl $ \sHndl -> runMaybeT $ do
+                MaybeT $ fromJVal hsqmlIsJvalString (
+                    flip hsqmlGetJvalString sHndl) jval
+                let (HsQMLStringHandle ptr) = sHndl
+                mFromCVal $ castPtr ptr,
+        mWithJVal_ = \txt f ->
+            mWithCVal txt $ \ptr -> withJVal hsqmlInitJvalString (
+                HsQMLStringHandle $ castPtr ptr) f,
         mFromHndl_ = unimplFromHndl,
         mToHndl_ = unimplToHndl}
 
@@ -129,5 +169,26 @@ instance Marshal String where
         mFromCVal_ = fmap T.unpack . mFromCVal,
         mToCVal_ = \txt ptr -> mToCVal (T.pack txt) ptr,
         mWithCVal_ = \txt f -> mWithCVal (T.pack txt) f,
+        mFromJVal_ = fmap T.unpack . mFromJVal,
+        mWithJVal_ = \txt f -> mWithJVal (T.pack txt) f,
+        mFromHndl_ = unimplFromHndl,
+        mToHndl_ = unimplToHndl}
+
+--
+-- Maybe
+--
+
+instance (Marshal a) => Marshal (Maybe a) where
+    type MarshalMode (Maybe a) = ModeBidi
+    marshaller = Marshaller {
+        mTypeCVal_ = Tagged tyJSValue,
+        mFromCVal_ = jvalFromCVal,
+        mToCVal_ = jvalToCVal,
+        mWithCVal_ = jvalWithCVal,
+        mFromJVal_ = \jval -> errIO $ runMaybeT $ mFromJVal jval,
+        mWithJVal_ = \val f ->
+            case val of
+                Just val' -> mWithJVal val' f
+                Nothing   -> withJVal hsqmlInitJvalNull False f,
         mFromHndl_ = unimplFromHndl,
         mToHndl_ = unimplToHndl}

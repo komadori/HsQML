@@ -33,6 +33,7 @@ module Graphics.QML.Engine (
 import Graphics.QML.Internal.JobQueue
 import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.Objects
+import Graphics.QML.Internal.BindPrim
 import Graphics.QML.Internal.BindCore
 import Graphics.QML.Marshal
 import Graphics.QML.Objects
@@ -47,6 +48,7 @@ import Data.List
 import Data.Maybe
 import Data.Traversable
 import Data.Typeable
+import Foreign.Ptr
 import System.FilePath (isAbsolute, splitDirectories, pathSeparators)
 
 -- | Holds parameters for configuring a QML runtime engine.
@@ -75,7 +77,7 @@ runEngineImpl config stopCb = do
         DocumentPath res = initialDocument config
     hndl <- sequenceA $ fmap mToHndl $ obj
     mWithCVal res $ \resPtr -> do
-        hsqmlCreateEngine hndl resPtr stopCb
+        hsqmlCreateEngine hndl (HsQMLStringHandle $ castPtr resPtr) stopCb
     return Engine
 
 -- | Starts a new QML engine using the supplied configuration and blocks until

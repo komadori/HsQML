@@ -24,6 +24,10 @@ showProg (Prog a b) = a . b
 class Literal a where
     literal :: a -> Expr
 
+instance Literal Bool where
+    literal True = Expr $ showString "true"
+    literal False = Expr $ showString "false"
+
 instance Literal Int where
     literal x = Expr $ shows x
 
@@ -52,6 +56,10 @@ instance Literal [Char] where
 
 instance Literal Text where
     literal = literal . T.unpack
+
+instance Literal a => Literal (Maybe a) where
+    literal Nothing = Expr $ showString "null"
+    literal (Just v) = literal v
 
 var :: Int -> Expr
 var 0 = Global

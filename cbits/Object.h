@@ -57,6 +57,7 @@ public:
     void setGCLock();
     void clearGCLock();
     bool isGCLocked() const;
+    QJSValue* gcLockVar();
     HsQMLObjectProxy* proxy() const;
     HsQMLEngine* engine() const;
 

@@ -5,6 +5,7 @@
 
 module Graphics.QML.Internal.BindCore where
 
+{#import Graphics.QML.Internal.BindPrim #}
 {#import Graphics.QML.Internal.BindObj #}
 
 import Foreign.C.Types
@@ -70,7 +71,7 @@ cIntToEnum = toEnum . fromIntegral
 
 {#fun hsqml_create_engine as ^
   {withMaybeHsQMLObjectHandle* `Maybe HsQMLObjectHandle',
-   castPtr `Ptr ()',
+   id `HsQMLStringHandle',
    withTrivialCb* `TrivialCb'} ->
   `()' #}
 

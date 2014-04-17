@@ -63,10 +63,11 @@ testProperty src = monadicIO $ do
     assert $ isNothing $ testFault status
     return ()
 
-checkProperty :: TestType -> IO Bool
-checkProperty (TestType pxy) = do
+checkProperty :: Int -> TestType -> IO Bool
+checkProperty n (TestType pxy) = do
     putStrLn $ "Checking " ++ show (typeOf $ asProxyTypeOf undefined pxy)
-    r <- quickCheckResult $ testProperty . constrainSrc pxy
+    let args = stdArgs {maxSuccess = n}
+    r <- quickCheckWithResult args $ testProperty . constrainSrc pxy
     return $ isSuccess r
 
 constrainSrc :: (TestAction a) => Proxy a -> TestBoxSrc a -> TestBoxSrc a
