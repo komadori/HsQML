@@ -16,24 +16,6 @@ with the Haskell program.
 The 'Graphics.QML.Objects' module allows you to define your own custom object
 types which can be marshalled between Haskell and JavaScript.
  -}
--- * Script-side APIs
-{-|
-The @window@ object provides the following methods and properties to QML
-scripts.
-
-/Properties/
-
-[@source : url@] URL for the Window's QML document.
-
-[@title : string@] Window title.
-
-[@visible : bool@] Window visibility.
-
-/Methods/
-
-[@close()@] Closes the window.
-
- -}
 -- * Graphics.QML
   module Graphics.QML.Engine,
   module Graphics.QML.Marshal,
