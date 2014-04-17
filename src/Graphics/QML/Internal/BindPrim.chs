@@ -5,6 +5,7 @@
 module Graphics.QML.Internal.BindPrim where
 
 import Foreign.C.Types
+import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import System.IO.Unsafe
 
@@ -43,3 +44,12 @@ hsqmlStringSize = unsafePerformIO $ hsqmlGetStringSize
   {id `HsQMLStringHandle',
    id `Ptr (Ptr CUShort)'} ->
   `Int' #}
+
+withStrHndl :: (HsQMLStringHandle -> IO b) -> IO b
+withStrHndl contFn =
+    allocaBytes hsqmlStringSize $ \ptr -> do
+        let str = HsQMLStringHandle ptr
+        hsqmlInitString str
+        ret <- contFn str
+        hsqmlDeinitString str
+        return ret

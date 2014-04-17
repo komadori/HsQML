@@ -66,7 +66,7 @@ data MOCState = MOCState {
   mStrChar         :: CRList CChar,
   mStrInfo         :: CRList CUInt,
   mStrMap          :: Map String CUInt,
-  mParamMap        :: Map [TypeName] CUInt,
+  mParamMap        :: Map [TypeId] CUInt,
   mFuncMethods     :: CRList (Maybe UniformFunc),
   mFuncProperties  :: CRList (Maybe UniformFunc),
   mMethodCount     :: Int,
@@ -153,7 +153,7 @@ writeMethodParams m = do
           mpMap' = Map.insert types (fromIntegral idx) mpMap
       put $ state {
         mParamMap = mpMap'}
-      mapM_ writeInt $ map typeNameToId types
+      mapM_ writeInt $ map typeId types
       mapM_ writeString $ replicate (length $ memberParams m) ""
 
 writeMethod :: Member tt -> State MOCState ()
@@ -180,7 +180,7 @@ writeProperty :: Member tt -> State MOCState ()
 writeProperty p = do
   idx <- get >>= return . crlLen . mData
   writeString $ memberName p
-  writeInt $ typeNameToId $ memberType p
+  writeInt $ typeId $ memberType p
   writeInt (pfReadable .|. pfScriptable .|.
     if (isJust $ memberFunAux p) then pfWritable else 0)
   state <- get
@@ -192,16 +192,11 @@ writeProperty p = do
   }
   return ()
 
-memberTypes :: Member tt -> [TypeName]
+memberTypes :: Member tt -> [TypeId]
 memberTypes m = memberType m : memberParams m
 
-typeNameToId :: TypeName -> CUInt
-typeNameToId (TypeName "int") = 2
-typeNameToId (TypeName "double") = 6
-typeNameToId (TypeName "QString") = 10
-typeNameToId (TypeName "QObject*") = 39
-typeNameToId (TypeName "") = 43
-typeNameToId (TypeName str) = error $ "Unknown TypeName: " ++ str
+typeId :: TypeId -> CUInt
+typeId (TypeId tyid) = fromIntegral tyid
 
 --
 -- Constants

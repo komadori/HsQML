@@ -79,20 +79,20 @@ data ObjRef tt = ObjRef {
 }
 
 instance (Object tt) => Marshal (ObjRef tt) where
-  type MarshalMode (ObjRef tt) = ValObjBidi tt
-  marshaller = MValObjBidi {
-    mValObjBidi_typeName = Tagged $ TypeName "QObject*",
-    mValObjBidi_valToHs = \ptr -> do
-      any <- mValToHs ptr
-      MaybeT $ return $ fromAnyObjRef any,
-    mValObjBidi_hsToVal = \obj ptr ->
-      mHsToVal (AnyObjRef $ objHndl obj) ptr,
-    mValObjBidi_hsToAlloc = \obj f ->
-      mHsToAlloc (AnyObjRef $ objHndl obj) f,
-    mValObjBidi_objToHs = \hndl ->
-      return $ ObjRef hndl,
-    mValObjBidi_hsToObj = \obj ->
-      return $ objHndl obj}
+    type MarshalMode (ObjRef tt) = ModeObjBidi tt
+    marshaller = Marshaller {
+        mTypeCVal_ = Tagged tyObject,
+        mFromCVal_ = \ptr -> do
+            any <- mFromCVal ptr
+            MaybeT $ return $ fromAnyObjRef any,
+        mToCVal_ = \obj ptr ->
+            mToCVal (AnyObjRef $ objHndl obj) ptr,
+        mWithCVal_ = \obj f ->
+            mWithCVal (AnyObjRef $ objHndl obj) f,
+        mFromHndl_ = \hndl ->
+            return $ ObjRef hndl,
+        mToHndl_ = \obj ->
+            return $ objHndl obj}
 
 -- | Creates an instance of a QML class given a value of the underlying Haskell 
 -- type @tt@.
@@ -120,24 +120,24 @@ data AnyObjRef = AnyObjRef {
 }
 
 instance Marshal AnyObjRef where
-  type MarshalMode AnyObjRef = ValObjBidi ()
-  marshaller = MValObjBidi {
-    mValObjBidi_typeName = Tagged $ TypeName "QObject*",
-    mValObjBidi_valToHs = \ptr -> MaybeT $ do
-      objPtr <- peek (castPtr ptr)
-      hndl <- hsqmlGetObjectHandle objPtr
-      return $ if isNullObjectHandle hndl
-        then Nothing else Just $ AnyObjRef hndl,
-    mValObjBidi_hsToVal = \obj ptr -> do
-      objPtr <- hsqmlObjectGetPointer $ anyObjHndl obj
-      poke (castPtr ptr) objPtr,
-    mValObjBidi_hsToAlloc = \obj f ->
-      alloca $ \(ptr :: Ptr (Ptr ())) ->
-        flip mHsToVal (castPtr ptr) obj >> f (castPtr ptr),
-    mValObjBidi_objToHs = \hndl ->
-      return $ AnyObjRef hndl,
-    mValObjBidi_hsToObj = \obj ->
-      return $ anyObjHndl obj}
+    type MarshalMode AnyObjRef = ModeObjBidi ()
+    marshaller = Marshaller {
+        mTypeCVal_ = Tagged tyObject,
+        mFromCVal_ = \ptr -> MaybeT $ do
+            objPtr <- peek (castPtr ptr)
+            hndl <- hsqmlGetObjectHandle objPtr
+            return $ if isNullObjectHandle hndl
+                then Nothing else Just $ AnyObjRef hndl,
+        mToCVal_ = \obj ptr -> do
+            objPtr <- hsqmlObjectGetPointer $ anyObjHndl obj
+            poke (castPtr ptr) objPtr,
+        mWithCVal_ = \obj f ->
+            alloca $ \(ptr :: Ptr (Ptr ())) ->
+                flip mToCVal (castPtr ptr) obj >> f (castPtr ptr),
+        mFromHndl_ = \hndl ->
+            return $ AnyObjRef hndl,
+        mToHndl_ = \obj ->
+            return $ anyObjHndl obj}
 
 -- | Upcasts an 'ObjRef' into an 'AnyObjRef'.
 anyObjRef :: ObjRef tt -> AnyObjRef
@@ -165,15 +165,18 @@ fromAnyObjRefIO (AnyObjRef hndl) = do
 --
 -- @
 -- instance Marshal MyObjectType where
---     type MarshalMode MyObjectType = ValObjToOnly MyObjectType
+--     type MarshalMode MyObjectType = ValObjFrom MyObjectType
 --     marshaller = objSimpleMarshaller
 -- @
 objSimpleMarshaller ::
-  forall obj. (Object obj) => Marshaller obj (ValObjToOnly obj)
-objSimpleMarshaller = MValObjToOnly {
-  mValObjToOnly_typeName = retag (mTypeName :: Tagged (ObjRef obj) TypeName),
-  mValObjToOnly_valToHs = \ptr -> (errIO . fromObjRefIO) =<< mValToHs ptr,
-  mValObjToOnly_objToHs = hsqmlObjectGetHaskell}
+    forall obj. (Object obj) => Marshaller obj (ModeObjFrom obj)
+objSimpleMarshaller = Marshaller {
+    mTypeCVal_ = retag (mTypeCVal :: Tagged (ObjRef obj) TypeId),
+    mFromCVal_ = \ptr -> (errIO . fromObjRefIO) =<< mFromCVal ptr,
+    mToCVal_ = unimplToCVal,
+    mWithCVal_ = unimplWithCVal,
+    mFromHndl_ = hsqmlObjectGetHaskell,
+    mToHndl_ = unimplToHndl}
 
 -- | Provides a bidirectional QML-to-Haskell and Haskell-to-QML 'Marshaller'
 -- which allows you to define instances of 'Marshal' for custom object types.
@@ -187,19 +190,19 @@ objSimpleMarshaller = MValObjToOnly {
 --
 -- @
 -- instance Marshal MyObjectType where
---     type MarshalMode MyObjectType = ValObjBidi MyObjectType
+--     type MarshalMode MyObjectType = ModeObjBidi MyObjectType
 --     marshaller = objBidiMarshaller newObject
 -- @
 objBidiMarshaller ::
-  forall obj. (Object obj) =>
-  (obj -> IO (ObjRef obj)) -> Marshaller obj (ValObjBidi obj) 
-objBidiMarshaller newFn = MValObjBidi {
-  mValObjBidi_typeName = retag (mTypeName :: Tagged (ObjRef obj) TypeName),
-  mValObjBidi_valToHs = \ptr -> (errIO . fromObjRefIO) =<< mValToHs ptr,
-  mValObjBidi_hsToVal = \obj ptr -> flip mHsToVal ptr =<< newFn obj,
-  mValObjBidi_hsToAlloc = \obj f -> flip mHsToAlloc f =<< newFn obj,
-  mValObjBidi_objToHs = hsqmlObjectGetHaskell,
-  mValObjBidi_hsToObj = fmap objHndl . newFn}
+    forall obj. (Object obj) =>
+    (obj -> IO (ObjRef obj)) -> Marshaller obj (ModeObjBidi obj) 
+objBidiMarshaller newFn = Marshaller {
+    mTypeCVal_ = retag (mTypeCVal :: Tagged (ObjRef obj) TypeId),
+    mFromCVal_ = \ptr -> (errIO . fromObjRefIO) =<< mFromCVal ptr,
+    mToCVal_ = \obj ptr -> flip mToCVal ptr =<< newFn obj,
+    mWithCVal_ = \obj f -> flip mWithCVal f =<< newFn obj,
+    mFromHndl_ = hsqmlObjectGetHaskell,
+    mToHndl_ = fmap objHndl . newFn}
 
 --
 -- ClassDef
@@ -275,8 +278,8 @@ createClass typRep cdef = do
 --
 
 data MethodTypeInfo = MethodTypeInfo {
-  methodParamTypes :: [TypeName],
-  methodReturnType :: TypeName
+  methodParamTypes :: [TypeId],
+  methodReturnType :: TypeId
 }
 
 newtype MSHelp a = MSHelp a
@@ -287,55 +290,55 @@ class MethodSuffix a where
   mkMethodFunc  :: Int -> a -> Ptr (Ptr ()) -> ErrIO ()
   mkMethodTypes :: Tagged a MethodTypeInfo
 
-instance (Marshal a, MarshalToHs (MarshalMode a), MethodSuffix (MSHelp b)) =>
+instance (Marshal a, CanGetFrom a ~ Yes, MethodSuffix (MSHelp b)) =>
   MethodSuffix (MSHelp (a -> b)) where
   mkMethodFunc n (MSHelp f) pv = do
     ptr <- errIO $ peekElemOff pv n
-    val <- mValToHs ptr
+    val <- mFromCVal ptr
     mkMethodFunc (n+1) (MSHelp $ f val) pv
     return ()
   mkMethodTypes =
     let (MethodTypeInfo p r) =
           untag (mkMethodTypes :: Tagged (MSHelp b) MethodTypeInfo)
-        typ = untag (mTypeName :: Tagged a TypeName)
+        typ = untag (mTypeCVal :: Tagged a TypeId)
     in Tagged $ MethodTypeInfo (typ:p) r
 
-instance (Marshal a, MarshalToValRaw (MarshalMode a)) =>
+instance (Marshal a, CanReturnTo a ~ Yes) =>
   MethodSuffix (MSHelp (IO a)) where
   mkMethodFunc _ (MSHelp f) pv = errIO $ do
     ptr <- peekElemOff pv 0
     val <- f
     if nullPtr == ptr
     then return ()
-    else mHsToVal val ptr
+    else mToCVal val ptr
   mkMethodTypes =
-    let typ = untag (mTypeName :: Tagged a TypeName)
+    let typ = untag (mTypeCVal :: Tagged a TypeId)
     in Tagged $ MethodTypeInfo [] typ
 
 mkUniformFunc :: forall tt ms.
-  (Marshal tt, MarshalFromObj (MarshalMode tt), MethodSuffix (MSHelp ms)) =>
+  (Marshal tt, CanGetObjFrom tt ~ Yes, MethodSuffix (MSHelp ms)) =>
   (tt -> ms) -> UniformFunc
 mkUniformFunc f = \pt pv -> do
   hndl <- hsqmlGetObjectHandle pt
-  this <- mObjToHs hndl
+  this <- mFromHndl hndl
   runErrIO $ mkMethodFunc 1 (MSHelp $ f this) pv
 
 newtype VoidIO = VoidIO {runVoidIO :: (IO ())}
 
 instance MethodSuffix (MSHelp VoidIO) where
     mkMethodFunc _ (MSHelp f) pv = errIO $ runVoidIO f
-    mkMethodTypes = Tagged $ MethodTypeInfo [] (TypeName "")
+    mkMethodTypes = Tagged $ MethodTypeInfo [] tyVoid
 
 class IsVoidIO a
 instance (IsVoidIO b) => IsVoidIO (a -> b)
 instance IsVoidIO VoidIO
 
 mkSpecialFunc :: forall tt ms.
-    (Marshal tt, MarshalFromObj (MarshalMode tt), MethodSuffix (MSHelp ms),
+    (Marshal tt, CanGetObjFrom tt ~ Yes, MethodSuffix (MSHelp ms),
         IsVoidIO ms) => (tt -> ms) -> UniformFunc
 mkSpecialFunc f = \pt pv -> do
     hndl <- hsqmlGetObjectHandle pt
-    this <- mObjToHs hndl
+    this <- mFromHndl hndl
     runErrIO $ mkMethodFunc 0 (MSHelp $ f this) pv
 
 -- | Defines a named method using a function @f@ in the IO monad.
@@ -345,7 +348,7 @@ mkSpecialFunc f = \pt pv -> do
 -- there may be zero or more parameter arguments followed by an optional return
 -- argument in the IO monad.
 defMethod :: forall tt ms.
-  (Marshal tt, MarshalFromObj (MarshalMode tt), MethodSuffix (MSHelp ms)) =>
+  (Marshal tt, CanGetObjFrom tt ~ Yes, MethodSuffix (MSHelp ms)) =>
   String -> (tt -> ms) -> Member (ThisObj tt)
 defMethod name f =
   let crude = untag (mkMethodTypes :: Tagged (MSHelp ms) MethodTypeInfo)
@@ -364,12 +367,12 @@ defMethod name f =
 -- | Defines a named read-only property using an accessor function in the IO
 -- monad.
 defPropertyRO ::
-  forall tt tr. (Marshal tt, MarshalFromObj (MarshalMode tt),
-    Marshal tr, MarshalToVal (MarshalMode tr)) =>
+  forall tt tr. (Marshal tt, CanGetObjFrom tt ~ Yes,
+    Marshal tr, CanReturnTo tr ~ Yes) =>
   String -> (tt -> IO tr) -> Member (ThisObj tt)
 defPropertyRO name g = Member PropertyMember
   name
-  (untag (mTypeName :: Tagged tr TypeName))
+  (untag (mTypeCVal :: Tagged tr TypeId))
   []
   (mkUniformFunc g)
   Nothing
@@ -378,12 +381,12 @@ defPropertyRO name g = Member PropertyMember
 -- | Defines a named read-write property using a pair of accessor and mutator
 -- functions in the IO monad.
 defPropertyRW ::
-  forall tt tr. (Marshal tt, MarshalFromObj (MarshalMode tt),
-    Marshal tr, MarshalToHs (MarshalMode tr), MarshalToVal (MarshalMode tr)) =>
+  forall tt tr. (Marshal tt, CanGetObjFrom tt ~ Yes,
+    Marshal tr, CanReturnTo tr ~ Yes, CanGetFrom tr ~ Yes) =>
   String -> (tt -> IO tr) -> (tt -> tr -> IO ()) -> Member (ThisObj tt)
 defPropertyRW name g s = Member PropertyMember
   name
-  (untag (mTypeName :: Tagged tr TypeName))
+  (untag (mTypeCVal :: Tagged tr TypeId))
   []
   (mkUniformFunc g)
   (Just $ mkSpecialFunc (\a b -> VoidIO $ s a b))
@@ -394,7 +397,7 @@ defPropertyRW name g s = Member PropertyMember
 --
 
 data SignalTypeInfo = SignalTypeInfo {
-  signalParamTypes :: [TypeName]
+  signalParamTypes :: [TypeId]
 }
 
 -- | Defines a named signal using a 'SignalKey'.
@@ -404,7 +407,7 @@ defSignal tn =
   let crude = untag (mkSignalTypes :: Tagged (SignalParams sk) SignalTypeInfo)
   in Member SignalMember
        (untag tn)
-       (TypeName "")
+       tyVoid
        (signalParamTypes crude)
        (\_ _ -> return ())
        Nothing
@@ -413,23 +416,22 @@ defSignal tn =
 -- | Fires a signal on an 'Object', specified using a 'SignalKey'.
 fireSignal ::
     forall tt sk. (
-        Marshal tt, MarshalToObj (MarshalMode tt),
+        Marshal tt, CanPassObjTo tt ~ Yes,
         Object (ThisObj tt), SignalKey sk) =>
     Tagged sk tt -> SignalParams sk 
 fireSignal this =
-   let start cnt = do
+    let start cnt = do
            crec <- getClassRec (classDef :: ClassDef (ThisObj tt))
            let keyRep = typeOf (undefined :: sk)
                slotMay = Map.lookup keyRep $ crecSigs crec
            case slotMay of
                 Just slotIdx -> postJob $ do
-                    hndl <- mHsToObj $ untag this
+                    hndl <- mToHndl $ untag this
                     withActiveObject hndl $ cnt $ SignalData hndl slotIdx
                 Nothing ->
-                    error ("Attempt to fire undefined signal on class '"++
-                    (typeName $ untag (mTypeName :: Tagged tt TypeName))++"'.")
-       cont ps (SignalData hndl slotIdx) =
-           withArray (nullPtr:ps) (\pptr ->
+                    error ("Attempt to fire undefined signal on class.")
+        cont ps (SignalData hndl slotIdx) =
+            withArray (nullPtr:ps) (\pptr ->
                 hsqmlFireSignal hndl slotIdx pptr)
     in mkSignalArgs start cont
 
@@ -446,16 +448,16 @@ class SignalSuffix ss where
         ((usr -> IO ()) -> IO ()) -> ([Ptr ()] -> usr -> IO ()) -> ss
     mkSignalTypes :: Tagged ss SignalTypeInfo
 
-instance (Marshal a, MarshalToVal (MarshalMode a), SignalSuffix b) =>
+instance (Marshal a, CanPassTo a ~ Yes, SignalSuffix b) =>
     SignalSuffix (a -> b) where
     mkSignalArgs start cont param =
         mkSignalArgs start (\ps usr ->
-            mHsToAlloc param (\ptr ->
+            mWithCVal param (\ptr ->
                 cont (ptr:ps) usr))
     mkSignalTypes =
         let (SignalTypeInfo p) =
                 untag (mkSignalTypes :: Tagged b SignalTypeInfo)
-            typ = untag (mTypeName :: Tagged a TypeName)
+            typ = untag (mTypeCVal :: Tagged a TypeId)
         in Tagged $ SignalTypeInfo (typ:p)
 
 instance SignalSuffix (IO ()) where

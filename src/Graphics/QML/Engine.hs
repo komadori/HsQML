@@ -73,8 +73,8 @@ runEngineImpl config stopCb = do
     hsqmlInit
     let obj = contextObject config
         DocumentPath res = initialDocument config
-    hndl <- sequenceA $ fmap mHsToObj $ obj
-    mHsToAlloc res $ \resPtr -> do
+    hndl <- sequenceA $ fmap mToHndl $ obj
+    mWithCVal res $ \resPtr -> do
         hsqmlCreateEngine hndl resPtr stopCb
     return Engine
 

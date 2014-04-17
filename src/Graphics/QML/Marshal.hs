@@ -10,16 +10,23 @@ module Graphics.QML.Marshal (
   Marshal (
     type MarshalMode,
     marshaller),
-  MarshalToHs,
-  MarshalToValRaw,
-  MarshalToVal,
-  MarshalFromObj,
-  MarshalToObj,
-  ValBidi,
-  ValFnRetVoid,
-  ValObjBidi,
-  ValObjToOnly,
+  ModeBidi,
+  ModeFrom,
+  ModeRetVoid,
+  ModeObjBidi,
+  ModeObjFrom,
   ThisObj,
+  Yes,
+  CanGetFrom,
+  CanGetFrom_,
+  CanPassTo,
+  CanPassTo_,
+  CanReturnTo,
+  CanReturnTo_,
+  CanGetObjFrom,
+  CanGetObjFrom_,
+  CanPassObjTo,
+  CanPassObjTo_,
   Marshaller 
 ) where
 
@@ -44,75 +51,83 @@ import Foreign.Storable
 --
 
 instance Marshal Int32 where
-  type MarshalMode Int32 = ValBidi
-  marshaller = MValBidi {
-    mValBidi_typeName = Tagged $ TypeName "int",
-    mValBidi_valToHs = \ptr ->
-      errIO $ peek (castPtr ptr :: Ptr CInt) >>= return . fromIntegral,
-    mValBidi_hsToVal = \int ptr ->
-      poke (castPtr ptr :: Ptr CInt) (fromIntegral int),
-    mValBidi_hsToAlloc = \int f ->
-      alloca $ \(ptr :: Ptr CInt) ->
-        mHsToVal int (castPtr ptr) >> f (castPtr ptr)}
+    type MarshalMode Int32 = ModeBidi
+    marshaller = Marshaller {
+        mTypeCVal_ = Tagged tyInt,
+        mFromCVal_ = \ptr ->
+            errIO $ peek (castPtr ptr :: Ptr CInt) >>= return . fromIntegral,
+        mToCVal_ = \int ptr ->
+            poke (castPtr ptr :: Ptr CInt) (fromIntegral int),
+        mWithCVal_ = \int f ->
+            alloca $ \(ptr :: Ptr CInt) ->
+                mToCVal int (castPtr ptr) >> f (castPtr ptr),
+        mFromHndl_ = unimplFromHndl,
+        mToHndl_ = unimplToHndl}
 
 instance Marshal Int where
-  type MarshalMode Int = ValBidi
-  marshaller = MValBidi {
-    mValBidi_typeName = Tagged $ TypeName "int",
-    mValBidi_valToHs = fmap (fromIntegral :: Int32 -> Int) . mValToHs,
-    mValBidi_hsToVal = \int ptr -> mHsToVal (fromIntegral int :: Int32) ptr,
-    mValBidi_hsToAlloc = \int f -> mHsToAlloc (fromIntegral int :: Int32) f}
+    type MarshalMode Int = ModeBidi
+    marshaller = Marshaller {
+        mTypeCVal_ = Tagged tyInt,
+        mFromCVal_ = fmap (fromIntegral :: Int32 -> Int) . mFromCVal,
+        mToCVal_ = \int ptr -> mToCVal (fromIntegral int :: Int32) ptr,
+        mWithCVal_ = \int f -> mWithCVal (fromIntegral int :: Int32) f,
+        mFromHndl_ = unimplFromHndl,
+        mToHndl_ = unimplToHndl}
 
 --
 -- Double/double built-in type
 --
 
 instance Marshal Double where
-  type MarshalMode Double = ValBidi
-  marshaller = MValBidi {
-    mValBidi_typeName = Tagged $ TypeName "double",
-    mValBidi_valToHs = \ptr ->
-      errIO $ peek (castPtr ptr :: Ptr CDouble) >>= return . realToFrac,
-    mValBidi_hsToVal = \num ptr ->
-      poke (castPtr ptr :: Ptr CDouble) (realToFrac num),
-    mValBidi_hsToAlloc = \num f ->
-      alloca $ \(ptr :: Ptr CDouble) ->
-        mHsToVal num (castPtr ptr) >> f (castPtr ptr)}
+    type MarshalMode Double = ModeBidi
+    marshaller = Marshaller {
+        mTypeCVal_ = Tagged tyDouble,
+        mFromCVal_ = \ptr ->
+            errIO $ peek (castPtr ptr :: Ptr CDouble) >>= return . realToFrac,
+        mToCVal_ = \num ptr ->
+            poke (castPtr ptr :: Ptr CDouble) (realToFrac num),
+        mWithCVal_ = \num f ->
+            alloca $ \(ptr :: Ptr CDouble) ->
+                mToCVal num (castPtr ptr) >> f (castPtr ptr),
+        mFromHndl_ = unimplFromHndl,
+        mToHndl_ = unimplToHndl}
 
 --
 -- Text/QString built-in type
 --
 
 instance Marshal Text where
-  type MarshalMode Text = ValBidi
-  marshaller = MValBidi {
-    mValBidi_typeName = Tagged $ TypeName "QString",
-    mValBidi_valToHs = \ptr -> errIO $ do
-      pair <- alloca (\bufPtr -> do
-        len <- hsqmlUnmarshalString (HsQMLStringHandle $ castPtr ptr) bufPtr
-        buf <- peek bufPtr
-        return (castPtr buf, fromIntegral len))
-      uncurry T.fromPtr pair,
-    mValBidi_hsToVal = \txt ptr -> do
-      array <- hsqmlMarshalString
-          (T.lengthWord16 txt) (HsQMLStringHandle $ castPtr ptr)
-      T.unsafeCopyToPtr txt (castPtr array),
-    mValBidi_hsToAlloc = \txt f ->
-      allocaBytes hsqmlStringSize $ \ptr -> do
-        hsqmlInitString $ HsQMLStringHandle ptr
-        mHsToVal txt (castPtr ptr)
-        ret <- f (castPtr ptr)
-        hsqmlDeinitString $ HsQMLStringHandle ptr
-        return ret}
+    type MarshalMode Text = ModeBidi
+    marshaller = Marshaller {
+        mTypeCVal_ = Tagged tyString,
+        mFromCVal_ = \ptr -> errIO $ do
+            pair <- alloca (\bufPtr -> do
+                len <- hsqmlUnmarshalString (
+                    HsQMLStringHandle $ castPtr ptr) bufPtr
+                buf <- peek bufPtr
+                return (castPtr buf, fromIntegral len))
+            uncurry T.fromPtr pair,
+        mToCVal_ = \txt ptr -> do
+            array <- hsqmlMarshalString
+                (T.lengthWord16 txt) (HsQMLStringHandle $ castPtr ptr)
+            T.unsafeCopyToPtr txt (castPtr array),
+        mWithCVal_ = \txt f ->
+            withStrHndl $ \(HsQMLStringHandle ptr) -> do
+                mToCVal txt $ castPtr ptr
+                f $ castPtr ptr,
+        mFromHndl_ = unimplFromHndl,
+        mToHndl_ = unimplToHndl}
 
 --
 -- String/QString built-in type
 --
 
 instance Marshal String where
-  type MarshalMode String = ValBidi
-  marshaller = MValBidi {
-    mValBidi_typeName = Tagged $ TypeName "QString",
-    mValBidi_valToHs = fmap T.unpack . mValToHs,
-    mValBidi_hsToVal = \txt ptr -> mHsToVal (T.pack txt) ptr,
-    mValBidi_hsToAlloc = \txt f -> mHsToAlloc (T.pack txt) f}
+    type MarshalMode String = ModeBidi
+    marshaller = Marshaller {
+        mTypeCVal_ = Tagged tyString,
+        mFromCVal_ = fmap T.unpack . mFromCVal,
+        mToCVal_ = \txt ptr -> mToCVal (T.pack txt) ptr,
+        mWithCVal_ = \txt f -> mWithCVal (T.pack txt) f,
+        mFromHndl_ = unimplFromHndl,
+        mToHndl_ = unimplToHndl}
