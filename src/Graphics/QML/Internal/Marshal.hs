@@ -48,98 +48,115 @@ type MWithJValFunc t = (forall b. t -> (HsQMLJValHandle -> IO b) -> IO b)
 type MFromHndlFunc t = HsQMLObjectHandle -> IO t
 type MToHndlFunc t = t -> IO HsQMLObjectHandle
 
+type MarshallerFor t = Marshaller t
+    (MarshalMode t ICanGetFrom ()) (MarshalMode t ICanPassTo ())
+    (MarshalMode t ICanReturnTo ())
+    (MarshalMode t IIsObjType ()) (MarshalMode t IGetObjType ())
+
+type MarshallerForMode t m = Marshaller t
+    (m ICanGetFrom) (m ICanPassTo) (m ICanReturnTo)
+    (m IIsObjType) (m IGetObjType)
+
 -- | The class 'Marshal' allows Haskell values to be marshalled to and from the
 -- QML environment.
 class Marshal t where
-    -- | The 'MarshalMode' associated type parameter specifies the type of
-    -- marshalling functionality offered by the instance.
-    type MarshalMode t
+    -- | The 'MarshalMode' associated type family specifies the marshalling
+    -- capabilities offered by the instance. @c@ indicates the capability being
+    -- queried. @d@ is dummy parameter which allows certain instances to type
+    -- check.
+    type MarshalMode t c d
     -- | Yields the 'Marshaller' for the type @t@.
-    marshaller :: Marshaller t (MarshalMode t)
+    marshaller :: MarshallerFor t
 
 -- | 'MarshalMode' for non-object types with bidirectional marshalling.
-data ModeBidi
-type instance CanGetFrom_ ModeBidi = Yes
-type instance CanPassTo_ ModeBidi = Yes
-type instance CanReturnTo_ ModeBidi = Yes
+type family ModeBidi c
+type instance ModeBidi ICanGetFrom = Yes
+type instance ModeBidi ICanPassTo = Yes
+type instance ModeBidi ICanReturnTo = Yes
+type instance ModeBidi IIsObjType = No
+type instance ModeBidi IGetObjType = No
 
 -- | 'MarshalMode' for non-object types with from-only marshalling.
-data ModeFrom
-type instance CanGetFrom_ ModeFrom = Yes
+type family ModeFrom c
+type instance ModeFrom ICanGetFrom = Yes
+type instance ModeFrom ICanPassTo = No
+type instance ModeFrom ICanReturnTo = No
+type instance ModeFrom IIsObjType = No
+type instance ModeFrom IGetObjType = No
 
 -- | 'MarshalMode' for void in method returns.
-data ModeRetVoid
-type instance CanReturnTo_ ModeRetVoid = Yes
+type family ModeRetVoid c
+type instance ModeRetVoid ICanGetFrom = No
+type instance ModeRetVoid ICanPassTo = No
+type instance ModeRetVoid ICanReturnTo = Yes
+type instance ModeRetVoid IIsObjType = No
+type instance ModeRetVoid IGetObjType = No
 
 -- | 'MarshalMode' for object types with bidirectional marshalling.
-data ModeObjBidi a
-type instance CanGetFrom_ (ModeObjBidi a) = Yes
-type instance CanPassTo_ (ModeObjBidi a) = Yes
-type instance CanReturnTo_ (ModeObjBidi a) = Yes
-type instance CanGetObjFrom_ (ModeObjBidi a) = Yes
-type instance CanPassObjTo_ (ModeObjBidi a) = Yes
-type instance ThisObj_ (ModeObjBidi a) = a
+type family ModeObjBidi a c
+type instance ModeObjBidi a ICanGetFrom = Yes
+type instance ModeObjBidi a ICanPassTo = Yes
+type instance ModeObjBidi a ICanReturnTo = Yes
+type instance ModeObjBidi a IIsObjType = Yes
+type instance ModeObjBidi a IGetObjType = a
 
 -- | 'MarshalMode' for object types with from-only marshalling.
-data ModeObjFrom a
-type instance CanGetFrom_ (ModeObjFrom a) = Yes
-type instance CanGetObjFrom_ (ModeObjFrom a) = Yes
-type instance ThisObj_ (ModeObjFrom a) = a
+type family ModeObjFrom a c
+type instance ModeObjFrom a ICanGetFrom = Yes
+type instance ModeObjFrom a ICanPassTo = No
+type instance ModeObjFrom a ICanReturnTo = No
+type instance ModeObjFrom a IIsObjType = Yes
+type instance ModeObjFrom a IGetObjType = a
 
--- | Successful return value from marshalling capability type functions.
+-- | Type value indicating a capability is supported.
 data Yes
 
--- | Type function equal to 'Yes' if the 'MarshalMode' @m@ supports receiving
--- values from QML.
-type family CanGetFrom_ m
+-- | Type value indicating a capability is not supported.
+data No
 
 -- | Type function equal to 'Yes' if the marshallable type @t@ supports being
 -- received from QML.
-type CanGetFrom t = CanGetFrom_ (MarshalMode t)
+type CanGetFrom t = MarshalMode t ICanGetFrom ()
 
--- | Type function equal to 'Yes' if the 'MarshalMode' @m@ supports passing
--- values to QML.
-type family CanPassTo_ m
+-- | Type index into 'MarshalMode' for querying if the mode supports receiving
+-- values from QML.
+data ICanGetFrom
 
 -- | Type function equal to 'Yes' if the marshallable type @t@ supports being
 -- passed to QML.
-type CanPassTo t = CanPassTo_ (MarshalMode t)
+type CanPassTo t = MarshalMode t ICanPassTo ()
 
--- | Type function equal to 'Yes' if the 'MarshalMode' @m@ supports returning
+-- | Type index into 'MarshalMode' for querying if the mode supports passing
 -- values to QML.
-type family CanReturnTo_ m
+data ICanPassTo
 
 -- | Type function equal to 'Yes' if the marshallable type @t@ supports being
 -- returned to QML.
-type CanReturnTo t = CanReturnTo_ (MarshalMode t)
+type CanReturnTo t = MarshalMode t ICanReturnTo ()
 
--- | Type function equal to 'Yes' if the 'MarshalMode' @m@ supports receiving
--- values from QML in the form of an object handle.
-type family CanGetObjFrom_ m
+-- | Type index into 'MarshalMode' for querying if the mode supports returning
+-- values to QML.
+data ICanReturnTo
 
--- | Type function equal to 'Yes' if the marshallable type @t@ supports being
--- received from QML in the form of an object handle.
-type CanGetObjFrom t = CanGetObjFrom_ (MarshalMode t)
+-- | Type function equal to 'Yes' if the marshallable type @t@ is an object.
+type IsObjType t = MarshalMode t IIsObjType ()
 
--- | Type function equal to 'Yes' if the 'MarshalMode' @m@ supports passing
--- values to QML in the form of an object handle.
-type family CanPassObjTo_ m
+-- | Type index into 'MarshalMode' for querying if the mode supports an object
+-- type.
+data IIsObjType
 
--- | Type function equal to 'Yes' if the marshallable type @t@ supports being
--- passed to QML in the form of an object handle.
-type CanPassObjTo t = CanPassObjTo_ (MarshalMode t)
+-- | Type function which returns the type encapsulated by the object handles
+-- used by the marshallable type @t@.
+type GetObjType t = MarshalMode t IGetObjType ()
 
--- | Type function yielding the object type specified by the 'MarshalMode' @m@.
-type family ThisObj_ m
-
--- | Type function yielding the object type specified by the marshallable type
--- @t@.
-type ThisObj t = ThisObj_ (MarshalMode t)
+-- | Type index into 'MarshalMode' for querying the type encapsulated by the
+-- mode's object handles.
+data IGetObjType
 
 -- | Encapsulates the functionality to needed to implement an instance of
 -- 'Marshal' so that such instances can be defined without access to
 -- implementation details.
-data Marshaller t m = Marshaller {
+data Marshaller t u v w x y = Marshaller {
     mTypeCVal_ :: !(MTypeCValFunc t),
     mFromCVal_ :: !(MFromCValFunc t),
     mToCVal_   :: !(MToCValFunc t),
@@ -151,28 +168,28 @@ data Marshaller t m = Marshaller {
 }
 
 mTypeCVal :: forall t. (Marshal t) => MTypeCValFunc t
-mTypeCVal = mTypeCVal_ (marshaller :: Marshaller t (MarshalMode t))
+mTypeCVal = mTypeCVal_ (marshaller :: MarshallerFor t)
 
 mFromCVal :: forall t. (Marshal t) => MFromCValFunc t
-mFromCVal = mFromCVal_ (marshaller :: Marshaller t (MarshalMode t))
+mFromCVal = mFromCVal_ (marshaller :: MarshallerFor t)
 
 mToCVal :: forall t. (Marshal t) => MToCValFunc t
-mToCVal = mToCVal_ (marshaller :: Marshaller t (MarshalMode t))
+mToCVal = mToCVal_ (marshaller :: MarshallerFor t)
 
 mWithCVal :: forall t. (Marshal t) => MWithCValFunc t
-mWithCVal = mWithCVal_ (marshaller :: Marshaller t (MarshalMode t))
+mWithCVal = mWithCVal_ (marshaller :: MarshallerFor t)
 
 mFromJVal :: forall t. (Marshal t) => MFromJValFunc t
-mFromJVal = mFromJVal_ (marshaller :: Marshaller t (MarshalMode t))
+mFromJVal = mFromJVal_ (marshaller :: MarshallerFor t)
 
 mWithJVal :: forall t. (Marshal t) => MWithJValFunc t
-mWithJVal = mWithJVal_ (marshaller :: Marshaller t (MarshalMode t))
+mWithJVal = mWithJVal_ (marshaller :: MarshallerFor t)
 
 mFromHndl :: forall t. (Marshal t) => MFromHndlFunc t
-mFromHndl = mFromHndl_ (marshaller :: Marshaller t (MarshalMode t))
+mFromHndl = mFromHndl_ (marshaller :: MarshallerFor t)
 
 mToHndl :: forall t. (Marshal t) => MToHndlFunc t
-mToHndl = mToHndl_ (marshaller :: Marshaller t (MarshalMode t))
+mToHndl = mToHndl_ (marshaller :: MarshallerFor t)
 
 unimplFromCVal :: MFromCValFunc t
 unimplFromCVal = \_ -> error "Type does not support mFromCVal."
@@ -207,7 +224,7 @@ jvalWithCVal = \val f -> mWithJVal val $ \(HsQMLJValHandle ptr) ->
     f $ castPtr ptr
 
 instance Marshal () where
-    type MarshalMode () = ModeRetVoid
+    type MarshalMode () c d = ModeRetVoid c
     marshaller = Marshaller {
         mTypeCVal_ = Tagged tyVoid,
         mFromCVal_ = unimplFromCVal,

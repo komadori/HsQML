@@ -15,18 +15,17 @@ module Graphics.QML.Marshal (
   ModeRetVoid,
   ModeObjBidi,
   ModeObjFrom,
-  ThisObj,
   Yes,
   CanGetFrom,
-  CanGetFrom_,
+  ICanGetFrom,
   CanPassTo,
-  CanPassTo_,
+  ICanPassTo,
   CanReturnTo,
-  CanReturnTo_,
-  CanGetObjFrom,
-  CanGetObjFrom_,
-  CanPassObjTo,
-  CanPassObjTo_,
+  ICanReturnTo,
+  IsObjType,
+  IIsObjType,
+  GetObjType,
+  IGetObjType,
   Marshaller 
 ) where
 
@@ -52,7 +51,7 @@ import Foreign.Storable
 --
 
 instance Marshal Bool where
-    type MarshalMode Bool = ModeBidi
+    type MarshalMode Bool c d = ModeBidi c
     marshaller = Marshaller {
         mTypeCVal_ = Tagged tyJSValue,
         mFromCVal_ = jvalFromCVal,
@@ -70,7 +69,7 @@ instance Marshal Bool where
 --
 
 instance Marshal Int32 where
-    type MarshalMode Int32 = ModeBidi
+    type MarshalMode Int32 c d = ModeBidi c
     marshaller = Marshaller {
         mTypeCVal_ = Tagged tyInt,
         mFromCVal_ = \ptr ->
@@ -89,7 +88,7 @@ instance Marshal Int32 where
         mToHndl_ = unimplToHndl}
 
 instance Marshal Int where
-    type MarshalMode Int = ModeBidi
+    type MarshalMode Int c d = ModeBidi c
     marshaller = Marshaller {
         mTypeCVal_ = Tagged tyInt,
         mFromCVal_ = fmap (fromIntegral :: Int32 -> Int) . mFromCVal,
@@ -105,7 +104,7 @@ instance Marshal Int where
 --
 
 instance Marshal Double where
-    type MarshalMode Double = ModeBidi
+    type MarshalMode Double c d = ModeBidi c
     marshaller = Marshaller {
         mTypeCVal_ = Tagged tyDouble,
         mFromCVal_ = \ptr ->
@@ -128,7 +127,7 @@ instance Marshal Double where
 --
 
 instance Marshal Text where
-    type MarshalMode Text = ModeBidi
+    type MarshalMode Text c d = ModeBidi c
     marshaller = Marshaller {
         mTypeCVal_ = Tagged tyString,
         mFromCVal_ = \ptr -> errIO $ do
@@ -163,7 +162,7 @@ instance Marshal Text where
 --
 
 instance Marshal String where
-    type MarshalMode String = ModeBidi
+    type MarshalMode String c d = ModeBidi c
     marshaller = Marshaller {
         mTypeCVal_ = Tagged tyString,
         mFromCVal_ = fmap T.unpack . mFromCVal,
@@ -179,7 +178,11 @@ instance Marshal String where
 --
 
 instance (Marshal a) => Marshal (Maybe a) where
-    type MarshalMode (Maybe a) = ModeBidi
+    type MarshalMode (Maybe a) ICanGetFrom d = MarshalMode a ICanGetFrom d
+    type MarshalMode (Maybe a) ICanPassTo d = MarshalMode a ICanPassTo d
+    type MarshalMode (Maybe a) ICanReturnTo d = MarshalMode a ICanReturnTo d
+    type MarshalMode (Maybe a) IIsObjType d = No
+    type MarshalMode (Maybe a) IGetObjType d = No
     marshaller = Marshaller {
         mTypeCVal_ = Tagged tyJSValue,
         mFromCVal_ = jvalFromCVal,

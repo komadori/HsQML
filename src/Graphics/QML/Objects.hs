@@ -2,7 +2,8 @@
     ScopedTypeVariables,
     TypeFamilies,
     FlexibleContexts,
-    FlexibleInstances
+    FlexibleInstances,
+    LiberalTypeSynonyms
   #-}
 
 -- | Facilities for defining new object types which can be marshalled between
@@ -80,7 +81,7 @@ data ObjRef tt = ObjRef {
 }
 
 instance (Object tt) => Marshal (ObjRef tt) where
-    type MarshalMode (ObjRef tt) = ModeObjBidi tt
+    type MarshalMode (ObjRef tt) c d = ModeObjBidi tt c
     marshaller = Marshaller {
         mTypeCVal_ = retag (mTypeCVal :: Tagged AnyObjRef TypeId),
         mFromCVal_ = \ptr -> do
@@ -126,7 +127,7 @@ data AnyObjRef = AnyObjRef {
 }
 
 instance Marshal AnyObjRef where
-    type MarshalMode AnyObjRef = ModeObjBidi ()
+    type MarshalMode AnyObjRef c d = ModeObjBidi No c
     marshaller = Marshaller {
         mTypeCVal_ = Tagged tyJSValue,
         mFromCVal_ = jvalFromCVal,
@@ -172,11 +173,11 @@ fromAnyObjRefIO (AnyObjRef hndl) = do
 --
 -- @
 -- instance Marshal MyObjectType where
---     type MarshalMode MyObjectType = ValObjFrom MyObjectType
+--     type MarshalMode MyObjectType c d = ModeObjFrom MyObjectType c
 --     marshaller = objSimpleMarshaller
 -- @
 objSimpleMarshaller ::
-    forall obj. (Object obj) => Marshaller obj (ModeObjFrom obj)
+    forall obj. (Object obj) => MarshallerForMode obj (ModeObjFrom obj)
 objSimpleMarshaller = Marshaller {
     mTypeCVal_ = retag (mTypeCVal :: Tagged (ObjRef obj) TypeId),
     mFromCVal_ = \ptr -> (errIO . fromObjRefIO) =<< mFromCVal ptr,
@@ -199,12 +200,12 @@ objSimpleMarshaller = Marshaller {
 --
 -- @
 -- instance Marshal MyObjectType where
---     type MarshalMode MyObjectType = ModeObjBidi MyObjectType
+--     type MarshalMode MyObjectType c d = ModeObjBidi MyObjectType c
 --     marshaller = objBidiMarshaller newObject
 -- @
 objBidiMarshaller ::
     forall obj. (Object obj) =>
-    (obj -> IO (ObjRef obj)) -> Marshaller obj (ModeObjBidi obj) 
+    (obj -> IO (ObjRef obj)) -> MarshallerForMode obj (ModeObjBidi obj)
 objBidiMarshaller newFn = Marshaller {
     mTypeCVal_ = retag (mTypeCVal :: Tagged (ObjRef obj) TypeId),
     mFromCVal_ = \ptr -> (errIO . fromObjRefIO) =<< mFromCVal ptr,
@@ -327,7 +328,8 @@ instance (Marshal a, CanReturnTo a ~ Yes) =>
     in Tagged $ MethodTypeInfo [] typ
 
 mkUniformFunc :: forall tt ms.
-  (Marshal tt, CanGetObjFrom tt ~ Yes, MethodSuffix (MSHelp ms)) =>
+  (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes,
+    MethodSuffix (MSHelp ms)) =>
   (tt -> ms) -> UniformFunc
 mkUniformFunc f = \pt pv -> do
   hndl <- hsqmlGetObjectFromPointer pt
@@ -345,8 +347,8 @@ instance (IsVoidIO b) => IsVoidIO (a -> b)
 instance IsVoidIO VoidIO
 
 mkSpecialFunc :: forall tt ms.
-    (Marshal tt, CanGetObjFrom tt ~ Yes, MethodSuffix (MSHelp ms),
-        IsVoidIO ms) => (tt -> ms) -> UniformFunc
+    (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes,
+        MethodSuffix (MSHelp ms), IsVoidIO ms) => (tt -> ms) -> UniformFunc
 mkSpecialFunc f = \pt pv -> do
     hndl <- hsqmlGetObjectFromPointer pt
     this <- mFromHndl hndl
@@ -359,8 +361,9 @@ mkSpecialFunc f = \pt pv -> do
 -- there may be zero or more parameter arguments followed by an optional return
 -- argument in the IO monad.
 defMethod :: forall tt ms.
-  (Marshal tt, CanGetObjFrom tt ~ Yes, MethodSuffix (MSHelp ms)) =>
-  String -> (tt -> ms) -> Member (ThisObj tt)
+  (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes,
+    MethodSuffix (MSHelp ms)) =>
+  String -> (tt -> ms) -> Member (GetObjType tt)
 defMethod name f =
   let crude = untag (mkMethodTypes :: Tagged (MSHelp ms) MethodTypeInfo)
   in Member MethodMember
@@ -378,9 +381,9 @@ defMethod name f =
 -- | Defines a named read-only property using an accessor function in the IO
 -- monad.
 defPropertyRO ::
-  forall tt tr. (Marshal tt, CanGetObjFrom tt ~ Yes,
+  forall tt tr. (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes,
     Marshal tr, CanReturnTo tr ~ Yes) =>
-  String -> (tt -> IO tr) -> Member (ThisObj tt)
+  String -> (tt -> IO tr) -> Member (GetObjType tt)
 defPropertyRO name g = Member PropertyMember
   name
   (untag (mTypeCVal :: Tagged tr TypeId))
@@ -392,9 +395,9 @@ defPropertyRO name g = Member PropertyMember
 -- | Defines a named read-write property using a pair of accessor and mutator
 -- functions in the IO monad.
 defPropertyRW ::
-  forall tt tr. (Marshal tt, CanGetObjFrom tt ~ Yes,
+  forall tt tr. (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes,
     Marshal tr, CanReturnTo tr ~ Yes, CanGetFrom tr ~ Yes) =>
-  String -> (tt -> IO tr) -> (tt -> tr -> IO ()) -> Member (ThisObj tt)
+  String -> (tt -> IO tr) -> (tt -> tr -> IO ()) -> Member (GetObjType tt)
 defPropertyRW name g s = Member PropertyMember
   name
   (untag (mTypeCVal :: Tagged tr TypeId))
@@ -427,12 +430,12 @@ defSignal tn =
 -- | Fires a signal on an 'Object', specified using a 'SignalKey'.
 fireSignal ::
     forall tt sk. (
-        Marshal tt, CanPassObjTo tt ~ Yes,
-        Object (ThisObj tt), SignalKey sk) =>
+        Marshal tt, CanPassTo tt ~ Yes, IsObjType tt ~ Yes,
+        Object (GetObjType tt), SignalKey sk) =>
     Tagged sk tt -> SignalParams sk 
 fireSignal this =
     let start cnt = do
-           crec <- getClassRec (classDef :: ClassDef (ThisObj tt))
+           crec <- getClassRec (classDef :: ClassDef (GetObjType tt))
            let keyRep = typeOf (undefined :: sk)
                slotMay = Map.lookup keyRep $ crecSigs crec
            case slotMay of
