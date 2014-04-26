@@ -49,8 +49,6 @@ data SimpleMethods
     | SMSetInt Int32
     | SMGetDouble Double
     | SMSetDouble Double
-    | SMGetString String
-    | SMSetString String
     | SMGetText Text
     | SMSetText Text
     | SMGetObject Int
@@ -69,8 +67,6 @@ instance TestAction SimpleMethods where
         SMSetInt <$> fromGen arbitrary,
         SMGetDouble <$> fromGen arbitrary,
         SMSetDouble <$> fromGen arbitrary,
-        SMGetString <$> fromGen arbitrary,
-        SMSetString <$> fromGen arbitrary,
         SMGetText . T.pack <$> fromGen arbitrary,
         SMSetText . T.pack <$> fromGen arbitrary,
         pure . SMGetObject $ testEnvNextJ env,
@@ -85,8 +81,6 @@ instance TestAction SimpleMethods where
     actionRemote (SMSetInt v) n = makeCall n "setInt" [S.literal v]
     actionRemote (SMGetDouble v) n = testCall n "getDouble" [] $ S.literal v
     actionRemote (SMSetDouble v) n = makeCall n "setDouble" [S.literal v]
-    actionRemote (SMGetString v) n = testCall n "getString" [] $ S.literal v
-    actionRemote (SMSetString v) n = makeCall n "setString" [S.literal v]
     actionRemote (SMGetText v) n = testCall n "getText" [] $ S.literal v
     actionRemote (SMSetText v) n = makeCall n "setText" [S.literal v]
     actionRemote (SMGetObject v) n = saveCall v n "getObject" []
@@ -105,10 +99,6 @@ instance TestAction SimpleMethods where
             SMGetDouble v -> return $ Right v
             _             -> return $ Left TBadActionCtor,
         defMethod "setDouble" $ \m v -> checkAction m (SMSetDouble v) retVoid,
-        defMethod "getString" $ \m -> expectAction m $ \a -> case a of
-            SMGetString v -> return $ Right v
-            _             -> return $ Left TBadActionCtor,
-        defMethod "setString" $ \m v -> checkAction m (SMSetString v) retVoid,
         defMethod "getText" $ \m -> expectAction m $ \a -> case a of
             SMGetText v -> return $ Right v
             _           -> return $ Left TBadActionCtor,
@@ -126,8 +116,6 @@ data SimpleProperties
     | SPSetInt Int32
     | SPGetDouble Double
     | SPSetDouble Double
-    | SPGetString String
-    | SPSetString String
     | SPGetText Text
     | SPSetText Text
     | SPGetObject Int
@@ -143,8 +131,6 @@ instance TestAction SimpleProperties where
         SPSetInt <$> fromGen arbitrary,
         SPGetDouble <$> fromGen arbitrary,
         SPSetDouble <$> fromGen arbitrary,
-        SPGetString <$> fromGen arbitrary,
-        SPSetString <$> fromGen arbitrary,
         SPGetText . T.pack <$> fromGen arbitrary,
         SPSetText . T.pack <$> fromGen arbitrary,
         pure . SPGetObject $ testEnvNextJ env,
@@ -157,8 +143,6 @@ instance TestAction SimpleProperties where
     actionRemote (SPSetInt v) n = setProp n "propIntW" $ S.literal v
     actionRemote (SPGetDouble v) n = testProp n "propDoubleR" $ S.literal v
     actionRemote (SPSetDouble v) n = setProp n "propDoubleW" $ S.literal v
-    actionRemote (SPGetString v) n = testProp n "propStringR" $ S.literal v
-    actionRemote (SPSetString v) n = setProp n "propStringW" $ S.literal v
     actionRemote (SPGetText v) n = testProp n "propTextR" $ S.literal v
     actionRemote (SPSetText v) n = setProp n "propTextW" $ S.literal v
     actionRemote (SPGetObject v) n = saveProp v n "propObjectR"
@@ -184,13 +168,6 @@ instance TestAction SimpleProperties where
             (\m _ -> badAction m),
         defPropertyRW "propDoubleW"
             (\_ -> makeDef) (\m v -> checkAction m (SPSetDouble v) retVoid),
-        defPropertyRW "propStringR"
-            (\m -> expectAction m $ \a -> case a of
-                SPGetString v -> return $ Right v
-                _             -> return $ Left TBadActionCtor)
-            (\m _ -> badAction m),
-        defPropertyRW "propStringW"
-            (\_ -> makeDef) (\m v -> checkAction m (SPSetString v) retVoid),
         defPropertyRW "propTextR"
             (\m -> expectAction m $ \a -> case a of
                 SPGetText v -> return $ Right v

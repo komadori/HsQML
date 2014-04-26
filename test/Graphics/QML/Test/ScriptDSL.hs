@@ -41,10 +41,10 @@ instance Literal Double where
               | isNegativeZero x        = Expr $ showString "-0"
               | otherwise               = Expr $ shows x
 
-instance Literal [Char] where
-    literal [] = Expr $ showString "\"\""
-    literal cs =
-        Expr (showChar '"' . (foldr1 (.) $ map f cs) . showChar '"')
+instance Literal Text where
+    literal txt =
+        Expr (showChar '"' . (
+            foldr (.) id . map f $ T.unpack txt) . showChar '"')
         where f '\"' = showString "\\\""
               f '\\' = showString "\\\\"
               f c | ord c < 32 = hexEsc c
@@ -54,12 +54,14 @@ instance Literal [Char] where
                          in showString "\\u" .  showString (
                                 replicate (4 - (length $ h "")) '0') . h
 
-instance Literal Text where
-    literal = literal . T.unpack
-
 instance Literal a => Literal (Maybe a) where
     literal Nothing = Expr $ showString "null"
     literal (Just v) = literal v
+
+instance Literal a => Literal [a] where
+    literal xs = Expr (showChar '[' . (
+        foldr (.) id . intersperse (showChar ',') $ map (unExpr . literal) xs) .
+        showChar ']')
 
 var :: Int -> Expr
 var 0 = Global
@@ -75,7 +77,7 @@ dot (Expr lhs) m = Expr (lhs . showChar '.' . showString m)
 call :: Expr -> [Expr] -> Expr
 call (Expr f) ps = Expr (
     f . showChar '(' . (
-        foldr1 (.) $ (id:) $ intersperse (showChar ',') $ map unExpr ps) .
+        foldr (.) id $ intersperse (showChar ',') $ map unExpr ps) .
     showChar ')')
 call _ _ = error "cannot call the context object"
 
@@ -89,6 +91,9 @@ eq = binOp " == "
 
 neq :: Expr -> Expr -> Expr
 neq = binOp " != "
+
+deepEq :: Expr -> Expr -> Expr
+deepEq a b = call (sym "deepEq") [a, b]
 
 eval :: Expr -> Prog
 eval (Expr ex) = Prog (ex . showString ";\n") id

@@ -32,9 +32,10 @@ instance (Eq a, Show a, Typeable a, S.Literal a, Arbitrary a, MakeDefault a,
     actionRemote (DTCallMethod v) n =
         S.eval $ S.var n `S.dot` "callMethod" `S.call` [S.literal v]
     actionRemote (DTMethodRet v) n =
-        S.assert $ S.eq (S.var n `S.dot` "methodRet" `S.call` []) $ S.literal v
+        S.assert $ S.deepEq (S.var n `S.dot` "methodRet" `S.call` []) $
+            S.literal v
     actionRemote (DTReadProp v) n =
-        S.assert $ S.eq (S.var n `S.dot` "readProp") $ S.literal v
+        S.assert $ S.deepEq (S.var n `S.dot` "readProp") $ S.literal v
     actionRemote (DTWriteProp v) n =
         S.var n `S.dot` "writeProp" `S.set` S.literal v
     mockObjDef = [

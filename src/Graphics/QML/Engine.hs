@@ -44,6 +44,7 @@ import Control.Concurrent.MVar
 import Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class
+import qualified Data.Text as T
 import Data.List
 import Data.Maybe
 import Data.Traversable
@@ -76,7 +77,7 @@ runEngineImpl config stopCb = do
     let obj = contextObject config
         DocumentPath res = initialDocument config
     hndl <- sequenceA $ fmap mToHndl $ obj
-    mWithCVal res $ \resPtr -> do
+    mWithCVal (T.pack res) $ \resPtr -> do
         hsqmlCreateEngine hndl (HsQMLStringHandle $ castPtr resPtr) stopCb
     return Engine
 

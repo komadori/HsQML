@@ -2,7 +2,7 @@
 #include <QtCore/QMetaType>
 #include <QtQml/QJSValue>
 
-#include "hsqml.h"
+#include "Manager.h"
 
 /* String */
 extern "C" size_t hsqml_get_string_size()
@@ -37,7 +37,7 @@ extern "C" int hsqml_read_string(
     return string->length();
 }
 
-/* Value */
+/* JSValue */
 extern "C" size_t hsqml_get_jval_size()
 {
     return sizeof(QJSValue);
@@ -131,4 +131,39 @@ extern "C" void hsqml_get_jval_string(
     QJSValue* value = reinterpret_cast<QJSValue*>(hndl);
     QString* string = reinterpret_cast<QString*>(strh);
     *string = value->toString();
+}
+
+/* Array */
+extern "C" void hsqml_init_jval_array(HsQMLJValHandle* hndl, unsigned int len)
+{
+    new((void*)hndl) QJSValue(
+        gManager->activeEngine()->declEngine()->newArray(len));
+}
+
+extern "C" int hsqml_is_jval_array(HsQMLJValHandle* hndl)
+{
+    QJSValue* value = reinterpret_cast<QJSValue*>(hndl);
+    return value->isArray();
+}
+
+extern "C" unsigned int hsqml_get_jval_array_length(HsQMLJValHandle* hndl)
+{
+    QJSValue* value = reinterpret_cast<QJSValue*>(hndl);
+    return value->property("length").toUInt();
+}
+
+extern "C" void hsqml_jval_array_get(
+    HsQMLJValHandle* ahndl, unsigned int i, HsQMLJValHandle* hndl)
+{
+    QJSValue* array = reinterpret_cast<QJSValue*>(ahndl);
+    QJSValue* value = reinterpret_cast<QJSValue*>(hndl);
+    *value = array->property(i);
+}
+
+extern "C" void hsqml_jval_array_set(
+    HsQMLJValHandle* ahndl, unsigned int i, HsQMLJValHandle* hndl)
+{
+    QJSValue* array = reinterpret_cast<QJSValue*>(ahndl);
+    QJSValue* value = reinterpret_cast<QJSValue*>(hndl);
+    array->setProperty(i, *value);
 }

@@ -105,6 +105,22 @@ extern int hsqml_is_jval_string(
 extern void hsqml_get_jval_string(
     HsQMLJValHandle*, HsQMLStringHandle*);
 
+/* Array */
+extern void hsqml_init_jval_array(
+    HsQMLJValHandle*, unsigned int);
+
+extern int hsqml_is_jval_array(
+    HsQMLJValHandle*);
+
+extern unsigned int hsqml_get_jval_array_length(
+    HsQMLJValHandle*);
+
+extern void hsqml_jval_array_get(
+    HsQMLJValHandle*, unsigned int, HsQMLJValHandle*);
+
+extern void hsqml_jval_array_set(
+    HsQMLJValHandle*, unsigned int, HsQMLJValHandle*);
+
 /* Class */
 typedef char HsQMLClassHandle;
 

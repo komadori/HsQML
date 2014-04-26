@@ -25,7 +25,6 @@ data SignalTest1
     | ST1FireInt Int32
     | ST1FireThreeInts Int32 Int32 Int32
     | ST1FireDouble Double
-    | ST1FireString String
     | ST1FireText Text
     | ST1FireObject Int
     | ST1CheckObject Int
@@ -50,11 +49,6 @@ data DoubleSignal deriving Typeable
 
 instance SignalKey DoubleSignal where
     type SignalParams DoubleSignal = Double -> IO ()
-
-data StringSignal deriving Typeable
-
-instance SignalKey StringSignal where
-    type SignalParams StringSignal = String -> IO ()
 
 data TextSignal deriving Typeable
 
@@ -86,7 +80,6 @@ instance TestAction SignalTest1 where
         ST1FireThreeInts <$>
             fromGen arbitrary <*> fromGen arbitrary <*> fromGen arbitrary,
         ST1FireDouble <$> fromGen arbitrary,
-        ST1FireString <$> fromGen arbitrary,
         ST1FireText . T.pack <$> fromGen arbitrary,
         pure . ST1FireObject $ testEnvNextJ env,
         ST1CheckObject <$> mayElements (testEnvListJ testObjectType env)]
@@ -107,8 +100,6 @@ instance TestAction SignalTest1 where
         (S.assert $ S.sym "arg3" `S.eq` S.literal v3)
     actionRemote (ST1FireDouble v) n =
         testSignal n "doubleSignal" "fireDouble" $ S.literal v
-    actionRemote (ST1FireString v) n =
-        testSignal n "stringSignal" "fireString" $ S.literal v
     actionRemote (ST1FireText v) n =
         testSignal n "textSignal" "fireText" $ S.literal v
     actionRemote (ST1FireObject v) n =
@@ -150,13 +141,6 @@ instance TestAction SignalTest1 where
                 return $ Right ()
             _               -> return $ Left TBadActionCtor),
         defSignal (Tagged "doubleSignal" :: Tagged DoubleSignal String),
-        defMethod "fireString" $ \m -> (expectActionRef m $ \a -> case a of
-            ST1FireString v -> do
-                fireSignal (Tagged m
-                    :: Tagged StringSignal (ObjRef (MockObj SignalTest1))) v
-                return $ Right ()
-            _               -> return $ Left TBadActionCtor),
-        defSignal (Tagged "stringSignal" :: Tagged StringSignal String),
         defMethod "fireText" $ \m -> (expectActionRef m $ \a -> case a of
             ST1FireText v -> do
                 fireSignal (Tagged m

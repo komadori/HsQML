@@ -8,11 +8,17 @@ import Graphics.QML.Test.DataTest
 import Graphics.QML.Test.SimpleTest
 import Graphics.QML.Test.SignalTest
 import Graphics.QML.Test.MixedTest
-import Data.Int
 import Data.Proxy
 import System.Exit
 
 import Data.Int
+import Data.Text (Text)
+import qualified Data.Text as T
+import Test.QuickCheck.Arbitrary
+
+instance Arbitrary Text where
+    arbitrary = fmap T.pack $ arbitrary
+    shrink = map T.pack . shrink . T.unpack
 
 main :: IO ()
 main = do
@@ -24,11 +30,15 @@ main = do
         checkProperty 20 $ TestType (Proxy :: Proxy (DataTest Bool)),
         checkProperty 20 $ TestType (Proxy :: Proxy (DataTest Int32)),
         checkProperty 20 $ TestType (Proxy :: Proxy (DataTest Double)),
-        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest String)),
+        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest Text)),
         checkProperty 20 $ TestType (Proxy :: Proxy (DataTest (Maybe Bool))),
         checkProperty 20 $ TestType (Proxy :: Proxy (DataTest (Maybe Int32))),
         checkProperty 20 $ TestType (Proxy :: Proxy (DataTest (Maybe Double))),
-        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest (Maybe String)))]
+        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest (Maybe Text))),
+        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest [Bool])),
+        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest [Int32])),
+        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest [Double])),
+        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest [Text]))]
     if and rs
     then exitSuccess
     else exitFailure

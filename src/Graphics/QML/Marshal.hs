@@ -26,13 +26,14 @@ module Graphics.QML.Marshal (
   IIsObjType,
   GetObjType,
   IGetObjType,
-  Marshaller 
+  Marshaller
 ) where
 
 import Graphics.QML.Internal.BindPrim
 import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.Objects
 
+import Control.Monad
 import Control.Monad.Trans.Maybe
 import Data.Maybe
 import Data.Tagged
@@ -158,22 +159,6 @@ instance Marshal Text where
         mToHndl_ = unimplToHndl}
 
 --
--- String/QString built-in type
---
-
-instance Marshal String where
-    type MarshalMode String c d = ModeBidi c
-    marshaller = Marshaller {
-        mTypeCVal_ = Tagged tyString,
-        mFromCVal_ = fmap T.unpack . mFromCVal,
-        mToCVal_ = \txt ptr -> mToCVal (T.pack txt) ptr,
-        mWithCVal_ = \txt f -> mWithCVal (T.pack txt) f,
-        mFromJVal_ = fmap T.unpack . mFromJVal,
-        mWithJVal_ = \txt f -> mWithJVal (T.pack txt) f,
-        mFromHndl_ = unimplFromHndl,
-        mToHndl_ = unimplToHndl}
-
---
 -- Maybe
 --
 
@@ -195,3 +180,34 @@ instance (Marshal a) => Marshal (Maybe a) where
                 Nothing   -> withJVal hsqmlInitJvalNull False f,
         mFromHndl_ = unimplFromHndl,
         mToHndl_ = unimplToHndl}
+
+--
+-- List
+--
+
+instance (Marshal a) => Marshal [a] where
+    type MarshalMode [a] ICanGetFrom d = MarshalMode a ICanGetFrom d
+    type MarshalMode [a] ICanPassTo d = MarshalMode a ICanPassTo d
+    type MarshalMode [a] ICanReturnTo d = MarshalMode a ICanReturnTo d
+    type MarshalMode [a] IIsObjType d = No
+    type MarshalMode [a] IGetObjType d = No
+    marshaller = Marshaller {
+        mTypeCVal_ = Tagged tyJSValue,
+        mFromCVal_ = jvalFromCVal,
+        mToCVal_ = jvalToCVal,
+        mWithCVal_ = jvalWithCVal,
+        mFromJVal_ = \jval -> MaybeT $ do
+            len <- hsqmlGetJvalArrayLength jval
+            withJVal hsqmlInitJvalNull True $ \tmp ->
+                runMaybeT $ forM [0..len-1] $ \i -> do
+                    errIO $ hsqmlJvalArrayGet jval i tmp
+                    mFromJVal tmp,
+        mWithJVal_ = \vs f ->
+            withJVal hsqmlInitJvalArray (length vs) $ \jval -> do
+                forM_ (zip [0..] vs) $ uncurry $ \i val ->
+                    mWithJVal val $ \jval' ->
+                        hsqmlJvalArraySet jval i jval'
+                f jval,
+        mFromHndl_ = unimplFromHndl,
+        mToHndl_ = unimplToHndl}
+

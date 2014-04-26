@@ -20,7 +20,16 @@ qmlPrelude = unlines [
     "import QtQuick.Window 2.0",
     "Window {",
     "    id: page; visible: false;",
-    "    Component.onCompleted: {"]
+    "    Component.onCompleted: {",
+    "        function deepEq(a, b) {",
+    "            if (a === b) {return true;}",
+    "            if (typeof a == 'object' && typeof b == 'object') {",
+    "                var ak = Object.keys(a); var bk = Object.keys(b);",
+    "                if (ak.length != bk.length) {return false;}",
+    "                for (var i=0; i<ak.length; i++) {",
+    "                    if (!deepEq(a[ak[i]], b[ak[i]])) {return false;}}",
+    "                return true;}",
+    "            return false;}"]
 
 qmlPostscript :: String
 qmlPostscript = unlines [

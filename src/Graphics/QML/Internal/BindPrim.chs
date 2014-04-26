@@ -154,3 +154,32 @@ withJVal initFn val contFn =
         ret <- contFn jval
         hsqmlDeinitJval jval
         return ret
+
+--
+-- Array
+--
+
+{#fun unsafe hsqml_init_jval_array as ^
+  {id `HsQMLJValHandle',
+   fromIntegral `Int'} ->
+  `()' #}
+
+{#fun unsafe hsqml_is_jval_array as ^
+  {id `HsQMLJValHandle'} ->
+  `Bool' toBool #}
+
+{#fun unsafe hsqml_get_jval_array_length as ^
+  {id `HsQMLJValHandle'} ->
+  `Int' fromIntegral #}
+
+{#fun unsafe hsqml_jval_array_get as ^
+  {id `HsQMLJValHandle',
+   fromIntegral `Int',
+   id `HsQMLJValHandle'} ->
+  `()' #}
+
+{#fun unsafe hsqml_jval_array_set as ^
+  {id `HsQMLJValHandle',
+   fromIntegral `Int',
+   id `HsQMLJValHandle'} ->
+  `()' #}
