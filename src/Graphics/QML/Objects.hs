@@ -238,30 +238,28 @@ data MethodTypeInfo = MethodTypeInfo {
   methodReturnType :: TypeId
 }
 
-newtype MSHelp a = MSHelp a
-
 -- | Supports marshalling Haskell functions with an arbitrary number of
 -- arguments.
 class MethodSuffix a where
   mkMethodFunc  :: Int -> a -> Ptr (Ptr ()) -> ErrIO ()
   mkMethodTypes :: Tagged a MethodTypeInfo
 
-instance (Marshal a, CanGetFrom a ~ Yes, MethodSuffix (MSHelp b)) =>
-  MethodSuffix (MSHelp (a -> b)) where
-  mkMethodFunc n (MSHelp f) pv = do
+instance (Marshal a, CanGetFrom a ~ Yes, MethodSuffix b) =>
+  MethodSuffix (a -> b) where
+  mkMethodFunc n f pv = do
     ptr <- errIO $ peekElemOff pv n
     val <- mFromCVal ptr
-    mkMethodFunc (n+1) (MSHelp $ f val) pv
+    mkMethodFunc (n+1) (f val) pv
     return ()
   mkMethodTypes =
     let (MethodTypeInfo p r) =
-          untag (mkMethodTypes :: Tagged (MSHelp b) MethodTypeInfo)
+          untag (mkMethodTypes :: Tagged b MethodTypeInfo)
         typ = untag (mTypeCVal :: Tagged a TypeId)
     in Tagged $ MethodTypeInfo (typ:p) r
 
 instance (Marshal a, CanReturnTo a ~ Yes) =>
-  MethodSuffix (MSHelp (IO a)) where
-  mkMethodFunc _ (MSHelp f) pv = errIO $ do
+  MethodSuffix (IO a) where
+  mkMethodFunc _ f pv = errIO $ do
     ptr <- peekElemOff pv 0
     val <- f
     if nullPtr == ptr
@@ -273,17 +271,17 @@ instance (Marshal a, CanReturnTo a ~ Yes) =>
 
 mkUniformFunc :: forall tt ms.
   (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes,
-    MethodSuffix (MSHelp ms)) =>
+    MethodSuffix ms) =>
   (tt -> ms) -> UniformFunc
 mkUniformFunc f = \pt pv -> do
   hndl <- hsqmlGetObjectFromPointer pt
   this <- mFromHndl hndl
-  runErrIO $ mkMethodFunc 1 (MSHelp $ f this) pv
+  runErrIO $ mkMethodFunc 1 (f this) pv
 
 newtype VoidIO = VoidIO {runVoidIO :: (IO ())}
 
-instance MethodSuffix (MSHelp VoidIO) where
-    mkMethodFunc _ (MSHelp f) pv = errIO $ runVoidIO f
+instance MethodSuffix VoidIO where
+    mkMethodFunc _ f pv = errIO $ runVoidIO f
     mkMethodTypes = Tagged $ MethodTypeInfo [] tyVoid
 
 class IsVoidIO a
@@ -292,11 +290,11 @@ instance IsVoidIO VoidIO
 
 mkSpecialFunc :: forall tt ms.
     (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes,
-        MethodSuffix (MSHelp ms), IsVoidIO ms) => (tt -> ms) -> UniformFunc
+        MethodSuffix ms, IsVoidIO ms) => (tt -> ms) -> UniformFunc
 mkSpecialFunc f = \pt pv -> do
     hndl <- hsqmlGetObjectFromPointer pt
     this <- mFromHndl hndl
-    runErrIO $ mkMethodFunc 0 (MSHelp $ f this) pv
+    runErrIO $ mkMethodFunc 0 (f this) pv
 
 -- | Defines a named method using a function @f@ in the IO monad.
 --
@@ -305,11 +303,10 @@ mkSpecialFunc f = \pt pv -> do
 -- there may be zero or more parameter arguments followed by an optional return
 -- argument in the IO monad.
 defMethod :: forall tt ms.
-  (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes,
-    MethodSuffix (MSHelp ms)) =>
+  (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes, MethodSuffix ms) =>
   String -> (tt -> ms) -> Member (GetObjType tt)
 defMethod name f =
-  let crude = untag (mkMethodTypes :: Tagged (MSHelp ms) MethodTypeInfo)
+  let crude = untag (mkMethodTypes :: Tagged ms MethodTypeInfo)
   in Member MethodMember
        name
        (methodReturnType crude)
