@@ -287,4 +287,4 @@ instance (TestAction a) => Object (MockObj a) where
 
 instance (TestAction a) => Marshal (MockObj a) where
     type MarshalMode (MockObj a) c d = ModeObjFrom (MockObj a) c
-    marshaller = objSimpleMarshaller
+    marshaller = fromMarshaller fromObjRef

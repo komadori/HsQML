@@ -40,10 +40,6 @@ module Graphics.QML.Objects (
   AnyObjRef,
   anyObjRef,
   fromAnyObjRef,
-
-  -- * Customer Marshallers
-  objSimpleMarshaller,
-  objBidiMarshaller
 ) where
 
 import System.IO
@@ -163,58 +159,6 @@ fromAnyObjRefIO (AnyObjRef hndl) = do
     if srcRep == dstRep
         then return $ Just $ ObjRef hndl
         else return Nothing
-
--- | Provides a QML-to-Haskell 'Marshaller' which allows you to define
--- instances of 'Marshal' for custom 'Object' types. This allows a custom types
--- to be passed into Haskell code as method parameters without having to
--- manually deal with 'ObjRef's.
---
--- For example, an instance for 'MyObjectType' would be defined as follows:
---
--- @
--- instance Marshal MyObjectType where
---     type MarshalMode MyObjectType c d = ModeObjFrom MyObjectType c
---     marshaller = objSimpleMarshaller
--- @
-objSimpleMarshaller ::
-    forall obj. (Object obj) => MarshallerForMode obj (ModeObjFrom obj)
-objSimpleMarshaller = Marshaller {
-    mTypeCVal_ = retag (mTypeCVal :: Tagged (ObjRef obj) TypeId),
-    mFromCVal_ = \ptr -> (errIO . fromObjRefIO) =<< mFromCVal ptr,
-    mToCVal_ = unimplToCVal,
-    mWithCVal_ = unimplWithCVal,
-    mFromJVal_ = \ptr -> (errIO . fromObjRefIO) =<< mFromJVal ptr,
-    mWithJVal_ = unimplWithJVal,
-    mFromHndl_ = hsqmlObjectGetHsValue,
-    mToHndl_ = unimplToHndl}
-
--- | Provides a bidirectional QML-to-Haskell and Haskell-to-QML 'Marshaller'
--- which allows you to define instances of 'Marshal' for custom object types.
--- This allows a custom type to be passed in and out of Haskell code via
--- methods, properties, and signals, without having to manually deal with
--- 'ObjRef's. Unlike the simple marshaller, this one must be given a function
--- which specifies how to obtain an 'ObjRef' given a Haskell value.
---
--- For example, an instance for 'MyObjectType' which simply creates a new
--- object whenever one is required would be defined as follows:
---
--- @
--- instance Marshal MyObjectType where
---     type MarshalMode MyObjectType c d = ModeObjBidi MyObjectType c
---     marshaller = objBidiMarshaller newObject
--- @
-objBidiMarshaller ::
-    forall obj. (Object obj) =>
-    (obj -> IO (ObjRef obj)) -> MarshallerForMode obj (ModeObjBidi obj)
-objBidiMarshaller newFn = Marshaller {
-    mTypeCVal_ = retag (mTypeCVal :: Tagged (ObjRef obj) TypeId),
-    mFromCVal_ = \ptr -> (errIO . fromObjRefIO) =<< mFromCVal ptr,
-    mToCVal_ = \obj ptr -> flip mToCVal ptr =<< newFn obj,
-    mWithCVal_ = \obj f -> flip mWithCVal f =<< newFn obj,
-    mFromJVal_ = \ptr -> (errIO . fromObjRefIO) =<< mFromJVal ptr,
-    mWithJVal_ = \obj f -> flip mWithJVal f =<< newFn obj,
-    mFromHndl_ = hsqmlObjectGetHsValue,
-    mToHndl_ = fmap objHndl . newFn}
 
 --
 -- ClassDef

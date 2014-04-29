@@ -1,12 +1,12 @@
 {-# LANGUAGE
     ScopedTypeVariables,
     TypeFamilies,
-    TypeSynonymInstances,
     FlexibleInstances
   #-}
 
 -- | Type classs and instances for marshalling values between Haskell and QML.
 module Graphics.QML.Marshal (
+  -- * Marshalling Type-class
   Marshal (
     type MarshalMode,
     marshaller),
@@ -26,7 +26,13 @@ module Graphics.QML.Marshal (
   IIsObjType,
   GetObjType,
   IGetObjType,
-  Marshaller
+  Marshaller,
+
+  -- * Custom Marshallers
+  bidiMarshallerIO,
+  bidiMarshaller,
+  fromMarshallerIO,
+  fromMarshaller,
 ) where
 
 import Graphics.QML.Internal.BindPrim
@@ -211,3 +217,65 @@ instance (Marshal a) => Marshal [a] where
         mFromHndl_ = unimplFromHndl,
         mToHndl_ = unimplToHndl}
 
+type BidiMarshaller a b = Marshaller b
+    (MarshalMode a ICanGetFrom ())
+    (MarshalMode a ICanPassTo ())
+    (MarshalMode a ICanReturnTo ())
+    (MarshalMode a IIsObjType ())
+    (MarshalMode a IGetObjType ())
+
+-- | Provides a bidirectional 'Marshaller' which allows you to define an
+-- instance of 'Marshal' for your own type @b@ in terms of another marshallable
+-- type @a@. Type @b@ should have a 'MarshalMode' of 'ModeObjBidi' or
+-- 'ModeBidi' depending on whether @a@ was an object type or not.
+bidiMarshallerIO ::
+    forall a b. (Marshal a, CanGetFrom a ~ Yes, CanPassTo a ~ Yes) =>
+    (a -> IO b) -> (b -> IO a) -> BidiMarshaller a b
+bidiMarshallerIO fromFn toFn = Marshaller {
+    mTypeCVal_ = retag (mTypeCVal :: Tagged a TypeId),
+    mFromCVal_ = \ptr -> (errIO . fromFn) =<< mFromCVal ptr,
+    mToCVal_ = \val ptr -> flip mToCVal ptr =<< toFn val,
+    mWithCVal_ = \val f -> flip mWithCVal f =<< toFn val,
+    mFromJVal_ = \ptr -> (errIO . fromFn) =<< mFromJVal ptr,
+    mWithJVal_ = \val f -> flip mWithJVal f =<< toFn val,
+    mFromHndl_ = \hndl -> fromFn =<< mFromHndl hndl,
+    mToHndl_ = \val -> mToHndl =<< toFn val}
+
+-- | Variant of 'bidiMarshallerIO' where the conversion functions between types
+-- @a@ and @b@ do not live in the IO monad.
+bidiMarshaller ::
+    forall a b. (Marshal a, CanGetFrom a ~ Yes, CanPassTo a ~ Yes) =>
+    (a -> b) -> (b -> a) -> BidiMarshaller a b
+bidiMarshaller fromFn toFn =
+    bidiMarshallerIO (return . fromFn) (return . toFn)
+
+type FromMarshaller a b = Marshaller b
+    (MarshalMode a ICanGetFrom ())
+    No
+    No
+    (MarshalMode a IIsObjType ())
+    (MarshalMode a IGetObjType ())
+
+-- | Provides a "from" 'Marshaller' which allows you to define an instance of
+-- 'Marshal' for your own type @b@ in terms of another marshallable type @a@.
+-- Type @b@ should have a 'MarshalMode' of 'ModeObjFrom' or 'ModeFrom'
+-- depending on whether @a@ was an object type or not.
+fromMarshallerIO ::
+    forall a b. (Marshal a, CanGetFrom a ~ Yes) =>
+    (a -> IO b) -> FromMarshaller a b
+fromMarshallerIO fromFn = Marshaller {
+    mTypeCVal_ = retag (mTypeCVal :: Tagged a TypeId),
+    mFromCVal_ = \ptr -> (errIO . fromFn) =<< mFromCVal ptr,
+    mToCVal_ = unimplToCVal,
+    mWithCVal_ = unimplWithCVal,
+    mFromJVal_ = \ptr -> (errIO . fromFn) =<< mFromJVal ptr,
+    mWithJVal_ = unimplWithJVal,
+    mFromHndl_ = \hndl -> fromFn =<< mFromHndl hndl,
+    mToHndl_ = unimplToHndl}
+
+-- | Variant of 'fromMarshallerIO' where the conversion function between types
+-- @a@ and @b@ does not live in the IO monad.
+fromMarshaller ::
+    forall a b. (Marshal a, CanGetFrom a ~ Yes) =>
+    (a -> b) -> FromMarshaller a b
+fromMarshaller fromFn = fromMarshallerIO (return . fromFn)
