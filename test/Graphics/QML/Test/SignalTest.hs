@@ -12,7 +12,7 @@ import qualified Graphics.QML.Test.ScriptDSL as S
 import Test.QuickCheck.Arbitrary
 import Control.Applicative
 import Data.Monoid
-import Data.Tagged
+import Data.Proxy
 import Data.Typeable
 
 import Data.Int
@@ -32,32 +32,32 @@ data SignalTest1
 
 data NoArgsSignal deriving Typeable
 
-instance SignalKey NoArgsSignal where
+instance SignalKeyClass NoArgsSignal where
     type SignalParams NoArgsSignal = IO ()
 
 data IntSignal deriving Typeable
 
-instance SignalKey IntSignal where
+instance SignalKeyClass IntSignal where
     type SignalParams IntSignal = Int32 -> IO ()
 
 data ThreeIntsSignal deriving Typeable
 
-instance SignalKey ThreeIntsSignal where
+instance SignalKeyClass ThreeIntsSignal where
     type SignalParams ThreeIntsSignal = Int32 -> Int32 -> Int32 -> IO ()
 
 data DoubleSignal deriving Typeable
 
-instance SignalKey DoubleSignal where
+instance SignalKeyClass DoubleSignal where
     type SignalParams DoubleSignal = Double -> IO ()
 
 data TextSignal deriving Typeable
 
-instance SignalKey TextSignal where
+instance SignalKeyClass TextSignal where
     type SignalParams TextSignal = Text -> IO ()
 
 data ObjectSignal deriving Typeable
 
-instance SignalKey ObjectSignal where
+instance SignalKeyClass ObjectSignal where
     type SignalParams ObjectSignal = ObjRef (MockObj TestObject) -> IO ()
 
 chainSignal :: Int -> [String] -> String -> String -> Prog
@@ -113,49 +113,41 @@ instance TestAction SignalTest1 where
             _                -> return $ Left TBadActionCtor,
         defMethod "fireNoArgs" $ \m -> (expectActionRef m $ \a -> case a of
             ST1FireNoArgs -> do
-                fireSignal (Tagged m
-                    :: Tagged NoArgsSignal (ObjRef (MockObj SignalTest1)))
+                fireSignal (Proxy :: Proxy NoArgsSignal) m
                 return $ Right ()
             _             -> return $ Left TBadActionCtor),
-        defSignal (Tagged "noArgsSignal" :: Tagged NoArgsSignal String), 
+        defSignal "noArgsSignal" (Proxy :: Proxy NoArgsSignal), 
         defMethod "fireInt" $ \m -> (expectActionRef m $ \a -> case a of
             ST1FireInt v -> do
-                fireSignal (Tagged m
-                    :: Tagged IntSignal (ObjRef (MockObj SignalTest1))) v
+                fireSignal (Proxy :: Proxy IntSignal) m v
                 return $ Right ()
             _            -> return $ Left TBadActionCtor),
-        defSignal (Tagged "intSignal" :: Tagged IntSignal String),
+        defSignal "intSignal" (Proxy :: Proxy IntSignal),
         defMethod "fireThreeInts" $ \m -> (expectActionRef m $ \a -> case a of
             ST1FireThreeInts v1 v2 v3 -> do
-                fireSignal (Tagged m
-                    :: Tagged ThreeIntsSignal (ObjRef (MockObj SignalTest1)))
-                    v1 v2 v3
+                fireSignal (Proxy :: Proxy ThreeIntsSignal) m v1 v2 v3
                 return $ Right ()
             _                         -> return $ Left TBadActionCtor),
-        defSignal (Tagged "threeIntsSignal" ::
-            Tagged ThreeIntsSignal String),
+        defSignal "threeIntsSignal" (Proxy :: Proxy ThreeIntsSignal),
         defMethod "fireDouble" $ \m -> (expectActionRef m $ \a -> case a of
             ST1FireDouble v -> do
-                fireSignal (Tagged m
-                    :: Tagged DoubleSignal (ObjRef (MockObj SignalTest1))) v
+                fireSignal (Proxy :: Proxy DoubleSignal) m v
                 return $ Right ()
             _               -> return $ Left TBadActionCtor),
-        defSignal (Tagged "doubleSignal" :: Tagged DoubleSignal String),
+        defSignal "doubleSignal" (Proxy :: Proxy DoubleSignal),
         defMethod "fireText" $ \m -> (expectActionRef m $ \a -> case a of
             ST1FireText v -> do
-                fireSignal (Tagged m
-                    :: Tagged TextSignal (ObjRef (MockObj SignalTest1))) v
+                fireSignal (Proxy :: Proxy TextSignal) m v
                 return $ Right ()
             _             -> return $ Left TBadActionCtor),
-        defSignal (Tagged "textSignal" :: Tagged TextSignal String),
+        defSignal "textSignal" (Proxy :: Proxy TextSignal),
         defMethod "fireObject" $ \m -> (expectActionRef m $ \a -> case a of
             ST1FireObject _ -> do
                 (Right obj) <- getTestObject $ fromObjRef m
-                fireSignal (Tagged m
-                    :: Tagged ObjectSignal (ObjRef (MockObj SignalTest1))) obj
+                fireSignal (Proxy :: Proxy ObjectSignal) m obj
                 return $ Right ()
             _               -> return $ Left TBadActionCtor),
-        defSignal (Tagged "objectSignal" :: Tagged ObjectSignal String),
+        defSignal "objectSignal" (Proxy :: Proxy ObjectSignal),
         defMethod "checkObject" $ \m v -> expectAction m $ \a -> case a of
             ST1CheckObject w -> setTestObject m v w
             _                -> return $ Left TBadActionCtor]

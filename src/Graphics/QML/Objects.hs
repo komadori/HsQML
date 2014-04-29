@@ -27,7 +27,10 @@ module Graphics.QML.Objects (
   -- * Signals
   defSignal,
   fireSignal,
-  SignalKey (
+  SignalKeyValue (),
+  SignalKey,
+  newSignalKey,
+  SignalKeyClass (
     type SignalParams),
   SignalSuffix,
 
@@ -56,9 +59,11 @@ import Control.Monad.Trans.Maybe
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
+import Data.Proxy
 import Data.Tagged
 import Data.Typeable
 import Data.IORef
+import Data.Unique
 import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Storable
@@ -193,7 +198,7 @@ getFromMemoStore (MemoStore mr ir) key fn = do
 
 data ClassRec = ClassRec {
     crecHndl :: HsQMLClassHandle,
-    crecSigs :: Map TypeRep Int
+    crecSigs :: Map MemberKey Int
 }
 
 {-# NOINLINE classRecDb #-}
@@ -355,33 +360,32 @@ data SignalTypeInfo = SignalTypeInfo {
   signalParamTypes :: [TypeId]
 }
 
--- | Defines a named signal using a 'SignalKey'.
+-- | Defines a named signal using a 'SignalKeyValue'.
 defSignal ::
-  forall obj sk. (Object obj, SignalKey sk) => Tagged sk String -> Member obj
-defSignal tn =
-  let crude = untag (mkSignalTypes :: Tagged (SignalParams sk) SignalTypeInfo)
-  in Member SignalMember
-       (untag tn)
-       tyVoid
-       (signalParamTypes crude)
-       (\_ _ -> return ())
-       Nothing
-       (Just $ typeOf (undefined :: sk))
+    forall obj skv. (SignalKeyValue skv) => String -> skv -> Member obj
+defSignal name key =
+    let crude = untag (mkSignalTypes ::
+            Tagged (SignalValueParams skv) SignalTypeInfo)
+    in Member SignalMember
+        name
+        tyVoid
+        (signalParamTypes crude)
+        (\_ _ -> return ())
+        Nothing
+        (Just $ signalKey key)
 
--- | Fires a signal on an 'Object', specified using a 'SignalKey'.
+-- | Fires a signal on an 'Object', specified using a 'SignalKeyValue'.
 fireSignal ::
-    forall tt sk. (
-        Marshal tt, CanPassTo tt ~ Yes, IsObjType tt ~ Yes,
-        Object (GetObjType tt), SignalKey sk) =>
-    Tagged sk tt -> SignalParams sk 
-fireSignal this =
+    forall tt skv. (Marshal tt, CanPassTo tt ~ Yes, IsObjType tt ~ Yes,
+        Object (GetObjType tt), SignalKeyValue skv) =>
+        skv -> tt -> SignalValueParams skv 
+fireSignal key this =
     let start cnt = do
            crec <- getClassRec (classDef :: ClassDef (GetObjType tt))
-           let keyRep = typeOf (undefined :: sk)
-               slotMay = Map.lookup keyRep $ crecSigs crec
+           let slotMay = Map.lookup (signalKey key) $ crecSigs crec
            case slotMay of
                 Just slotIdx -> postJob $ do
-                    hndl <- mToHndl $ untag this
+                    hndl <- mToHndl this
                     withActiveObject hndl $ cnt $ SignalData hndl slotIdx
                 Nothing ->
                     error ("Attempt to fire undefined signal on class.")
@@ -392,10 +396,30 @@ fireSignal this =
 
 data SignalData = SignalData HsQMLObjectHandle Int
 
--- | Instances of the 'SignalKey' class identify distinct signals. The
--- associated 'SignalParams' type specifies the signal's signature.
-class (SignalSuffix (SignalParams sk), Typeable sk) => SignalKey sk where
-  type SignalParams sk
+-- | Values of the type 'SignalKey' identify distinct signals by value. The
+-- type parameter @p@ specifies the signal's signature.
+newtype SignalKey p = SignalKey Unique
+
+-- | Creates a new 'SignalKey'. 
+newSignalKey :: (SignalSuffix p) => IO (SignalKey p)
+newSignalKey = fmap SignalKey $ newUnique
+
+-- | Instances of the 'SignalKeyClass' class identify distinct signals by type.
+-- The associated 'SignalParams' type specifies the signal's signature.
+class (SignalSuffix (SignalParams sk)) => SignalKeyClass sk where
+    type SignalParams sk
+
+class (SignalSuffix (SignalValueParams skv)) => SignalKeyValue skv where
+    type SignalValueParams skv
+    signalKey :: skv -> MemberKey
+
+instance (SignalKeyClass sk, Typeable sk) => SignalKeyValue (Proxy sk) where
+    type SignalValueParams (Proxy sk) = SignalParams sk
+    signalKey _ = TypeKey $ typeOf (undefined :: sk)
+
+instance (SignalSuffix p) => SignalKeyValue (SignalKey p) where
+    type SignalValueParams (SignalKey p) = p
+    signalKey (SignalKey u) = DataKey u
 
 -- | Supports marshalling an arbitrary number of arguments into a QML signal.
 class SignalSuffix ss where
