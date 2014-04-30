@@ -84,6 +84,7 @@ data MOCState = MOCState {
   mStrInfo         :: CRList CUInt,
   mStrMap          :: Map String CUInt,
   mParamMap        :: Map [TypeId] CUInt,
+  mSigMap          :: Map MemberKey CUInt,
   mFuncMethods     :: CRList (Maybe UniformFunc),
   mFuncProperties  :: CRList (Maybe UniformFunc),
   mMethodCount     :: Int,
@@ -115,6 +116,7 @@ compileClass name ms =
         mapM_ writeMethod $ filterMembers SignalMember ms
         mapM_ writeMethod $ filterMembers MethodMember ms
         mapM_ writeProperty $ filterMembers PropertyMember ms
+        mapM_ writePropertySig $ filterMembers PropertyMember ms
         writeInt 0
   in enc
 
@@ -125,7 +127,7 @@ filterMembers k ms =
 newMOCState :: MOCState -> MOCState
 newMOCState enc = MOCState
     crlEmpty Nothing Nothing crlEmpty (crlSingle strCount) Map.empty
-    Map.empty crlEmpty crlEmpty 0 0 0
+    Map.empty Map.empty crlEmpty crlEmpty 0 0 0
     where strCount = fromIntegral $ Map.size $ mStrMap enc
  
 writeInt :: CUInt -> State MOCState ()
@@ -190,6 +192,9 @@ writeMethod m = do
     mDataMethodsIdx = mplus (mDataMethodsIdx state) (Just idx),
     mMethodCount = mc + (mMethodCount state),
     mSignalCount = sc + (mSignalCount state),
+    mSigMap = maybe (mSigMap state) (\k ->
+      Map.insert k (fromIntegral $ mSignalCount state) (mSigMap state)) $
+      memberKey m,
     mFuncMethods = mFuncMethods state `crlAppend1` (Just $ memberFun m)}
   return ()
 
@@ -199,7 +204,8 @@ writeProperty p = do
   writeString $ memberName p
   writeInt $ typeId $ memberType p
   writeInt (pfReadable .|. pfScriptable .|.
-    if (isJust $ memberFunAux p) then pfWritable else 0)
+    (if (isJust $ memberFunAux p) then pfWritable else 0) .|.
+    (if (isJust $ memberKey p) then pfNotify else 0))
   state <- get
   put $ state {
     mDataPropsIdx = mplus (mDataPropsIdx state) (Just idx),
@@ -208,6 +214,12 @@ writeProperty p = do
       `crlAppend1` (Just $ memberFun p) `crlAppend1` memberFunAux p
   }
   return ()
+
+writePropertySig :: Member tt -> State MOCState ()
+writePropertySig p = do
+  state <- get
+  writeInt $ fromMaybe 0 $ maybe Nothing (flip Map.lookup $ mSigMap state) $
+    memberKey p
 
 memberTypes :: Member tt -> [TypeId]
 memberTypes m = memberType m : memberParams m

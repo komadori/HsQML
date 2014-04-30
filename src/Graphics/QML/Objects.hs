@@ -31,10 +31,6 @@ module Graphics.QML.Objects (
   defMethod,
   MethodSuffix,
 
-  -- * Properties
-  defPropertyRO,
-  defPropertyRW,
-
   -- * Signals
   defSignal,
   fireSignal,
@@ -42,7 +38,13 @@ module Graphics.QML.Objects (
   newSignalKey,
   SignalKeyClass (
     type SignalParams),
-  SignalSuffix
+  SignalSuffix,
+
+  -- * Properties
+  defPropertyRO,
+  defPropertySigRO,
+  defPropertyRW,
+  defPropertySigRW,
 ) where
 
 import System.IO
@@ -58,6 +60,8 @@ import Control.Concurrent.MVar
 import Control.Monad.Trans.Maybe
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Maybe
 import Data.Proxy
 import Data.Tagged
@@ -191,8 +195,9 @@ createClass typRep ms = do
   let constrs t = typeRepTyCon t : (concatMap constrs $ typeRepArgs t)
       name = foldr (\c s -> showString (tyConName c) .
           showChar '_' . s) id (constrs typRep) $ showInt classId ""
-      moc = compileClass name ms
-      sigs = filterMembers SignalMember ms
+      ms' = ms ++ implicitSignals ms
+      moc = compileClass name ms'
+      sigs = filterMembers SignalMember ms'
       sigMap = Map.fromList $ flip zip [0..] $ map (fromJust . memberKey) sigs
       info = ClassInfo typRep sigMap
       maybeMarshalFunc = maybe (return nullFunPtr) marshalFunc
@@ -206,6 +211,21 @@ createClass typRep ms = do
   case maybeHndl of
       Just hndl -> return hndl
       Nothing -> error ("Failed to create QML class '"++name++"'.")
+
+implicitSignals :: [Member tt] -> [Member tt]
+implicitSignals ms =
+    let sigKeys = Set.fromList $ mapMaybe memberKey $
+            filterMembers SignalMember ms
+        impKeys = filter (flip Set.notMember sigKeys) $ mapMaybe memberKey $
+            filterMembers PropertyMember ms
+        impMember i k = Member SignalMember
+            ("__implictSignal" ++ show i)
+            tyVoid
+            []
+            (\_ _ -> return ())
+            Nothing
+            (Just k)
+    in map (uncurry impMember) $ zip [0..] impKeys
 
 --
 -- Default Class
@@ -338,38 +358,6 @@ defMethod name f =
        Nothing
 
 --
--- Property
---
-
--- | Defines a named read-only property using an accessor function in the IO
--- monad.
-defPropertyRO ::
-  forall tt tr. (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes,
-    Marshal tr, CanReturnTo tr ~ Yes) =>
-  String -> (tt -> IO tr) -> Member (GetObjType tt)
-defPropertyRO name g = Member PropertyMember
-  name
-  (untag (mTypeCVal :: Tagged tr TypeId))
-  []
-  (mkUniformFunc g)
-  Nothing
-  Nothing
-
--- | Defines a named read-write property using a pair of accessor and mutator
--- functions in the IO monad.
-defPropertyRW ::
-  forall tt tr. (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes,
-    Marshal tr, CanReturnTo tr ~ Yes, CanGetFrom tr ~ Yes) =>
-  String -> (tt -> IO tr) -> (tt -> tr -> IO ()) -> Member (GetObjType tt)
-defPropertyRW name g s = Member PropertyMember
-  name
-  (untag (mTypeCVal :: Tagged tr TypeId))
-  []
-  (mkUniformFunc g)
-  (Just $ mkSpecialFunc (\a b -> VoidIO $ s a b))
-  Nothing
-
---
 -- Signal
 --
 
@@ -463,3 +451,62 @@ instance SignalSuffix (IO ()) where
         start $ cont []
     mkSignalTypes =
         Tagged $ SignalTypeInfo []
+
+--
+-- Property
+--
+
+-- | Defines a named read-only property using an accessor function in the IO
+-- monad.
+defPropertyRO :: forall tt tr.
+    (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes,
+        Marshal tr, CanReturnTo tr ~ Yes) => String ->
+    (tt -> IO tr) -> Member (GetObjType tt)
+defPropertyRO name g = Member PropertyMember
+    name
+    (untag (mTypeCVal :: Tagged tr TypeId))
+    []
+    (mkUniformFunc g)
+    Nothing
+    Nothing
+
+-- | Defines a named read-only property with an associated signal.
+defPropertySigRO :: forall tt tr skv.
+    (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes, Marshal tr,
+        CanReturnTo tr ~ Yes, SignalKeyValue skv) => String -> skv ->
+    (tt -> IO tr) -> Member (GetObjType tt)
+defPropertySigRO name key g = Member PropertyMember
+    name
+    (untag (mTypeCVal :: Tagged tr TypeId))
+    []
+    (mkUniformFunc g)
+    Nothing
+    (Just $ signalKey key)
+
+-- | Defines a named read-write property using a pair of accessor and mutator
+-- functions in the IO monad.
+defPropertyRW :: forall tt tr.
+    (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes, Marshal tr,
+        CanReturnTo tr ~ Yes, CanGetFrom tr ~ Yes) => String ->
+    (tt -> IO tr) -> (tt -> tr -> IO ()) -> Member (GetObjType tt)
+defPropertyRW name g s = Member PropertyMember
+    name
+    (untag (mTypeCVal :: Tagged tr TypeId))
+    []
+    (mkUniformFunc g)
+    (Just $ mkSpecialFunc (\a b -> VoidIO $ s a b))
+    Nothing
+
+-- | Defines a named read-write property with an associated signal.
+defPropertySigRW :: forall tt tr skv.
+    (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes, Marshal tr,
+        CanReturnTo tr ~ Yes, CanGetFrom tr ~ Yes, SignalKeyValue skv) =>
+    String -> skv -> (tt -> IO tr) -> (tt -> tr -> IO ()) ->
+    Member (GetObjType tt)
+defPropertySigRW name key g s = Member PropertyMember
+    name
+    (untag (mTypeCVal :: Tagged tr TypeId))
+    []
+    (mkUniformFunc g)
+    (Just $ mkSpecialFunc (\a b -> VoidIO $ s a b))
+    (Just $ signalKey key)
