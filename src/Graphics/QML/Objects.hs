@@ -29,6 +29,7 @@ module Graphics.QML.Objects (
 
   -- * Methods
   defMethod,
+  defMethod',
   MethodSuffix,
 
   -- * Signals
@@ -45,6 +46,10 @@ module Graphics.QML.Objects (
   defPropertySigRO,
   defPropertyRW,
   defPropertySigRW,
+  defPropertyRO',
+  defPropertySigRO',
+  defPropertyRW',
+  defPropertySigRW'
 ) where
 
 import System.IO
@@ -357,6 +362,12 @@ defMethod name f =
        Nothing
        Nothing
 
+-- | Alias of 'defMethod' which is less polymorphic to reduce the need for type
+-- signatures.
+defMethod' :: forall obj ms. (Typeable obj, MethodSuffix ms) =>
+    String -> (ObjRef obj -> ms) -> Member obj
+defMethod' = defMethod
+
 --
 -- Signal
 --
@@ -459,8 +470,8 @@ instance SignalSuffix (IO ()) where
 -- | Defines a named read-only property using an accessor function in the IO
 -- monad.
 defPropertyRO :: forall tt tr.
-    (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes,
-        Marshal tr, CanReturnTo tr ~ Yes) => String ->
+    (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes, Marshal tr,
+        CanReturnTo tr ~ Yes) => String ->
     (tt -> IO tr) -> Member (GetObjType tt)
 defPropertyRO name g = Member PropertyMember
     name
@@ -510,3 +521,32 @@ defPropertySigRW name key g s = Member PropertyMember
     (mkUniformFunc g)
     (Just $ mkSpecialFunc (\a b -> VoidIO $ s a b))
     (Just $ signalKey key)
+
+-- | Alias of 'defPropertyRO' which is less polymorphic to reduce the need for
+-- type signatures.
+defPropertyRO' :: forall obj tr.
+    (Typeable obj, Marshal tr, CanReturnTo tr ~ Yes) =>
+    String -> (ObjRef obj -> IO tr) -> Member obj
+defPropertyRO' = defPropertyRO
+
+-- | Alias of 'defPropertySigRO' which is less polymorphic to reduce the need
+-- for type signatures.
+defPropertySigRO' :: forall obj tr skv.
+    (Typeable obj, Marshal tr, CanReturnTo tr ~ Yes, SignalKeyValue skv) =>
+    String -> skv -> (ObjRef obj -> IO tr) -> Member obj
+defPropertySigRO' = defPropertySigRO
+
+-- | Alias of 'defPropertyRW' which is less polymorphic to reduce the need for
+-- type signatures.
+defPropertyRW' :: forall obj tr.
+    (Typeable obj, Marshal tr, CanReturnTo tr ~ Yes, CanGetFrom tr ~ Yes) =>
+    String -> (ObjRef obj -> IO tr) -> (ObjRef obj -> tr -> IO ()) -> Member obj
+defPropertyRW' = defPropertyRW
+
+-- | Alias of 'defPropertySigRW' which is less polymorphic to reduce the need
+-- for type signatures.
+defPropertySigRW' :: forall obj tr skv.
+    (Typeable obj, Marshal tr, CanReturnTo tr ~ Yes, CanGetFrom tr ~ Yes,
+        SignalKeyValue skv) => String -> skv ->
+    (ObjRef obj -> IO tr) -> (ObjRef obj -> tr -> IO ()) -> Member obj
+defPropertySigRW' = defPropertySigRW
