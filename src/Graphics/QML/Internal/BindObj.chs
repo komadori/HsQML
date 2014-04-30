@@ -4,10 +4,10 @@
 
 module Graphics.QML.Internal.BindObj where
 
+import Graphics.QML.Internal.Types
 {#import Graphics.QML.Internal.BindPrim #}
 
 import Control.Exception (bracket_)
-import Data.Typeable
 import Foreign.C.Types
 import Foreign.Ptr
 import Foreign.ForeignPtr.Safe
@@ -30,8 +30,6 @@ fromStable =
   {} ->
   `CInt' id #}
 
-type UniformFunc = Ptr () -> Ptr (Ptr ()) -> IO ()
-
 foreign import ccall "wrapper"  
   marshalFunc :: UniformFunc -> IO (FunPtr UniformFunc)
 
@@ -52,7 +50,7 @@ newClassHandle p =
   {id `Ptr CUInt',
    id `Ptr CUInt',
    id `Ptr CChar',
-   marshalStable* `TypeRep',
+   marshalStable* `ClassInfo',
    id `Ptr (FunPtr UniformFunc)',
    id `Ptr (FunPtr UniformFunc)'} ->
   `Maybe HsQMLClassHandle' newClassHandle* #}
@@ -94,7 +92,7 @@ withActiveObject hndl action =
 
 {#fun unsafe hsqml_object_get_hs_typerep as ^
   {withHsQMLObjectHandle* `HsQMLObjectHandle'} ->
-  `TypeRep' fromStable* #}
+  `ClassInfo' fromStable* #}
 
 {#fun unsafe hsqml_object_get_hs_value as ^
   {withHsQMLObjectHandle* `HsQMLObjectHandle'} ->

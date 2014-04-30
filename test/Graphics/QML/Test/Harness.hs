@@ -54,7 +54,7 @@ runTest src = do
     hPutStr hndl (qmlPrelude ++ js ++ qmlPostscript)
     hClose hndl
     mock <- mockFromSrc src
-    go <- newObject mock
+    go <- newObjectDC mock
     runEngineLoop defaultEngineConfig {
         initialDocument = fileDocument qmlPath,
         contextObject = Just $ anyObjRef go}

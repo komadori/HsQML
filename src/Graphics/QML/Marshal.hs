@@ -37,7 +37,7 @@ module Graphics.QML.Marshal (
 
 import Graphics.QML.Internal.BindPrim
 import Graphics.QML.Internal.Marshal
-import Graphics.QML.Internal.Objects
+import Graphics.QML.Internal.Types
 
 import Control.Monad
 import Control.Monad.Trans.Maybe

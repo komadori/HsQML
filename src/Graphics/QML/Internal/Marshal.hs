@@ -6,6 +6,7 @@
 
 module Graphics.QML.Internal.Marshal where
 
+import Graphics.QML.Internal.Types
 import Graphics.QML.Internal.BindPrim
 import Graphics.QML.Internal.BindObj
 
@@ -26,8 +27,6 @@ runErrIO m = do
 
 errIO :: IO a -> ErrIO a
 errIO = MaybeT . fmap Just
-
-newtype TypeId = TypeId Int deriving (Eq, Ord)
 
 tyInt, tyDouble, tyString, tyObject, tyVoid, tyJSValue :: TypeId
 tyInt     = TypeId 2

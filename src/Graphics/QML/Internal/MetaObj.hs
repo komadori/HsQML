@@ -2,7 +2,7 @@ module Graphics.QML.Internal.MetaObj where
 
 import Graphics.QML.Internal.BindObj
 import Graphics.QML.Internal.Marshal
-import Graphics.QML.Internal.Objects
+import Graphics.QML.Internal.Types
 
 import Control.Monad
 import Control.Monad.Trans.State
@@ -58,6 +58,23 @@ crlToList (CRList _ lst) = reverse lst
 --
 -- Meta Object Compiler
 --
+
+data MemberKind
+    = MethodMember
+    | PropertyMember
+    | SignalMember
+    deriving (Bounded, Enum, Eq)
+
+-- | Represents a named member of the QML class which wraps type @tt@.
+data Member tt = Member {
+    memberKind   :: MemberKind,
+    memberName   :: String,
+    memberType   :: TypeId,
+    memberParams :: [TypeId],
+    memberFun    :: UniformFunc,
+    memberFunAux :: Maybe UniformFunc,
+    memberKey    :: Maybe MemberKey
+}
 
 data MOCState = MOCState {
   mData            :: CRList CUInt,

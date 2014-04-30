@@ -202,7 +202,7 @@ instance (TestAction a) => MakeDefault (ObjRef (MockObj a)) where
     makeDef = do
         statusRef <- newIORef $ TestStatus [] (Just TInvalid)
             (TestEnv badSerial IntMap.empty IntMap.empty) IntMap.empty
-        newObject $ MockObj badSerial statusRef
+        newObjectDC $ MockObj badSerial statusRef
 
 instance MakeDefault () where
     makeDef = return ()
@@ -270,7 +270,7 @@ badAction mock = do
 forkMockObj :: (TestAction b) => MockObj a -> IO (ObjRef (MockObj b))
 forkMockObj m = do
     status <- mockGetStatus m
-    newObject $ MockObj (testSerial status) $ mockStatus m
+    newObjectDC $ MockObj (testSerial status) $ mockStatus m
 
 checkMockObj :: forall a b. (TestAction b) =>
     MockObj a -> MockObj b -> Int -> IO (Either TestFault ())
@@ -282,8 +282,8 @@ checkMockObj m v w = do
                       else return $ Left TBadActionData
         _          -> return $ Left TBadActionSlot
 
-instance (TestAction a) => Object (MockObj a) where
-    classDef = defClass mockObjDef
+instance (TestAction a) => DefaultClass (MockObj a) where
+    classMembers = mockObjDef
 
 instance (TestAction a) => Marshal (MockObj a) where
     type MarshalMode (MockObj a) c d = ModeObjFrom (MockObj a) c

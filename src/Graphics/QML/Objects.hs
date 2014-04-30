@@ -9,12 +9,23 @@
 -- | Facilities for defining new object types which can be marshalled between
 -- Haskell and QML.
 module Graphics.QML.Objects (
+  -- * Object References
+  ObjRef,
+  newObject,
+  newObjectDC,
+  fromObjRef,
+
+  -- * Dynamic Object References
+  AnyObjRef,
+  anyObjRef,
+  fromAnyObjRef,
+
   -- * Class Definition
-  Object (
-    classDef),
-  ClassDef,
+  Class,
+  newClass,
+  DefaultClass (
+    classMembers),
   Member,
-  defClass,
 
   -- * Methods
   defMethod,
@@ -27,22 +38,11 @@ module Graphics.QML.Objects (
   -- * Signals
   defSignal,
   fireSignal,
-  SignalKeyValue (),
   SignalKey,
   newSignalKey,
   SignalKeyClass (
     type SignalParams),
-  SignalSuffix,
-
-  -- * Object References
-  ObjRef,
-  newObject,
-  fromObjRef,
-
-  -- * Dynamic Object References
-  AnyObjRef,
-  anyObjRef,
-  fromAnyObjRef,
+  SignalSuffix
 ) where
 
 import System.IO
@@ -52,7 +52,7 @@ import Graphics.QML.Internal.BindObj
 import Graphics.QML.Internal.JobQueue
 import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.MetaObj
-import Graphics.QML.Internal.Objects
+import Graphics.QML.Internal.Types
 
 import Control.Concurrent.MVar
 import Control.Monad.Trans.Maybe
@@ -81,7 +81,7 @@ data ObjRef tt = ObjRef {
   objHndl :: HsQMLObjectHandle
 }
 
-instance (Object tt) => Marshal (ObjRef tt) where
+instance (Typeable tt) => Marshal (ObjRef tt) where
     type MarshalMode (ObjRef tt) c d = ModeObjBidi tt c
     marshaller = Marshaller {
         mTypeCVal_ = retag (mTypeCVal :: Tagged AnyObjRef TypeId),
@@ -102,13 +102,17 @@ instance (Object tt) => Marshal (ObjRef tt) where
         mToHndl_ = \obj ->
             return $ objHndl obj}
 
--- | Creates an instance of a QML class given a value of the underlying Haskell 
--- type @tt@.
-newObject :: forall tt. (Object tt) => tt -> IO (ObjRef tt)
-newObject obj = do
-  cRec <- getClassRec (classDef :: ClassDef tt)
-  oHndl <- hsqmlCreateObject obj $ crecHndl cRec
-  return $ ObjRef oHndl
+-- | Creates a QML object given a 'Class' and a Haskell value of type @tt@.
+newObject :: forall tt. Class tt -> tt -> IO (ObjRef tt)
+newObject (Class cHndl) obj =
+  fmap ObjRef $ hsqmlCreateObject obj cHndl
+
+-- | Creates a QML object given a Haskell value of type @tt@ which has a
+-- 'DefaultClass' instance.
+newObjectDC :: forall tt. (DefaultClass tt) => tt -> IO (ObjRef tt)
+newObjectDC obj = do
+  clazz <- getDefaultClass :: IO (Class tt)
+  newObject clazz obj
 
 -- | Returns the associated value of the underlying Haskell type @tt@ from an
 -- instance of the QML class which wraps it.
@@ -154,24 +158,58 @@ anyObjRef (ObjRef hndl) = AnyObjRef hndl
 
 -- | Attempts to downcast an 'AnyObjRef' into an 'ObjRef' with the specific
 -- underlying Haskell type @tt@.
-fromAnyObjRef :: (Object tt) => AnyObjRef -> Maybe (ObjRef tt)
+fromAnyObjRef :: (Typeable tt) => AnyObjRef -> Maybe (ObjRef tt)
 fromAnyObjRef = unsafePerformIO . fromAnyObjRefIO
 
-fromAnyObjRefIO :: forall tt. (Object tt) => AnyObjRef -> IO (Maybe (ObjRef tt))
+fromAnyObjRefIO :: forall tt. (Typeable tt) =>
+    AnyObjRef -> IO (Maybe (ObjRef tt))
 fromAnyObjRefIO (AnyObjRef hndl) = do
+    info <- hsqmlObjectGetHsTyperep hndl
     let srcRep = typeOf (undefined :: tt)
-    dstRep <- hsqmlObjectGetHsTyperep hndl
+        dstRep = cinfoObjType info
     if srcRep == dstRep
         then return $ Just $ ObjRef hndl
         else return Nothing
 
 --
--- ClassDef
+-- Class
 --
 
--- | Generates a 'ClassDef' from a list of 'Member's.
-defClass :: forall tt. (Object tt) => [Member tt] -> ClassDef tt
-defClass = ClassDef
+-- | Represents a QML class which wraps the type @tt@.
+data Class tt = Class {
+  classHndl :: HsQMLClassHandle
+}
+
+-- | Creates a new QML class for the type @tt@.
+newClass :: forall tt. (Typeable tt) => [Member tt] -> IO (Class tt)
+newClass = fmap Class . createClass (typeOf (undefined :: tt))
+
+createClass :: forall tt. TypeRep -> [Member tt] -> IO HsQMLClassHandle
+createClass typRep ms = do
+  hsqmlInit
+  classId <- hsqmlGetNextClassId
+  let constrs t = typeRepTyCon t : (concatMap constrs $ typeRepArgs t)
+      name = foldr (\c s -> showString (tyConName c) .
+          showChar '_' . s) id (constrs typRep) $ showInt classId ""
+      moc = compileClass name ms
+      sigs = filterMembers SignalMember ms
+      sigMap = Map.fromList $ flip zip [0..] $ map (fromJust . memberKey) sigs
+      info = ClassInfo typRep sigMap
+      maybeMarshalFunc = maybe (return nullFunPtr) marshalFunc
+  metaDataPtr <- crlToNewArray return (mData moc)
+  metaStrInfoPtr <- crlToNewArray return (mStrInfo moc)
+  metaStrCharPtr <- crlToNewArray return (mStrChar moc)
+  methodsPtr <- crlToNewArray maybeMarshalFunc (mFuncMethods moc)
+  propsPtr <- crlToNewArray maybeMarshalFunc (mFuncProperties moc)
+  maybeHndl <- hsqmlCreateClass
+      metaDataPtr metaStrInfoPtr metaStrCharPtr info methodsPtr propsPtr
+  case maybeHndl of
+      Just hndl -> return hndl
+      Nothing -> error ("Failed to create QML class '"++name++"'.")
+
+--
+-- Default Class
+--
 
 data MemoStore k v = MemoStore (MVar (Map k v)) (IORef (Map k v))
 
@@ -196,43 +234,22 @@ getFromMemoStore (MemoStore mr ir) key fn = do
                     writeIORef ir newMap
                     return (newMap, (True, val))
 
-data ClassRec = ClassRec {
-    crecHndl :: HsQMLClassHandle,
-    crecSigs :: Map MemberKey Int
-}
+-- | The class 'DefaultClass' specifies a standard class definition for the
+-- type @tt@.
+class (Typeable tt) => DefaultClass tt where
+    -- | List of default class members.
+    classMembers :: [Member tt]
 
-{-# NOINLINE classRecDb #-}
-classRecDb :: MemoStore TypeRep ClassRec
-classRecDb = unsafePerformIO $ newMemoStore
+{-# NOINLINE defaultClassDb #-}
+defaultClassDb :: MemoStore TypeRep HsQMLClassHandle
+defaultClassDb = unsafePerformIO $ newMemoStore
 
-getClassRec :: forall tt. (Object tt) => ClassDef tt -> IO ClassRec
-getClassRec cdef = do
+getDefaultClass :: forall tt. (DefaultClass tt) => IO (Class tt)
+getDefaultClass = do
     let typ = typeOf (undefined :: tt)
-    (_, val) <- getFromMemoStore classRecDb typ (createClass typ cdef)
-    return val
-
-createClass :: forall tt. (Object tt) => TypeRep -> ClassDef tt -> IO ClassRec
-createClass typRep cdef = do
-  hsqmlInit
-  classId <- hsqmlGetNextClassId
-  let constrs t = typeRepTyCon t : (concatMap constrs $ typeRepArgs t)
-      name = foldr (\c s -> showString (tyConName c) .
-          showChar '_' . s) id (constrs typRep) $ showInt classId ""
-      ms = classMembers cdef
-      moc = compileClass name ms
-      sigs = filterMembers SignalMember ms
-      sigMap = Map.fromList $ flip zip [0..] $ map (fromJust . memberKey) sigs
-      maybeMarshalFunc = maybe (return nullFunPtr) marshalFunc
-  metaDataPtr <- crlToNewArray return (mData moc)
-  metaStrInfoPtr <- crlToNewArray return (mStrInfo moc)
-  metaStrCharPtr <- crlToNewArray return (mStrChar moc)
-  methodsPtr <- crlToNewArray maybeMarshalFunc (mFuncMethods moc)
-  propsPtr <- crlToNewArray maybeMarshalFunc (mFuncProperties moc)
-  maybeHndl <- hsqmlCreateClass
-      metaDataPtr metaStrInfoPtr metaStrCharPtr typRep methodsPtr propsPtr
-  case maybeHndl of
-      Just hndl -> return $ ClassRec hndl sigMap
-      Nothing -> error ("Failed to create QML class '"++name++"'.")
+    (_, val) <- getFromMemoStore defaultClassDb typ $
+        createClass typ (classMembers :: [Member tt])
+    return (Class val)
 
 --
 -- Method
@@ -360,7 +377,10 @@ data SignalTypeInfo = SignalTypeInfo {
   signalParamTypes :: [TypeId]
 }
 
--- | Defines a named signal using a 'SignalKeyValue'.
+-- | Defines a named signal. The signal is identified in subsequent calls to
+-- 'fireSignal' using a 'SignalKeyValue'. This can be either i) type-based
+-- using 'Proxy' @sk@ where @sk@ is an instance of the 'SignalKeyClass' class
+-- or ii) data-based using a 'SignalKey' value creating using 'newSignalKey'.
 defSignal ::
     forall obj skv. (SignalKeyValue skv) => String -> skv -> Member obj
 defSignal name key =
@@ -377,18 +397,17 @@ defSignal name key =
 -- | Fires a signal on an 'Object', specified using a 'SignalKeyValue'.
 fireSignal ::
     forall tt skv. (Marshal tt, CanPassTo tt ~ Yes, IsObjType tt ~ Yes,
-        Object (GetObjType tt), SignalKeyValue skv) =>
-        skv -> tt -> SignalValueParams skv 
+        SignalKeyValue skv) => skv -> tt -> SignalValueParams skv
 fireSignal key this =
-    let start cnt = do
-           crec <- getClassRec (classDef :: ClassDef (GetObjType tt))
-           let slotMay = Map.lookup (signalKey key) $ crecSigs crec
+    let start cnt = postJob $ do
+           hndl <- mToHndl this
+           info <- hsqmlObjectGetHsTyperep hndl
+           let slotMay = Map.lookup (signalKey key) $ cinfoSignals info
            case slotMay of
-                Just slotIdx -> postJob $ do
-                    hndl <- mToHndl this
+                Just slotIdx ->
                     withActiveObject hndl $ cnt $ SignalData hndl slotIdx
                 Nothing ->
-                    error ("Attempt to fire undefined signal on class.")
+                    return () -- Should warn?
         cont ps (SignalData hndl slotIdx) =
             withArray (nullPtr:ps) (\pptr ->
                 hsqmlFireSignal hndl slotIdx pptr)
