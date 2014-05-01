@@ -87,6 +87,7 @@ void HsQMLEngine::componentStatus(QQmlComponent::Status status)
              it != errs.end(); ++it) {
             HSQML_LOG(0, it->toString());
         }
+        deleteLater();
         break;}
     }
 }
