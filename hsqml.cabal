@@ -75,6 +75,9 @@ Library
         Extra-libraries:
             Qt5Core, Qt5Gui, Qt5Widgets, Qt5Qml, Qt5Quick, stdc++
         Extra-lib-dirs: /SYS_ROOT/bin /QT_ROOT/bin
+        if impl(ghc < 7.8)
+            -- Pre-7.8 GHCi can't load eh_frame sections
+            GHC-options: -optc-fno-asynchronous-unwind-tables
     else
         if os(darwin) && !flag(UsePkgConfig)
             Frameworks: QtCore QtGui QtWidgets QtQml QtQuick
