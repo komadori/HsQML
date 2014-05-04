@@ -1,9 +1,24 @@
 HsQML - Release History
 
+release-0.3.0.0 - 2014.05.04
+
+  * Ported to Qt 5 and Qt Quick 2
+  * Added type-free mechanism for defining classes.
+  * Added type-free mechanism for defining signal keys.
+  * Added property signals.
+  * Added marshallers for Bool, Maybe, and lists.
+  * Added less polymorphic aliases for def functions.
+  * Replaced Tagged with Proxy in public API.
+  * Removed marshallers for URI and String.
+  * New design for marshalling type-classes (again).
+  * Generalised facility for user-defined Marshal instances.
+  * Relaxed Cabal dependency constraint on 'QuickCheck'.
+  * Fixed GHCi on Windows with pre-7.8 GHC.
+
 release-0.2.0.3 - 2014.02.01
 
   * Added mechanism to force enable GHCi workaround library.
-  * Fixed reference name of extra GHCi librar
+  * Fixed reference name of extra GHCi library.
 
 release-0.2.0.2 - 2014.01.18
 
