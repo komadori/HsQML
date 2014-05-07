@@ -379,7 +379,7 @@ data SignalTypeInfo = SignalTypeInfo {
 -- | Defines a named signal. The signal is identified in subsequent calls to
 -- 'fireSignal' using a 'SignalKeyValue'. This can be either i) type-based
 -- using 'Proxy' @sk@ where @sk@ is an instance of the 'SignalKeyClass' class
--- or ii) data-based using a 'SignalKey' value creating using 'newSignalKey'.
+-- or ii) value-based using a 'SignalKey' value creating using 'newSignalKey'.
 defSignal ::
     forall obj skv. (SignalKeyValue skv) => String -> skv -> Member obj
 defSignal name key =
@@ -393,7 +393,17 @@ defSignal name key =
         Nothing
         (Just $ signalKey key)
 
--- | Fires a signal on an 'Object', specified using a 'SignalKeyValue'.
+-- | Fires a signal defined on an object instance. The signal is identified
+-- using either a type- or value-based signal key, as described in the
+-- documentation for 'defSignal'. The first argument is the signal key, the
+-- second is the object, and the remaining arguments, if any, are the arguments
+-- to the signal as specified by the signal key.
+--
+-- If this function is called using a signal key which doesn't match a signal
+-- defined on the supplied object, it will silently do nothing.
+--
+-- This function is safe to call from any thread. Any attached signal handlers
+-- will be executed asynchronously on the event loop thread.
 fireSignal ::
     forall tt skv. (Marshal tt, CanPassTo tt ~ Yes, IsObjType tt ~ Yes,
         SignalKeyValue skv) => skv -> tt -> SignalValueParams skv
