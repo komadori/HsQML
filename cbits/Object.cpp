@@ -55,11 +55,11 @@ void HsQMLObjectProxy::clearObject()
 {
     Q_ASSERT(gManager->isEventThread());
 
-    mObject = NULL;
-
     HSQML_LOG(5,
         QString().sprintf("Release QObject, class=%s, id=%d, qptr=%p.",
         mKlass->name(), mSerial, mObject));
+
+    mObject = NULL;
 }
 
 void HsQMLObjectProxy::tryGCLock()
