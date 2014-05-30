@@ -22,7 +22,7 @@ public:
     void tryGCLock();
     void removeGCLock();
     HsQMLEngine* engine() const;
-    enum RefSrc {Handle, Object, Event};
+    enum RefSrc {Handle, Object, Event, Variant};
     void ref(RefSrc);
     void deref(RefSrc);
 

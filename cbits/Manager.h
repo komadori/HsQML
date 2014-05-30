@@ -5,6 +5,7 @@
 #include <QtCore/QAtomicInt>
 #include <QtCore/QMutex>
 #include <QtCore/QString>
+#include <QtCore/QVariant>
 #include <QtWidgets/QApplication>
 
 #include "hsqml.h"
@@ -22,6 +23,7 @@ public:
         ClassCount,
         ObjectCount,
         QObjectCount,
+        VariantCount,
         ClassSerial,
         ObjectSerial,
         TotalCounters
@@ -36,6 +38,8 @@ public:
     int updateCounter(CounterId, int);
     void freeFun(HsFunPtr);
     void freeStable(HsStablePtr);
+    void hookedConstruct(QVariant::Private*, const void*);
+    void hookedClear(QVariant::Private*);
     bool isEventThread();
     typedef HsQMLEventLoopStatus EventLoopStatus;
     EventLoopStatus runEventLoop(
@@ -57,10 +61,13 @@ private:
     bool mAtExit;
     void (*mFreeFun)(HsFunPtr);
     void (*mFreeStable)(HsStablePtr);
+    const QVariant::Handler* mOriginalHandler;
+    QVariant::Handler mHookedHandler;
     HsQMLManagerApp* mApp;
     QMutex mLock;
     bool mRunning;
     int mRunCount;
+    void* mStackBase;
     HsQMLTrivialCb mStartCb;
     HsQMLTrivialCb mJobsCb;
     HsQMLTrivialCb mYieldCb;

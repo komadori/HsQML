@@ -11,10 +11,18 @@
 #include "Manager.h"
 #include "Object.h"
 
+// Declarations for part of Qt's internal API
+Q_DECL_IMPORT const QVariant::Handler* qcoreVariantHandler();
+namespace QVariantPrivate {
+Q_DECL_IMPORT void registerHandler(
+    const int name, const QVariant::Handler *handler);
+}
+
 static const char* cCounterNames[] = {
     "ClassCounter",
     "ObjectCounter",
     "QObjectCounter",
+    "VariantCounter",
     "ClassSerial",
     "ObjectSerial"
 };
@@ -31,6 +39,16 @@ extern "C" void hsqml_dump_counters()
     }
 }
 
+static void hooked_construct(QVariant::Private* p, const void* copy)
+{
+    gManager->hookedConstruct(p, copy);
+}
+
+static void hooked_clear(QVariant::Private* p)
+{
+    gManager->hookedClear(p);
+}
+
 ManagerPointer gManager;
 
 HsQMLManager::HsQMLManager(
@@ -40,21 +58,27 @@ HsQMLManager::HsQMLManager(
     , mAtExit(false)
     , mFreeFun(freeFun)
     , mFreeStable(freeStable)
+    , mOriginalHandler(qcoreVariantHandler())
+    , mHookedHandler(*mOriginalHandler)
     , mApp(NULL)
     , mLock(QMutex::Recursive)
     , mRunning(false)
     , mRunCount(0)
+    , mStackBase(NULL)
     , mStartCb(NULL)
     , mJobsCb(NULL)
     , mYieldCb(NULL)
     , mActiveEngine(NULL)
 {
-    qRegisterMetaType<HsQMLEngineConfig>("HsQMLEngineConfig");
-
+    // Get log level from environment
     const char* env = std::getenv("HSQML_DEBUG_LOG_LEVEL");
     if (env) {
         setLogLevel(QString(env).toInt());
     }
+
+    // Set hooked handler functions
+    mHookedHandler.construct = &hooked_construct;
+    mHookedHandler.clear = &hooked_clear;
 }
 
 void HsQMLManager::setLogLevel(int ll)
@@ -95,6 +119,43 @@ void HsQMLManager::freeStable(HsStablePtr stablePtr)
     mFreeStable(stablePtr);
 }
 
+void HsQMLManager::hookedConstruct(QVariant::Private* p, const void* copy)
+{
+    char guard;
+    mOriginalHandler->construct(p, copy);
+    void* pp = reinterpret_cast<void*>(p);
+    // The QVariant internals sometimes use a special code path for pointer
+    // values which avoids calling the handler functions. This makes it
+    // difficult to use them to keep a reference count. However, it's my
+    // observation that this only affects transient QVariants created on the
+    // stack inside the JavaScript engine's marshalling code. The persistent
+    // QVariants stored in the heap are manipulated using a more restricted set
+    // of operations which always use the handler functions. Hence, by assuming
+    // that the stack can be discounted, it's possible to keep an accurate
+    // count of heap references using these hooks.
+    if ((pp < &guard || pp > mStackBase) && p->type == QMetaType::QObjectStar) {
+        if (HsQMLObject* obj = dynamic_cast<HsQMLObject*>(p->data.o)) {
+            HsQMLObjectProxy* proxy = obj->proxy();
+            proxy->ref(HsQMLObjectProxy::Variant);
+            proxy->tryGCLock();
+            updateCounter(VariantCount, 1);
+        }
+    }
+}
+
+void HsQMLManager::hookedClear(QVariant::Private* p)
+{
+    char guard;
+    void* pp = reinterpret_cast<void*>(p);
+    if ((pp < &guard || pp > mStackBase) && p->type == QMetaType::QObjectStar) {
+        if (HsQMLObject* obj = dynamic_cast<HsQMLObject*>(p->data.o)) {
+            obj->proxy()->deref(HsQMLObjectProxy::Variant);
+            updateCounter(VariantCount, -1);
+        }
+    }
+    mOriginalHandler->clear(p);
+}
+
 bool HsQMLManager::isEventThread()
 {
     return mApp && mApp->thread() == QThread::currentThread();
@@ -125,12 +186,20 @@ HsQMLManager::EventLoopStatus HsQMLManager::runEventLoop(
     }
 #endif
 
-    // Create application object
+    // Perform one-time initialisation
     if (!mApp) {
+        // Install hooked handler for QVariants
+        QVariantPrivate::registerHandler(0, &mHookedHandler);
+
+        // Register custom type
+        qRegisterMetaType<HsQMLEngineConfig>("HsQMLEngineConfig");
+
+        // Create application object
         mApp = new HsQMLManagerApp();
     }
 
-    // Save callbacks
+    // Save stack base and callbacks
+    mStackBase = &locker;
     mStartCb = startCb;
     mJobsCb = jobsCb;
     mYieldCb = yieldCb;

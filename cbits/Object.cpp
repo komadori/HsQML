@@ -6,7 +6,7 @@
 #include "Class.h"
 #include "Manager.h"
 
-static const char* cRefSrcNames[] = {"Hndl", "Obj", "Event"};
+static const char* cRefSrcNames[] = {"Hndl", "Obj", "Event", "Var"};
 
 HsQMLObjectProxy::HsQMLObjectProxy(HsStablePtr haskell, HsQMLClass* klass)
     : mHaskell(haskell)
@@ -105,7 +105,7 @@ void HsQMLObjectProxy::ref(RefSrc src)
         count ? "Ref" : "New", mKlass->name(),
         mSerial, cRefSrcNames[src], count+1));
 
-    if (src == Handle) {
+    if (src == Handle || src == Variant) {
         mHndlCount.fetchAndAddOrdered(1);
     }
 }
@@ -113,12 +113,18 @@ void HsQMLObjectProxy::ref(RefSrc src)
 void HsQMLObjectProxy::deref(RefSrc src)
 {
     // Remove JavaScript GC lock when there are no handles
-    if (src == Handle) {
+    if (src == Handle || src == Variant) {
         int hndlCount = mHndlCount.fetchAndAddOrdered(-1);
         if (hndlCount == 1 && mObject) {
-            // This will increment the reference count for the lifetime of the
-            // of the event.
-            gManager->postObjectEvent(new HsQMLObjectEvent(this));
+            if (src == Handle) {
+                // Handles can be dereferenced from any thread. The event will
+                // remove the lock if there are still no handles by the time
+                // it reaches the event loop.
+                gManager->postObjectEvent(new HsQMLObjectEvent(this));
+            }
+            else {
+                removeGCLock();
+            }
         }
     }
 
