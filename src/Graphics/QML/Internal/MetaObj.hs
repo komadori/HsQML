@@ -61,9 +61,10 @@ crlToList (CRList _ lst) = reverse lst
 
 data MemberKind
     = MethodMember
+    | ConstPropertyMember
     | PropertyMember
     | SignalMember
-    deriving (Bounded, Enum, Eq)
+    deriving Eq
 
 -- | Represents a named member of the QML class which wraps type @tt@.
 data Member tt = Member {
@@ -115,6 +116,7 @@ compileClass name ms =
         mapM_ writeMethodParams $ filterMembers MethodMember ms
         mapM_ writeMethod $ filterMembers SignalMember ms
         mapM_ writeMethod $ filterMembers MethodMember ms
+        mapM_ writeProperty $ filterMembers ConstPropertyMember ms
         mapM_ writeProperty $ filterMembers PropertyMember ms
         mapM_ writePropertySig $ filterMembers PropertyMember ms
         writeInt 0
@@ -204,6 +206,7 @@ writeProperty p = do
   writeString $ memberName p
   writeInt $ typeId $ memberType p
   writeInt (pfReadable .|. pfScriptable .|.
+    (if (ConstPropertyMember == memberKind p) then pfConstant else 0) .|.
     (if (isJust $ memberFunAux p) then pfWritable else 0) .|.
     (if (isJust $ memberKey p) then pfNotify else 0))
   state <- get

@@ -42,10 +42,12 @@ module Graphics.QML.Objects (
   SignalSuffix,
 
   -- * Properties
+  defPropertyConst,
   defPropertyRO,
   defPropertySigRO,
   defPropertyRW,
   defPropertySigRW,
+  defPropertyConst',
   defPropertyRO',
   defPropertySigRO',
   defPropertyRW',
@@ -477,6 +479,20 @@ instance SignalSuffix (IO ()) where
 -- Property
 --
 
+-- | Defines a named constant property using an accessor function in the IO
+-- monad.
+defPropertyConst :: forall tt tr.
+    (Marshal tt, CanGetFrom tt ~ Yes, IsObjType tt ~ Yes, Marshal tr,
+        CanReturnTo tr ~ Yes) => String ->
+    (tt -> IO tr) -> Member (GetObjType tt)
+defPropertyConst name g = Member ConstPropertyMember
+    name
+    (untag (mTypeCVal :: Tagged tr TypeId))
+    []
+    (mkUniformFunc g)
+    Nothing
+    Nothing
+
 -- | Defines a named read-only property using an accessor function in the IO
 -- monad.
 defPropertyRO :: forall tt tr.
@@ -531,6 +547,13 @@ defPropertySigRW name key g s = Member PropertyMember
     (mkUniformFunc g)
     (Just $ mkSpecialFunc (\a b -> VoidIO $ s a b))
     (Just $ signalKey key)
+
+-- | Alias of 'defPropertyConst' which is less polymorphic to reduce the need
+-- for type signatures.
+defPropertyConst' :: forall obj tr.
+    (Typeable obj, Marshal tr, CanReturnTo tr ~ Yes) =>
+    String -> (ObjRef obj -> IO tr) -> Member obj
+defPropertyConst' = defPropertyConst
 
 -- | Alias of 'defPropertyRO' which is less polymorphic to reduce the need for
 -- type signatures.
