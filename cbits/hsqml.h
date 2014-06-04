@@ -141,7 +141,7 @@ typedef char HsQMLObjectHandle;
 extern HsQMLObjectHandle* hsqml_create_object(
     HsStablePtr, HsQMLClassHandle*);
 
-extern void hsqml_object_set_active(
+extern int hsqml_object_set_active(
     HsQMLObjectHandle*);
 
 extern HsStablePtr hsqml_object_get_hs_typerep(

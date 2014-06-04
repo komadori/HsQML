@@ -136,8 +136,9 @@ extern "C" void hsqml_get_jval_string(
 /* Array */
 extern "C" void hsqml_init_jval_array(HsQMLJValHandle* hndl, unsigned int len)
 {
-    new((void*)hndl) QJSValue(
-        gManager->activeEngine()->declEngine()->newArray(len));
+    HsQMLEngine* engine = gManager->activeEngine();
+    Q_ASSERT(engine);
+    new((void*)hndl) QJSValue(engine->declEngine()->newArray(len));
 }
 
 extern "C" int hsqml_is_jval_array(HsQMLJValHandle* hndl)

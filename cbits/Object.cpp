@@ -264,16 +264,25 @@ extern "C" HsQMLObjectHandle* hsqml_create_object(
     return (HsQMLObjectHandle*)proxy;
 }
 
-extern "C" void hsqml_object_set_active(
+extern "C" int hsqml_object_set_active(
     HsQMLObjectHandle* hndl)
 {
     HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
     if (proxy) {
-        gManager->setActiveEngine(proxy->engine());
+        HsQMLEngine* engine = proxy->engine();
+        if (engine) {
+            gManager->setActiveEngine(engine);
+        }
+        else {
+            // Nothing can be done if the object hasn't been marshalled before
+            // because otherwise the relevant engine is unknown.
+            return false;
+        }
     }
     else {
         gManager->setActiveEngine(NULL);
     }
+    return true;
 }
 
 extern "C" HsStablePtr hsqml_object_get_hs_typerep(

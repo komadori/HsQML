@@ -7,8 +7,10 @@ module Graphics.QML.Internal.BindObj where
 import Graphics.QML.Internal.Types
 {#import Graphics.QML.Internal.BindPrim #}
 
-import Control.Exception (bracket_)
+import Control.Exception (bracket)
+import Control.Monad (void)
 import Foreign.C.Types
+import Foreign.Marshal.Utils (toBool)
 import Foreign.Ptr
 import Foreign.ForeignPtr.Safe
 import Foreign.ForeignPtr.Unsafe
@@ -81,14 +83,14 @@ isNullObjectHandle (HsQMLObjectHandle fp) =
 
 {#fun unsafe hsqml_object_set_active as ^
   {withMaybeHsQMLObjectHandle* `Maybe HsQMLObjectHandle'} ->
- `()' #}
+ `Bool' toBool #}
 
 withActiveObject :: HsQMLObjectHandle -> IO () -> IO ()
 withActiveObject hndl action =
-    bracket_
+    bracket
         (hsqmlObjectSetActive $ Just hndl)
-        (hsqmlObjectSetActive Nothing)
-        action
+        (\ok -> if ok then void $ hsqmlObjectSetActive Nothing else return ())
+        (\ok -> if ok then action else return ())
 
 {#fun unsafe hsqml_object_get_hs_typerep as ^
   {withHsQMLObjectHandle* `HsQMLObjectHandle'} ->
