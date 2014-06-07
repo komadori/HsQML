@@ -111,7 +111,8 @@ instance TestAction SimpleMethods where
             _             -> return $ Left TBadActionCtor]
 
 data SimpleProperties
-    = SPGetIntRO Int32
+    = SPGetIntConst Int32
+    | SPGetIntRO Int32
     | SPGetInt Int32
     | SPSetInt Int32
     | SPGetDouble Double
@@ -126,6 +127,7 @@ instance TestAction SimpleProperties where
     legalActionIn (SPSetObject n) env = testEnvIsaJ n testObjectType env
     legalActionIn _ _ = True
     nextActionsFor env = mayOneof [
+        SPGetIntConst <$> fromGen arbitrary,
         SPGetIntRO <$> fromGen arbitrary,
         SPGetInt <$> fromGen arbitrary,
         SPSetInt <$> fromGen arbitrary,
@@ -138,6 +140,7 @@ instance TestAction SimpleProperties where
     updateEnvRaw (SPGetObject n) = testEnvStep . testEnvSerial (\s ->
         testEnvSetJ n testObjectType s)
     updateEnvRaw _ = testEnvStep
+    actionRemote (SPGetIntConst v) n = testProp n "propIntConst" $ S.literal v
     actionRemote (SPGetIntRO v) n = testProp n "propIntRO" $ S.literal v
     actionRemote (SPGetInt v) n = testProp n "propIntR" $ S.literal v
     actionRemote (SPSetInt v) n = setProp n "propIntW" $ S.literal v
@@ -150,6 +153,10 @@ instance TestAction SimpleProperties where
     mockObjDef = [
         -- There are seperate properties for testing accessors and mutators
         -- becasue QML produces spurious reads when writing.
+        defPropertyRO "propIntConst"
+            (\m -> expectAction m $ \a -> case a of
+                SPGetIntConst v -> return $ Right v
+                _               -> return $ Left TBadActionCtor),
         defPropertyRO "propIntRO"
             (\m -> expectAction m $ \a -> case a of
                 SPGetIntRO v -> return $ Right v
