@@ -112,13 +112,14 @@ compileClass name ms =
         writeInt 0 >> writeInt 0             -- Constructors
         writeInt 0                           -- Flags
         writeIntegral $ mSignalCount enc     -- Signals
-        mapM_ writeMethodParams $ filterMembers SignalMember ms
-        mapM_ writeMethodParams $ filterMembers MethodMember ms
-        mapM_ writeMethod $ filterMembers SignalMember ms
-        mapM_ writeMethod $ filterMembers MethodMember ms
-        mapM_ writeProperty $ filterMembers ConstPropertyMember ms
-        mapM_ writeProperty $ filterMembers PropertyMember ms
-        mapM_ writePropertySig $ filterMembers PropertyMember ms
+        let mms = filterMembers SignalMember ms ++
+                  filterMembers MethodMember ms
+        mapM_ writeMethodParams mms
+        mapM_ writeMethod mms
+        let pms = filterMembers ConstPropertyMember ms ++
+                  filterMembers PropertyMember ms
+        mapM_ writeProperty pms
+        mapM_ writePropertySig pms
         writeInt 0
   in enc
 
