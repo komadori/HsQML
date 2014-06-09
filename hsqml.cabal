@@ -9,6 +9,7 @@ Author:             Robin KAY
 Maintainer:         komadori@gekkou.co.uk
 Stability:          experimental
 Homepage:           http://www.gekkou.co.uk/software/hsqml/
+Bug-reports:        http://trac.gekkou.co.uk/hsqml/
 Category:           Graphics
 Synopsis:           Haskell binding for Qt Quick
 Extra-source-files: CHANGELOG cbits/*.cpp cbits/*.h test/Graphics/QML/Test/*.hs
