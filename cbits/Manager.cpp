@@ -186,6 +186,12 @@ HsQMLManager::EventLoopStatus HsQMLManager::runEventLoop(
     }
 #endif
 
+    // Check for non-threaded RTS
+    if (yieldCb) {
+        HSQML_LOG(0,
+            "Warning: CPU cannot idle when using the non-threaded RTS.");
+    }
+
     // Perform one-time initialisation
     if (!mApp) {
         // Install hooked handler for QVariants
