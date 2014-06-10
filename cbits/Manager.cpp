@@ -220,7 +220,19 @@ HsQMLManager::EventLoopStatus HsQMLManager::runEventLoop(
     }
 
     // Run loop
-    int ret = mApp->exec();
+    int ret;
+    do {
+        ret = mApp->exec();
+
+        // Kill all engines
+        const QObjectList& cs = gManager->mApp->children();
+        while (!cs.empty()) {
+            delete cs.front();
+        }
+
+        // Cmd-Q on MacOS can kill the event loop before we're ready
+        // Keep it running until a StopLoopEvent is received
+    } while (ret == 0 && mRunning);
 
     // Remove redundant events
     QCoreApplication::removePostedEvents(
@@ -325,10 +337,6 @@ void HsQMLManagerApp::customEvent(QEvent* ev)
         break;}
     case HsQMLManagerApp::StopLoopEvent: {
         gManager->mLock.lock();
-        const QObjectList& cs = gManager->mApp->children();
-        while (!cs.empty()) {
-            delete cs.front();
-        }
         gManager->mRunning = false;
         gManager->mApp->mApp.quit();
         break;}
