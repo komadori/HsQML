@@ -1,5 +1,14 @@
 HsQML - Release History
 
+release-0.3.1.0 - 2014.06.12
+
+  * Added properties with constant annotation.
+  * Added a warning for users of the non-threaded RTS.
+  * Relaxed Cabal dependency constraint on 'transformers'.
+  * Fixed premature garbage collection of QML objects.
+  * Fixed intermittent crash on exit when firing signals.
+  * Fixed crash when using Cmd-Q to exit on MacOS.
+
 release-0.3.0.0 - 2014.05.04
 
   * Ported to Qt 5 and Qt Quick 2
