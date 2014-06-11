@@ -1,0 +1,10 @@
+HsQML
+=====
+
+HsQML is a Haskell binding to Qt Quick, a cross-platform framework for creating
+graphical user interfaces. For further information on installing and using it,
+please see the project's web site.
+
+Home Page:        http://www.gekkou.co.uk/software/hsqml/
+Darcs Repository: http://hub.darcs.net/komadori/HsQML
+Issue Tracker:    http://trac.gekkou.co.uk/hsqml/

@@ -13,7 +13,7 @@ Bug-reports:        http://trac.gekkou.co.uk/hsqml/
 Category:           Graphics
 Synopsis:           Haskell binding for Qt Quick
 Extra-source-files:
-    CHANGELOG SetupNoTH.hs
+    README CHANGELOG SetupNoTH.hs
     cbits/*.cpp cbits/*.h test/Graphics/QML/Test/*.hs
 Description:
     A Haskell binding for Qt Quick.
