@@ -128,12 +128,10 @@ newObjectDC obj = do
 -- | Returns the associated value of the underlying Haskell type @tt@ from an
 -- instance of the QML class which wraps it.
 fromObjRef :: ObjRef tt -> tt
-fromObjRef =
-    unsafePerformIO . fromObjRefIO
+fromObjRef = unsafeDupablePerformIO . fromObjRefIO
 
 fromObjRefIO :: ObjRef tt -> IO tt
-fromObjRefIO =
-    hsqmlObjectGetHsValue . objHndl 
+fromObjRefIO = hsqmlObjectGetHsValue . objHndl
 
 -- | Represents an instance of a QML class which wraps an arbitrary Haskell
 -- type. Unlike 'ObjRef', an 'AnyObjRef' only carries the type of its Haskell
@@ -170,7 +168,7 @@ anyObjRef (ObjRef hndl) = AnyObjRef hndl
 -- | Attempts to downcast an 'AnyObjRef' into an 'ObjRef' with the specific
 -- underlying Haskell type @tt@.
 fromAnyObjRef :: (Typeable tt) => AnyObjRef -> Maybe (ObjRef tt)
-fromAnyObjRef = unsafePerformIO . fromAnyObjRefIO
+fromAnyObjRef = unsafeDupablePerformIO . fromAnyObjRefIO
 
 fromAnyObjRefIO :: forall tt. (Typeable tt) =>
     AnyObjRef -> IO (Maybe (ObjRef tt))

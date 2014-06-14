@@ -26,7 +26,7 @@ cIntConv = fromIntegral
   `Int' fromIntegral #}
 
 hsqmlStringSize :: Int
-hsqmlStringSize = unsafePerformIO $ hsqmlGetStringSize
+hsqmlStringSize = unsafeDupablePerformIO $ hsqmlGetStringSize
 
 {#fun unsafe hsqml_init_string as ^
   {id `HsQMLStringHandle'} ->
@@ -66,14 +66,14 @@ withStrHndl contFn =
   `Int' fromIntegral #}
 
 hsqmlJValSize :: Int
-hsqmlJValSize = unsafePerformIO $ hsqmlGetJvalSize
+hsqmlJValSize = unsafeDupablePerformIO $ hsqmlGetJvalSize
 
 {#fun unsafe hsqml_get_jval_typeid as ^
   {} ->
   `Int' fromIntegral #}
 
 hsqmlJValTypeId :: Int
-hsqmlJValTypeId = unsafePerformIO $ hsqmlGetJvalTypeid
+hsqmlJValTypeId = unsafeDupablePerformIO $ hsqmlGetJvalTypeid
 
 {#fun unsafe hsqml_init_jval_null as ^
   {id `HsQMLJValHandle',
