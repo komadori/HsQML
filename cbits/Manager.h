@@ -4,6 +4,7 @@
 #include <QtCore/QAtomicPointer>
 #include <QtCore/QAtomicInt>
 #include <QtCore/QMutex>
+#include <QtCore/QSet>
 #include <QtCore/QString>
 #include <QtCore/QVariant>
 #include <QtWidgets/QApplication>
@@ -38,6 +39,8 @@ public:
     int updateCounter(CounterId, int);
     void freeFun(HsFunPtr);
     void freeStable(HsStablePtr);
+    void registerObject(const QObject*);
+    void unregisterObject(const QObject*);
     void hookedConstruct(QVariant::Private*, const void*);
     void hookedClear(QVariant::Private*);
     bool isEventThread();
@@ -61,6 +64,7 @@ private:
     bool mAtExit;
     void (*mFreeFun)(HsFunPtr);
     void (*mFreeStable)(HsStablePtr);
+    QSet<const QObject*> mObjectSet;
     const QVariant::Handler* mOriginalHandler;
     QVariant::Handler mHookedHandler;
     HsQMLManagerApp* mApp;

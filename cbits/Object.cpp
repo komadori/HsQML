@@ -167,6 +167,7 @@ HsQMLObject::HsQMLObject(HsQMLObjectProxy* proxy, HsQMLEngine* engine)
     QQmlEngine::setObjectOwnership(
         this, QQmlEngine::JavaScriptOwnership);
     mProxy->ref(HsQMLObjectProxy::Object);
+    gManager->registerObject(this);
     gManager->updateCounter(HsQMLManager::QObjectCount, 1);
 }
 
@@ -174,6 +175,7 @@ HsQMLObject::~HsQMLObject()
 {
     mProxy->clearObject();
     mProxy->deref(HsQMLObjectProxy::Object);
+    gManager->unregisterObject(this);
     gManager->updateCounter(HsQMLManager::QObjectCount, -1);
 }
 

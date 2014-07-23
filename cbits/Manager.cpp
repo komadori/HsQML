@@ -119,6 +119,17 @@ void HsQMLManager::freeStable(HsStablePtr stablePtr)
     mFreeStable(stablePtr);
 }
 
+void HsQMLManager::registerObject(const QObject* obj)
+{
+    mObjectSet.insert(obj);
+}
+
+void HsQMLManager::unregisterObject(const QObject* obj)
+{
+    bool removed = mObjectSet.remove(obj);
+    Q_ASSERT(removed);
+}
+
 void HsQMLManager::hookedConstruct(QVariant::Private* p, const void* copy)
 {
     char guard;
@@ -134,7 +145,8 @@ void HsQMLManager::hookedConstruct(QVariant::Private* p, const void* copy)
     // that the stack can be discounted, it's possible to keep an accurate
     // count of heap references using these hooks.
     if ((pp < &guard || pp > mStackBase) && p->type == QMetaType::QObjectStar) {
-        if (HsQMLObject* obj = dynamic_cast<HsQMLObject*>(p->data.o)) {
+        if (isEventThread() && mObjectSet.contains(p->data.o)) {
+            HsQMLObject* obj = static_cast<HsQMLObject*>(p->data.o);
             HsQMLObjectProxy* proxy = obj->proxy();
             proxy->ref(HsQMLObjectProxy::Variant);
             proxy->tryGCLock();
@@ -148,7 +160,8 @@ void HsQMLManager::hookedClear(QVariant::Private* p)
     char guard;
     void* pp = reinterpret_cast<void*>(p);
     if ((pp < &guard || pp > mStackBase) && p->type == QMetaType::QObjectStar) {
-        if (HsQMLObject* obj = dynamic_cast<HsQMLObject*>(p->data.o)) {
+        if (isEventThread() && mObjectSet.contains(p->data.o)) {
+            HsQMLObject* obj = static_cast<HsQMLObject*>(p->data.o);
             obj->proxy()->deref(HsQMLObjectProxy::Variant);
             updateCounter(VariantCount, -1);
         }
