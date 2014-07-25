@@ -1,4 +1,3 @@
-#include <iostream>
 #include <cstdlib>
 #include <QtCore/QBasicTimer>
 #include <QtCore/QMetaType>
@@ -101,7 +100,8 @@ bool HsQMLManager::checkLogLevel(int ll)
 
 void HsQMLManager::log(const QString& msg)
 {
-    std::cerr << "HsQML: " << msg.toStdString() << std::endl;
+    QMutexLocker locker(&mLogLock);
+    fprintf(stderr, "HsQML: %s\n", msg.toUtf8().data());
 }
 
 int HsQMLManager::updateCounter(CounterId id, int delta)

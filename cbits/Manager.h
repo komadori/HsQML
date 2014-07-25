@@ -60,6 +60,7 @@ private:
     Q_DISABLE_COPY(HsQMLManager)
 
     int mLogLevel;
+    QMutex mLogLock;
     QAtomicInt mCounters[TotalCounters];
     bool mAtExit;
     void (*mFreeFun)(HsFunPtr);
