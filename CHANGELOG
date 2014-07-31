@@ -1,5 +1,10 @@
 HsQML - Release History
 
+release-0.3.1.1 - 2014.07.31
+
+  * Fixed crash when storing Haskell objects in QML variants.
+  * Fixed corrupted logging output caused by threading.
+
 release-0.3.1.0 - 2014.06.11
 
   * Added properties with constant annotation.
