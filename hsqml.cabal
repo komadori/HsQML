@@ -16,9 +16,9 @@ Extra-source-files:
     README CHANGELOG SetupNoTH.hs
     cbits/*.cpp cbits/*.h test/Graphics/QML/Test/*.hs
 Description:
-    A Haskell binding for Qt Quick.
-
-    General documentation is present in the 'Graphics.QML' module.
+    A Haskell binding for Qt Quick, a cross-platform framework for creating
+    graphical user interfaces. For further information on installing and using
+    this library, please see the project's web site.
 
 Flag UsePkgConfig
     Description:
