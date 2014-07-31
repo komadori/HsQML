@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <cstdlib>
 #include <QtCore/QBasicTimer>
 #include <QtCore/QMetaType>
