@@ -47,11 +47,13 @@ Library
     Exposed-modules:
         Graphics.QML
         Graphics.QML.Debug
+        Graphics.QML.Canvas
         Graphics.QML.Engine
         Graphics.QML.Marshal
         Graphics.QML.Objects
     Other-modules:
         Graphics.QML.Internal.BindPrim
+        Graphics.QML.Internal.BindCanvas
         Graphics.QML.Internal.BindObj
         Graphics.QML.Internal.BindCore
         Graphics.QML.Internal.JobQueue
@@ -60,6 +62,7 @@ Library
         Graphics.QML.Internal.Types
     Hs-source-dirs: src
     C-sources:
+        cbits/Canvas.cpp
         cbits/Class.cpp
         cbits/Engine.cpp
         cbits/Intrinsics.cpp
@@ -67,6 +70,7 @@ Library
         cbits/Object.cpp
     Include-dirs: cbits
     X-moc-headers:
+        cbits/Canvas.h
         cbits/Engine.h
         cbits/Manager.h
     X-separate-cbits: True

@@ -8,6 +8,7 @@
 #include <pthread.h>
 #endif
 
+#include "Canvas.h"
 #include "Manager.h"
 #include "Object.h"
 
@@ -211,8 +212,9 @@ HsQMLManager::EventLoopStatus HsQMLManager::runEventLoop(
         // Install hooked handler for QVariants
         QVariantPrivate::registerHandler(0, &mHookedHandler);
 
-        // Register custom type
+        // Register custom types
         qRegisterMetaType<HsQMLEngineConfig>("HsQMLEngineConfig");
+        qmlRegisterType<HsQMLCanvas>("HsQML.Canvas", 1, 0, "HaskellCanvas");
 
         // Create application object
         mApp = new HsQMLManagerApp();
