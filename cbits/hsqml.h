@@ -177,6 +177,8 @@ extern void hsqml_create_engine(
 /* Canvas */
 typedef char HsQMLGLDelegateHandle;
 
+typedef void (*HsQMLGLDeInitCb)();
+
 typedef void (*HsQMLGLSyncCb)(
     HsQMLJValHandle*);
 
@@ -184,7 +186,9 @@ typedef void (*HsQMLGLPaintCb)(
     double,
     double);
 
-typedef void (*HsQMLGLMakeContextCb)(
+typedef void (*HsQMLGLMakeCallbacksCb)(
+    HsQMLGLDeInitCb*,
+    HsQMLGLDeInitCb*,
     HsQMLGLSyncCb*,
     HsQMLGLPaintCb*);
 
@@ -195,7 +199,7 @@ extern void hsqml_finalise_gldelegate_handle(
 
 extern void hsqml_gldelegate_setup(
     HsQMLGLDelegateHandle*,
-    HsQMLGLMakeContextCb);
+    HsQMLGLMakeCallbacksCb);
 
 extern void hsqml_gldelegate_to_jval(
     HsQMLGLDelegateHandle*,

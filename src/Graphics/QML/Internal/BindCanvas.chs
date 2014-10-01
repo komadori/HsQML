@@ -22,10 +22,15 @@ import System.IO.Unsafe
 
 {#pointer *HsQMLGLDelegateHandle as ^ foreign newtype #}
 
+type DeInitCb = IO ()
 type SyncCb = HsQMLJValHandle -> IO ()
 type PaintCb = CDouble -> CDouble -> IO ()
-type InitCb = Ptr (FunPtr SyncCb) -> Ptr (FunPtr PaintCb) -> IO ()
-type CanvasFactory = IO (SyncCb, PaintCb)
+type InitCb = Ptr (FunPtr DeInitCb) -> Ptr (FunPtr DeInitCb) ->
+    Ptr (FunPtr SyncCb) -> Ptr (FunPtr PaintCb) -> IO ()
+type CallbacksFactory = IO (DeInitCb, DeInitCb, SyncCb, PaintCb)
+
+foreign import ccall "wrapper"
+  marshalDeInitCb :: DeInitCb -> IO (FunPtr DeInitCb)
 
 foreign import ccall "wrapper"  
   marshalSyncCb :: SyncCb -> IO (FunPtr SyncCb)
@@ -36,10 +41,14 @@ foreign import ccall "wrapper"
 foreign import ccall "wrapper"
   marshalInitCb :: InitCb -> IO (FunPtr InitCb)
 
-withCanvasFactory :: CanvasFactory -> (FunPtr InitCb -> IO a) -> IO a
-withCanvasFactory factory with = do
-    let initFn syncPtrFPtr paintPtrFPtr = do
-            (syncFn, paintFn) <- factory
+withCallbacksFactory :: CallbacksFactory -> (FunPtr InitCb -> IO a) -> IO a
+withCallbacksFactory factory with = do
+    let initFn initPtrFPtr deinitPtrFPtr syncPtrFPtr paintPtrFPtr = do
+            (initFn, deinitFn, syncFn, paintFn) <- factory
+            initFPtr <- marshalDeInitCb initFn
+            poke initPtrFPtr initFPtr
+            deinitFPtr <- marshalDeInitCb deinitFn
+            poke deinitPtrFPtr deinitFPtr
             syncFPtr <- marshalSyncCb syncFn
             poke syncPtrFPtr syncFPtr
             paintFPtr <- marshalPaintCb paintFn
@@ -62,7 +71,7 @@ newGLDelegateHandle p = do
 
 {#fun unsafe hsqml_gldelegate_setup as ^
   {withHsQMLGLDelegateHandle* `HsQMLGLDelegateHandle',
-   withCanvasFactory* `CanvasFactory'} ->
+   withCallbacksFactory* `CallbacksFactory'} ->
   `()' #}
 
 {#fun unsafe hsqml_gldelegate_to_jval as ^

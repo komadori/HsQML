@@ -6,6 +6,7 @@
 #include <QtCore/QMetaType>
 #include <QtCore/QScopedPointer>
 #include <QtCore/QSharedData>
+#include <QtGui/QOpenGLContext>
 #include <QtGui/QOpenGLFramebufferObject>
 #include <QtQuick/QQuickItem>
 
@@ -15,12 +16,15 @@ class QSGTexture;
 class QQuickWindow;
 class HsQMLCanvasBackEnd;
 
-class HsQMLGLContextData : public QSharedData
+class HsQMLGLCallbacks : public QSharedData
 {
 public:
-    HsQMLGLContextData(HsQMLGLSyncCb, HsQMLGLPaintCb);
-    ~HsQMLGLContextData();
+    HsQMLGLCallbacks(
+        HsQMLGLDeInitCb, HsQMLGLDeInitCb, HsQMLGLSyncCb, HsQMLGLPaintCb);
+    ~HsQMLGLCallbacks();
 
+    HsQMLGLDeInitCb mInitCb;
+    HsQMLGLDeInitCb mDeinitCb;
     HsQMLGLSyncCb mSyncCb;
     HsQMLGLPaintCb mPaintCb;
 };
@@ -28,10 +32,10 @@ public:
 class HsQMLGLDelegateImpl : public QSharedData
 {
 public:
-    HsQMLGLDelegateImpl(HsQMLGLMakeContextCb);
+    HsQMLGLDelegateImpl(HsQMLGLMakeCallbacksCb);
     ~HsQMLGLDelegateImpl();
 
-    HsQMLGLMakeContextCb mMakeContextCb;
+    HsQMLGLMakeCallbacksCb mMakeCallbacksCb;
 };
 
 class HsQMLGLDelegate
@@ -39,9 +43,9 @@ class HsQMLGLDelegate
 public:
     HsQMLGLDelegate();
     ~HsQMLGLDelegate();
-    void setup(HsQMLGLMakeContextCb);
-    typedef QExplicitlySharedDataPointer<HsQMLGLContextData> ContextDataRef;
-    ContextDataRef makeContextData();
+    void setup(HsQMLGLMakeCallbacksCb);
+    typedef QExplicitlySharedDataPointer<HsQMLGLCallbacks> CallbacksRef;
+    CallbacksRef makeCallbacks();
 
 private:
     QExplicitlySharedDataPointer<HsQMLGLDelegateImpl> mImpl;
@@ -98,7 +102,7 @@ private:
     qreal mCanvasHeight;
     bool mCanvasHeightSet;
     QVariant mDelegate;
-    HsQMLGLDelegate::ContextDataRef mGLContextData;
+    HsQMLGLDelegate::CallbacksRef mGLCallbacks;
 };
 
 class HsQMLCanvasBackEnd : public QObject
@@ -106,19 +110,22 @@ class HsQMLCanvasBackEnd : public QObject
     Q_OBJECT
 
 public:
-    HsQMLCanvasBackEnd(QQuickWindow*);
+    HsQMLCanvasBackEnd(
+        QQuickWindow*, const HsQMLGLDelegate::CallbacksRef&);
     ~HsQMLCanvasBackEnd();
-    void setGLContextData(const HsQMLGLDelegate::ContextDataRef&);
     void setModeSize(HsQMLCanvas::DisplayMode, qreal, qreal);
-    QSGTexture* texture() const;
+    QSGTexture* updateFBO();
 
 private:
     Q_DISABLE_COPY(HsQMLCanvasBackEnd)
 
     Q_SLOT void doRendering();
+    Q_SLOT void doCleanup();
+    Q_SLOT void doCleanupKill();
 
     QQuickWindow* mWindow;
-    HsQMLGLDelegate::ContextDataRef mGLContextData;
+    HsQMLGLDelegate::CallbacksRef mGLCallbacks;
+    QOpenGLContext* mGL;
     HsQMLCanvas::DisplayMode mDisplayMode;
     qreal mCanvasWidth;
     qreal mCanvasHeight;

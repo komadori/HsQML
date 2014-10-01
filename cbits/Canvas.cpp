@@ -6,25 +6,28 @@
 #include <QtQuick/QSGTexture>
 #include <QtQuick/QQuickWindow>
 
-HsQMLGLContextData::HsQMLGLContextData(
+HsQMLGLCallbacks::HsQMLGLCallbacks(
+    HsQMLGLDeInitCb initCb, HsQMLGLDeInitCb deinitCb,
     HsQMLGLSyncCb syncCb, HsQMLGLPaintCb paintCb)
-    : mSyncCb(syncCb)
+    : mInitCb(initCb)
+    , mDeinitCb(deinitCb)
+    , mSyncCb(syncCb)
     , mPaintCb(paintCb)
 {}
 
-HsQMLGLContextData::~HsQMLGLContextData()
+HsQMLGLCallbacks::~HsQMLGLCallbacks()
 {
     gManager->freeFun(reinterpret_cast<HsFunPtr>(mSyncCb));
     gManager->freeFun(reinterpret_cast<HsFunPtr>(mPaintCb));
 }
 
-HsQMLGLDelegateImpl::HsQMLGLDelegateImpl(HsQMLGLMakeContextCb makeContextCb)
-    : mMakeContextCb(makeContextCb)
+HsQMLGLDelegateImpl::HsQMLGLDelegateImpl(HsQMLGLMakeCallbacksCb makeContextCb)
+    : mMakeCallbacksCb(makeContextCb)
 {}
 
 HsQMLGLDelegateImpl::~HsQMLGLDelegateImpl()
 {
-    gManager->freeFun(reinterpret_cast<HsFunPtr>(mMakeContextCb));
+    gManager->freeFun(reinterpret_cast<HsFunPtr>(mMakeCallbacksCb));
 }
 
 HsQMLGLDelegate::HsQMLGLDelegate()
@@ -35,25 +38,30 @@ HsQMLGLDelegate::~HsQMLGLDelegate()
 {
 }
 
-void HsQMLGLDelegate::setup(HsQMLGLMakeContextCb makeContextCb)
+void HsQMLGLDelegate::setup(HsQMLGLMakeCallbacksCb makeContextCb)
 {
     mImpl = new HsQMLGLDelegateImpl(makeContextCb);
 }
 
-HsQMLGLDelegate::ContextDataRef HsQMLGLDelegate::makeContextData()
+HsQMLGLDelegate::CallbacksRef HsQMLGLDelegate::makeCallbacks()
 {
-    ContextDataRef dataPtr;
+    CallbacksRef dataPtr;
     if (mImpl) {
+        HsQMLGLDeInitCb initCb;
+        HsQMLGLDeInitCb deinitCb;
         HsQMLGLSyncCb syncCb;
         HsQMLGLPaintCb paintCb;
-        mImpl->mMakeContextCb(&syncCb, &paintCb);
-        dataPtr = new HsQMLGLContextData(syncCb, paintCb);
+        mImpl->mMakeCallbacksCb(&initCb, &deinitCb, &syncCb, &paintCb);
+        dataPtr = new HsQMLGLCallbacks(initCb, deinitCb, syncCb, paintCb);
     }
     return dataPtr;
 }
 
-HsQMLCanvasBackEnd::HsQMLCanvasBackEnd(QQuickWindow* win)
+HsQMLCanvasBackEnd::HsQMLCanvasBackEnd(
+    QQuickWindow* win, const HsQMLGLDelegate::CallbacksRef& cbs)
     : mWindow(win)
+    , mGLCallbacks(cbs)
+    , mGL(NULL)
 {
     QObject::connect(
         win, SIGNAL(beforeRendering()),
@@ -64,53 +72,69 @@ HsQMLCanvasBackEnd::~HsQMLCanvasBackEnd()
 {
 }
 
-void HsQMLCanvasBackEnd::setGLContextData(
-    const HsQMLGLDelegate::ContextDataRef& data)
-{
-    mGLContextData = data;
-}
-
 void HsQMLCanvasBackEnd::setModeSize(
     HsQMLCanvas::DisplayMode mode, qreal w, qreal h)
 {
     mDisplayMode = mode;
     mCanvasWidth = w;
     mCanvasHeight = h;
+}
 
-    if (HsQMLCanvas::Inline == mode) {
-        if (!mFBO || mFBO->width() != w || mFBO->height() != h) {
+QSGTexture* HsQMLCanvasBackEnd::updateFBO()
+{
+    if (HsQMLCanvas::Inline == mDisplayMode) {
+        if (!mFBO || mFBO->width() != mCanvasWidth ||
+                     mFBO->height() != mCanvasHeight) {
             mFBO.reset(new QOpenGLFramebufferObject(
-                qCeil(w), qCeil(h), QOpenGLFramebufferObject::Depth));
+                qCeil(mCanvasWidth), qCeil(mCanvasHeight),
+                QOpenGLFramebufferObject::Depth));
             mTexture.reset(mWindow->createTextureFromId(
                 mFBO->texture(), mFBO->size()));
         }
     }
     else {
-        mFBO.reset();
         mTexture.reset();
+        mFBO.reset();
     }
-}
-
-QSGTexture* HsQMLCanvasBackEnd::texture() const
-{
     return mTexture.data();
 }
 
 void HsQMLCanvasBackEnd::doRendering()
 {
-    bool inlineMode = HsQMLCanvas::Inline == mDisplayMode;
-    if (inlineMode && !mFBO) {
-        return;
+    if (!mGL) {
+        mGLCallbacks->mInitCb();
+        mGL = mWindow->openglContext();
+        QObject::connect(
+            mGL, SIGNAL(aboutToBeDestroyed()), this, SLOT(doCleanup()));
     }
+
+    bool inlineMode = HsQMLCanvas::Inline == mDisplayMode;
     if (inlineMode) {
         mFBO->bind();
     }
-    if (mGLContextData) {
-        mGLContextData->mPaintCb(mCanvasWidth, mCanvasHeight);
-    }
+
+    mGLCallbacks->mPaintCb(mCanvasWidth, mCanvasHeight);
+
     if (inlineMode) {
         mFBO->release();
     }
+}
+
+void HsQMLCanvasBackEnd::doCleanup()
+{
+    mGL->makeCurrent(mWindow);
+    mGL = NULL;
+
+    mTexture.reset();
+    mFBO.reset();
+
+    mGLCallbacks->mDeinitCb();
+}
+
+void HsQMLCanvasBackEnd::doCleanupKill()
+{
+    doCleanup();
+    delete this;
 }
 
 HsQMLCanvas::HsQMLCanvas(QQuickItem* parent)
@@ -147,15 +171,20 @@ void HsQMLCanvas::geometryChanged(const QRectF& rect, const QRectF&)
 QSGNode* HsQMLCanvas::updatePaintNode(
     QSGNode* oldNode, UpdatePaintNodeData* paintData)
 {
-    // This executes on the rendering thread
-    if (!mBackEnd) {
-        mBackEnd = new HsQMLCanvasBackEnd(mWindow);
+    // Do nothing if there's no delegate
+    if (!mGLCallbacks) {
+        delete oldNode;
+        return NULL;
     }
-    mBackEnd->setGLContextData(mGLContextData);
+
+    // Create back-end on the rendering thread
+    if (!mBackEnd) {
+        mBackEnd = new HsQMLCanvasBackEnd(mWindow, mGLCallbacks);
+    }
     mBackEnd->setModeSize(mDisplayMode, mCanvasWidth, mCanvasHeight);
 
     // Produce texture node if needed
-    if (QSGTexture* texture = mBackEnd->texture()) {
+    if (QSGTexture* texture = mBackEnd->updateFBO()) {
         QSGSimpleTextureNode* n = static_cast<QSGSimpleTextureNode*>(oldNode);
         if (!n) {
             n = new QSGSimpleTextureNode();
@@ -164,6 +193,8 @@ QSGNode* HsQMLCanvas::updatePaintNode(
         n->setTexture(texture);
         return n;
     }
+
+    delete oldNode;
     return NULL;
 }
 
@@ -171,7 +202,8 @@ void HsQMLCanvas::detachBackEnd()
 {
     if (mBackEnd) {
         // The back-end belongs to the rendering thread
-        mBackEnd->deleteLater();
+        QMetaObject::invokeMethod(
+            mBackEnd, "doCleanupKill", Qt::QueuedConnection);
         mBackEnd = NULL;
     }
 }
@@ -187,6 +219,7 @@ void HsQMLCanvas::setDisplayMode(HsQMLCanvas::DisplayMode mode)
     mDisplayMode = mode;
     if (change) {
         displayModeChanged();
+        update();
     }
 }
 
@@ -202,6 +235,7 @@ void HsQMLCanvas::setCanvasWidth(qreal w, bool set)
     mCanvasWidthSet |= set;
     if (change) {
         canvasWidthChanged();
+        update();
     }
 }
 
@@ -223,6 +257,7 @@ void HsQMLCanvas::setCanvasHeight(qreal h, bool set)
     mCanvasHeightSet |= set;
     if (change) {
         canvasHeightChanged();
+        update();
     }
 }
 
@@ -239,9 +274,14 @@ QVariant HsQMLCanvas::delegate() const
 
 void HsQMLCanvas::setDelegate(const QVariant& d)
 {
+    bool change = mDelegate != d;
     mDelegate = d;
-    mGLContextData = d.value<HsQMLGLDelegate>().makeContextData();
-    delegateChanged();
+    if (change) {
+        mGLCallbacks = d.value<HsQMLGLDelegate>().makeCallbacks();
+        detachBackEnd();
+        delegateChanged();
+        update();
+    }
 }
 
 void HsQMLCanvas::doWindowChanged(QQuickWindow* win)
@@ -264,7 +304,7 @@ void hsqml_finalise_gldelegate_handle(
 
 void hsqml_gldelegate_setup(
     HsQMLGLDelegateHandle* hndl,
-    HsQMLGLMakeContextCb makeContextCb)
+    HsQMLGLMakeCallbacksCb makeContextCb)
 {
     HsQMLGLDelegate* delegate = reinterpret_cast<HsQMLGLDelegate*>(hndl);
     delegate->setup(makeContextCb);
