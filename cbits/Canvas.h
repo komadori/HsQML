@@ -65,6 +65,8 @@ class HsQMLCanvas : public QQuickItem
         RESET unsetCanvasHeight NOTIFY canvasHeightChanged)
     Q_PROPERTY(QVariant delegate READ delegate WRITE setDelegate
         NOTIFY delegateChanged)
+    Q_PROPERTY(QJSValue model READ model WRITE setModel
+        NOTIFY modelChanged)
 
 public:
     enum DisplayMode {Above, Below, Inline};
@@ -88,10 +90,13 @@ private:
     void unsetCanvasHeight();
     QVariant delegate() const;
     void setDelegate(const QVariant&);
+    QJSValue model() const;
+    void setModel(const QJSValue&);
     Q_SIGNAL void displayModeChanged();
     Q_SIGNAL void canvasWidthChanged();
     Q_SIGNAL void canvasHeightChanged();
     Q_SIGNAL void delegateChanged();
+    Q_SIGNAL void modelChanged();
     Q_SLOT void doWindowChanged(QQuickWindow*);
 
     QQuickWindow* mWindow;
@@ -103,6 +108,9 @@ private:
     bool mCanvasHeightSet;
     QVariant mDelegate;
     HsQMLGLDelegate::CallbacksRef mGLCallbacks;
+    QJSValue mModel;
+    bool mLoadModel;
+    bool mValidModel;
 };
 
 class HsQMLCanvasBackEnd : public QObject

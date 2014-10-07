@@ -23,7 +23,7 @@ import System.IO.Unsafe
 {#pointer *HsQMLGLDelegateHandle as ^ foreign newtype #}
 
 type DeInitCb = IO ()
-type SyncCb = HsQMLJValHandle -> IO ()
+type SyncCb = HsQMLJValHandle -> IO CInt
 type PaintCb = CDouble -> CDouble -> IO ()
 type InitCb = Ptr (FunPtr DeInitCb) -> Ptr (FunPtr DeInitCb) ->
     Ptr (FunPtr SyncCb) -> Ptr (FunPtr PaintCb) -> IO ()

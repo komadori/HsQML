@@ -179,7 +179,7 @@ typedef char HsQMLGLDelegateHandle;
 
 typedef void (*HsQMLGLDeInitCb)();
 
-typedef void (*HsQMLGLSyncCb)(
+typedef int (*HsQMLGLSyncCb)(
     HsQMLJValHandle*);
 
 typedef void (*HsQMLGLPaintCb)(

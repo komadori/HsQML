@@ -146,6 +146,8 @@ HsQMLCanvas::HsQMLCanvas(QQuickItem* parent)
     , mCanvasWidthSet(false)
     , mCanvasHeight(0)
     , mCanvasHeightSet(false)
+    , mLoadModel(false)
+    , mValidModel(false)
 {
     QObject::connect(
         this, SIGNAL(windowChanged(QQuickWindow*)),
@@ -171,8 +173,23 @@ void HsQMLCanvas::geometryChanged(const QRectF& rect, const QRectF&)
 QSGNode* HsQMLCanvas::updatePaintNode(
     QSGNode* oldNode, UpdatePaintNodeData* paintData)
 {
-    // Do nothing if there's no delegate
+    // Display nothing if there's no delegate
     if (!mGLCallbacks) {
+        mValidModel = false;
+        delete oldNode;
+        return NULL;
+    }
+
+    // Process model update
+    if (mLoadModel) {
+        mValidModel = mGLCallbacks->mSyncCb(
+            reinterpret_cast<HsQMLJValHandle*>(&mModel));
+        mLoadModel = false;
+    }
+
+    // Display nothing if there's no valid model
+    if (!mValidModel) {
+        detachBackEnd();
         delete oldNode;
         return NULL;
     }
@@ -280,6 +297,23 @@ void HsQMLCanvas::setDelegate(const QVariant& d)
         mGLCallbacks = d.value<HsQMLGLDelegate>().makeCallbacks();
         detachBackEnd();
         delegateChanged();
+        mLoadModel = true;
+        update();
+    }
+}
+
+QJSValue HsQMLCanvas::model() const
+{
+    return mModel;
+}
+
+void HsQMLCanvas::setModel(const QJSValue& m)
+{
+    bool change = !mModel.strictlyEquals(m);
+    mModel = m;
+    if (change) {
+        modelChanged();
+        mLoadModel = true;
         update();
     }
 }
