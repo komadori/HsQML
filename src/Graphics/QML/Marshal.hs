@@ -28,6 +28,10 @@ module Graphics.QML.Marshal (
   IGetObjType,
   Marshaller,
 
+  -- * Data Types
+  Ignored (
+    Ignored),
+
   -- * Custom Marshallers
   bidiMarshallerIO,
   bidiMarshaller,
@@ -214,6 +218,26 @@ instance (Marshal a) => Marshal [a] where
                     mWithJVal val $ \jval' ->
                         hsqmlJvalArraySet jval i jval'
                 f jval,
+        mFromHndl_ = unimplFromHndl,
+        mToHndl_ = unimplToHndl}
+
+--
+-- Ignored
+--
+
+-- | Represents an argument whose value is ignored.
+
+data Ignored = Ignored
+
+instance Marshal Ignored where
+    type MarshalMode Ignored c d = ModeFrom c
+    marshaller = Marshaller {
+        mTypeCVal_ = Tagged tyJSValue,
+        mFromCVal_ = jvalFromCVal,
+        mToCVal_ = unimplToCVal,
+        mWithCVal_ = unimplWithCVal,
+        mFromJVal_ = \_ -> MaybeT . return $ Just Ignored,
+        mWithJVal_ = unimplWithJVal,
         mFromHndl_ = unimplFromHndl,
         mToHndl_ = unimplToHndl}
 
