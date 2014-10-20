@@ -12,8 +12,8 @@ import System.IO.Unsafe
 
 #include "hsqml.h"
 
-cIntConv :: (Integral a, Integral b) => a -> b
-cIntConv = fromIntegral
+cIntToEnum :: Enum a => CInt -> a
+cIntToEnum = toEnum . fromIntegral
 
 --
 -- String

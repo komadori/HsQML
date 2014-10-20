@@ -7,10 +7,10 @@
 #include <QtQuick/QQuickWindow>
 
 HsQMLGLCallbacks::HsQMLGLCallbacks(
-    HsQMLGLDeInitCb initCb, HsQMLGLDeInitCb deinitCb,
+    HsQMLGLSetupCb setupCb, HsQMLGLCleanupCb cleanupCb,
     HsQMLGLSyncCb syncCb, HsQMLGLPaintCb paintCb)
-    : mInitCb(initCb)
-    , mDeinitCb(deinitCb)
+    : mSetupCb(setupCb)
+    , mCleanupCb(cleanupCb)
     , mSyncCb(syncCb)
     , mPaintCb(paintCb)
 {}
@@ -47,12 +47,12 @@ HsQMLGLDelegate::CallbacksRef HsQMLGLDelegate::makeCallbacks()
 {
     CallbacksRef dataPtr;
     if (mImpl) {
-        HsQMLGLDeInitCb initCb;
-        HsQMLGLDeInitCb deinitCb;
+        HsQMLGLSetupCb setupCb;
+        HsQMLGLCleanupCb cleanupCb;
         HsQMLGLSyncCb syncCb;
         HsQMLGLPaintCb paintCb;
-        mImpl->mMakeCallbacksCb(&initCb, &deinitCb, &syncCb, &paintCb);
-        dataPtr = new HsQMLGLCallbacks(initCb, deinitCb, syncCb, paintCb);
+        mImpl->mMakeCallbacksCb(&setupCb, &cleanupCb, &syncCb, &paintCb);
+        dataPtr = new HsQMLGLCallbacks(setupCb, cleanupCb, syncCb, paintCb);
     }
     return dataPtr;
 }
@@ -62,6 +62,7 @@ HsQMLCanvasBackEnd::HsQMLCanvasBackEnd(
     : mWindow(win)
     , mGLCallbacks(cbs)
     , mGL(NULL)
+    , mStatus(HsQMLCanvas::Okay)
 {
     QObject::connect(
         win, SIGNAL(beforeRendering()),
@@ -99,20 +100,44 @@ QSGTexture* HsQMLCanvasBackEnd::updateFBO()
     return mTexture.data();
 }
 
+HsQMLCanvas::Status HsQMLCanvasBackEnd::status() const
+{
+    return mStatus;
+}
+
+void HsQMLCanvasBackEnd::setStatus(HsQMLCanvas::Status status)
+{
+    bool change = mStatus != status;
+    mStatus = status;
+    if (change) {
+        statusChanged(mStatus);
+    }
+}
+
 void HsQMLCanvasBackEnd::doRendering()
 {
     if (!mGL) {
-        mGLCallbacks->mInitCb();
         mGL = mWindow->openglContext();
         QObject::connect(
             mGL, SIGNAL(aboutToBeDestroyed()), this, SLOT(doCleanup()));
+        HsQMLGLCanvasType ctype;
+        switch (mGL->format().renderableType()) {
+            case QSurfaceFormat::OpenGL: ctype = HSQML_GL_DESKTOP; break;
+            case QSurfaceFormat::OpenGLES: ctype = HSQML_GL_ES; break;
+            default: setStatus(HsQMLCanvas::BadConfig); return;
+        }
+        mGLCallbacks->mSetupCb(ctype);
     }
 
     bool inlineMode = HsQMLCanvas::Inline == mDisplayMode;
     if (inlineMode) {
-        mFBO->bind();
+        if (!mFBO->bind()) {
+            setStatus(HsQMLCanvas::BadBind);
+            return;
+        }
     }
 
+    setStatus(HsQMLCanvas::Okay);
     mGLCallbacks->mPaintCb(mCanvasWidth, mCanvasHeight);
 
     if (inlineMode) {
@@ -128,7 +153,7 @@ void HsQMLCanvasBackEnd::doCleanup()
     mTexture.reset();
     mFBO.reset();
 
-    mGLCallbacks->mDeinitCb();
+    mGLCallbacks->mCleanupCb();
 }
 
 void HsQMLCanvasBackEnd::doCleanupKill()
@@ -141,6 +166,9 @@ HsQMLCanvas::HsQMLCanvas(QQuickItem* parent)
     : QQuickItem(parent)
     , mWindow(NULL)
     , mBackEnd(NULL)
+    , mStatus(Okay)
+    , mFrontStatus(Okay)
+    , mBackStatus(Okay)
     , mDisplayMode(Inline)
     , mCanvasWidth(0)
     , mCanvasWidthSet(false)
@@ -175,7 +203,7 @@ QSGNode* HsQMLCanvas::updatePaintNode(
 {
     // Display nothing if there's no delegate
     if (!mGLCallbacks) {
-        mValidModel = false;
+        setStatus(BadDelegate);
         delete oldNode;
         return NULL;
     }
@@ -189,6 +217,7 @@ QSGNode* HsQMLCanvas::updatePaintNode(
 
     // Display nothing if there's no valid model
     if (!mValidModel) {
+        setStatus(BadModel);
         detachBackEnd();
         delete oldNode;
         return NULL;
@@ -197,8 +226,15 @@ QSGNode* HsQMLCanvas::updatePaintNode(
     // Create back-end on the rendering thread
     if (!mBackEnd) {
         mBackEnd = new HsQMLCanvasBackEnd(mWindow, mGLCallbacks);
+
+        // Monitor back-end's status
+        QObject::connect(
+            mBackEnd, SIGNAL(statusChanged(HsQMLCanvas::Status)),
+            this, SLOT(doBackEndStatusChanged(HsQMLCanvas::Status)));
+        setStatus(mBackEnd->status(), true);
     }
     mBackEnd->setModeSize(mDisplayMode, mCanvasWidth, mCanvasHeight);
+    setStatus(Okay);
 
     // Produce texture node if needed
     if (QSGTexture* texture = mBackEnd->updateFBO()) {
@@ -221,6 +257,7 @@ void HsQMLCanvas::detachBackEnd()
         // The back-end belongs to the rendering thread
         QMetaObject::invokeMethod(
             mBackEnd, "doCleanupKill", Qt::QueuedConnection);
+        QObject::disconnect(mBackEnd, 0, this, 0);
         mBackEnd = NULL;
     }
 }
@@ -298,6 +335,7 @@ void HsQMLCanvas::setDelegate(const QVariant& d)
         detachBackEnd();
         delegateChanged();
         mLoadModel = true;
+        mValidModel = false;
         update();
     }
 }
@@ -318,10 +356,35 @@ void HsQMLCanvas::setModel(const QJSValue& m)
     }
 }
 
+HsQMLCanvas::Status HsQMLCanvas::status() const
+{
+    return mStatus;
+}
+
+void HsQMLCanvas::setStatus(Status status, bool backEnd)
+{
+    if (backEnd) {
+        mBackStatus = status;
+    }
+    else {
+        mFrontStatus = status;
+    }
+    Status newStatus = mFrontStatus == Okay ? mBackStatus : mFrontStatus;
+    bool change = mStatus != newStatus;
+    if (change) {
+        statusChanged();
+    }
+}
+
 void HsQMLCanvas::doWindowChanged(QQuickWindow* win)
 {
     detachBackEnd();
     mWindow = win;
+}
+
+void HsQMLCanvas::doBackEndStatusChanged(Status status)
+{
+    setStatus(status, true);
 }
 
 HsQMLGLDelegateHandle* hsqml_create_gldelegate()

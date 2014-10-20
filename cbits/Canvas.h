@@ -20,11 +20,11 @@ class HsQMLGLCallbacks : public QSharedData
 {
 public:
     HsQMLGLCallbacks(
-        HsQMLGLDeInitCb, HsQMLGLDeInitCb, HsQMLGLSyncCb, HsQMLGLPaintCb);
+        HsQMLGLSetupCb, HsQMLGLCleanupCb, HsQMLGLSyncCb, HsQMLGLPaintCb);
     ~HsQMLGLCallbacks();
 
-    HsQMLGLDeInitCb mInitCb;
-    HsQMLGLDeInitCb mDeinitCb;
+    HsQMLGLSetupCb mSetupCb;
+    HsQMLGLCleanupCb mCleanupCb;
     HsQMLGLSyncCb mSyncCb;
     HsQMLGLPaintCb mPaintCb;
 };
@@ -56,6 +56,7 @@ Q_DECLARE_METATYPE(HsQMLGLDelegate)
 class HsQMLCanvas : public QQuickItem
 {
     Q_OBJECT
+    Q_ENUMS(Status)
     Q_ENUMS(DisplayMode)
     Q_PROPERTY(DisplayMode displayMode READ displayMode WRITE setDisplayMode
         NOTIFY displayModeChanged)
@@ -67,8 +68,10 @@ class HsQMLCanvas : public QQuickItem
         NOTIFY delegateChanged)
     Q_PROPERTY(QJSValue model READ model WRITE setModel
         NOTIFY modelChanged)
+    Q_PROPERTY(Status status READ status NOTIFY statusChanged)
 
 public:
+    enum Status {Okay, BadDelegate, BadModel, BadConfig, BadBind};
     enum DisplayMode {Above, Below, Inline};
 
     HsQMLCanvas(QQuickItem* = NULL);
@@ -92,15 +95,22 @@ private:
     void setDelegate(const QVariant&);
     QJSValue model() const;
     void setModel(const QJSValue&);
+    Status status() const;
+    void setStatus(Status, bool = false);
     Q_SIGNAL void displayModeChanged();
     Q_SIGNAL void canvasWidthChanged();
     Q_SIGNAL void canvasHeightChanged();
     Q_SIGNAL void delegateChanged();
     Q_SIGNAL void modelChanged();
+    Q_SIGNAL void statusChanged();
     Q_SLOT void doWindowChanged(QQuickWindow*);
+    Q_SLOT void doBackEndStatusChanged(HsQMLCanvas::Status);
 
     QQuickWindow* mWindow;
     HsQMLCanvasBackEnd* mBackEnd;
+    Status mStatus;
+    Status mFrontStatus;
+    Status mBackStatus;
     DisplayMode mDisplayMode;
     qreal mCanvasWidth;
     bool mCanvasWidthSet;
@@ -123,17 +133,21 @@ public:
     ~HsQMLCanvasBackEnd();
     void setModeSize(HsQMLCanvas::DisplayMode, qreal, qreal);
     QSGTexture* updateFBO();
+    HsQMLCanvas::Status status() const;
 
 private:
     Q_DISABLE_COPY(HsQMLCanvasBackEnd)
 
+    void setStatus(HsQMLCanvas::Status);
     Q_SLOT void doRendering();
     Q_SLOT void doCleanup();
     Q_SLOT void doCleanupKill();
+    Q_SIGNAL void statusChanged(HsQMLCanvas::Status);
 
     QQuickWindow* mWindow;
     HsQMLGLDelegate::CallbacksRef mGLCallbacks;
     QOpenGLContext* mGL;
+    HsQMLCanvas::Status mStatus;
     HsQMLCanvas::DisplayMode mDisplayMode;
     qreal mCanvasWidth;
     qreal mCanvasHeight;

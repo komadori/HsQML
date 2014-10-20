@@ -177,7 +177,15 @@ extern void hsqml_create_engine(
 /* Canvas */
 typedef char HsQMLGLDelegateHandle;
 
-typedef void (*HsQMLGLDeInitCb)();
+typedef enum {
+    HSQML_GL_DESKTOP,
+    HSQML_GL_ES
+} HsQMLGLCanvasType;
+
+typedef void (*HsQMLGLSetupCb)(
+    HsQMLGLCanvasType);
+
+typedef void (*HsQMLGLCleanupCb)();
 
 typedef int (*HsQMLGLSyncCb)(
     HsQMLJValHandle*);
@@ -187,8 +195,8 @@ typedef void (*HsQMLGLPaintCb)(
     double);
 
 typedef void (*HsQMLGLMakeCallbacksCb)(
-    HsQMLGLDeInitCb*,
-    HsQMLGLDeInitCb*,
+    HsQMLGLSetupCb*,
+    HsQMLGLCleanupCb*,
     HsQMLGLSyncCb*,
     HsQMLGLPaintCb*);
 

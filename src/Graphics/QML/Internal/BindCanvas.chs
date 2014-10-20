@@ -22,15 +22,21 @@ import System.IO.Unsafe
 
 {#pointer *HsQMLGLDelegateHandle as ^ foreign newtype #}
 
-type DeInitCb = IO ()
+type SetupCb = CInt -> IO ()
+type CleanupCb = IO ()
 type SyncCb = HsQMLJValHandle -> IO CInt
 type PaintCb = CDouble -> CDouble -> IO ()
-type InitCb = Ptr (FunPtr DeInitCb) -> Ptr (FunPtr DeInitCb) ->
+type MakeCb = Ptr (FunPtr SetupCb) -> Ptr (FunPtr CleanupCb) ->
     Ptr (FunPtr SyncCb) -> Ptr (FunPtr PaintCb) -> IO ()
-type CallbacksFactory = IO (DeInitCb, DeInitCb, SyncCb, PaintCb)
+type CallbacksFactory = IO (SetupCb, CleanupCb, SyncCb, PaintCb)
+
+{#enum HsQMLGLCanvasType as ^ {underscoreToCase} #}
 
 foreign import ccall "wrapper"
-  marshalDeInitCb :: DeInitCb -> IO (FunPtr DeInitCb)
+  marshalSetupCb :: SetupCb -> IO (FunPtr SetupCb)
+
+foreign import ccall "wrapper"
+  marshalCleanupCb :: CleanupCb -> IO (FunPtr CleanupCb)
 
 foreign import ccall "wrapper"  
   marshalSyncCb :: SyncCb -> IO (FunPtr SyncCb)
@@ -39,22 +45,22 @@ foreign import ccall "wrapper"
   marshalPaintCb :: PaintCb -> IO (FunPtr PaintCb)
 
 foreign import ccall "wrapper"
-  marshalInitCb :: InitCb -> IO (FunPtr InitCb)
+  marshalMakeCb :: MakeCb -> IO (FunPtr MakeCb)
 
-withCallbacksFactory :: CallbacksFactory -> (FunPtr InitCb -> IO a) -> IO a
+withCallbacksFactory :: CallbacksFactory -> (FunPtr MakeCb -> IO a) -> IO a
 withCallbacksFactory factory with = do
-    let initFn initPtrFPtr deinitPtrFPtr syncPtrFPtr paintPtrFPtr = do
-            (initFn, deinitFn, syncFn, paintFn) <- factory
-            initFPtr <- marshalDeInitCb initFn
-            poke initPtrFPtr initFPtr
-            deinitFPtr <- marshalDeInitCb deinitFn
-            poke deinitPtrFPtr deinitFPtr
+    let makeFn setupPtrFPtr cleanupPtrFPtr syncPtrFPtr paintPtrFPtr = do
+            (setupFn, cleanupFn, syncFn, paintFn) <- factory
+            setupFPtr <- marshalSetupCb setupFn
+            poke setupPtrFPtr setupFPtr
+            cleanupFPtr <- marshalCleanupCb cleanupFn
+            poke cleanupPtrFPtr cleanupFPtr
             syncFPtr <- marshalSyncCb syncFn
             poke syncPtrFPtr syncFPtr
             paintFPtr <- marshalPaintCb paintFn
             poke paintPtrFPtr paintFPtr
-    initFPtr <- marshalInitCb initFn
-    with initFPtr
+    makeFPtr <- marshalMakeCb makeFn
+    with makeFPtr
 
 foreign import ccall "hsqml.h &hsqml_finalise_gldelegate_handle"
     hsqmlFinaliseGldelegateHandlePtr ::

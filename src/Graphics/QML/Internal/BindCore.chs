@@ -48,9 +48,6 @@ withMaybeTrivialCb Nothing = \cont -> cont nullFunPtr
 
 {#enum HsQMLEventLoopStatus as ^ {underscoreToCase} #}
 
-cIntToEnum :: Enum a => CInt -> a
-cIntToEnum = toEnum . fromIntegral
-
 {#fun hsqml_evloop_run as ^
   {withTrivialCb* `TrivialCb',
    withTrivialCb* `TrivialCb',

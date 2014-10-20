@@ -8,9 +8,14 @@
 module Graphics.QML.Canvas (
     OpenGLDelegate,
     newOpenGLDelegate,
+    OpenGLType (
+        OpenGLDesktop,
+        OpenGLES),
+    OpenGLSetup,
+    openGLType,
     OpenGLPaint,
     OpenGLPaint',
-    initData,
+    setupData,
     modelData
 ) where
 
@@ -43,28 +48,48 @@ instance Marshal OpenGLDelegate where
         mFromHndl_ = unimplFromHndl,
         mToHndl_ = unimplToHndl}
 
--- | Encapsulates parameters for paint operations.
-data OpenGLPaint i m = OpenGLPaint {
+-- | Represents the type of an OpenGL context.
+data OpenGLType
+    -- | Desktop OpenGL context.
+    = OpenGLDesktop
+    -- | OpenGL ES context.
+    | OpenGLES
+    deriving (Eq, Show)
+
+mapGLType :: HsQMLGLCanvasType -> OpenGLType
+mapGLType HsqmlGlDesktop = OpenGLDesktop
+mapGLType HsqmlGlEs      = OpenGLES
+mapGLType _              = error "Bad HsQMLGLCanvasType"
+
+-- | Encapsulates parameters for OpenGL setup.
+data OpenGLSetup = OpenGLSetup {
+    -- | Type of OpenGL context.
+    openGLType :: OpenGLType
+}
+
+-- | Encapsulates parameters for OpenGL paint.
+data OpenGLPaint s m = OpenGLPaint {
     -- | Gets the setup state.
-    initData  :: i,
+    setupData  :: s,
     -- | Gets the active model.
     modelData :: m
 }
 
 -- | Specialised version of `OpenGLPaint` with no model.
-type OpenGLPaint' i = OpenGLPaint i Ignored
+type OpenGLPaint' s = OpenGLPaint s Ignored
 
 newOpenGLCallbacks :: (Marshal m, CanGetFrom m ~ Yes) =>
-    (IO i) -> (OpenGLPaint i m -> IO ()) -> (i -> IO ()) -> CallbacksFactory
-newOpenGLCallbacks initFn paintFn deinitFn = do
+    (OpenGLSetup -> IO i) -> (OpenGLPaint i m -> IO ()) -> (i -> IO ()) ->
+    CallbacksFactory
+newOpenGLCallbacks setupFn paintFn cleanupFn = do
     iRef <- newIORef Nothing
     mRef <- newIORef Nothing
-    let initCb = do
-            iVal <- initFn
+    let setupCb ctype = do
+            iVal <- setupFn $ OpenGLSetup (mapGLType $ cIntToEnum ctype)
             writeIORef iRef $ Just iVal
-        deinitCb = do
+        cleanupCb = do
             iVal <- readIORef iRef
-            deinitFn $ fromJust iVal
+            cleanupFn $ fromJust iVal
         syncCb ptr = do
              mVal <- runMaybeT $ mFromJVal ptr
              writeIORef mRef mVal
@@ -73,12 +98,13 @@ newOpenGLCallbacks initFn paintFn deinitFn = do
             iVal <- readIORef iRef
             mVal <- readIORef mRef
             paintFn $ OpenGLPaint (fromJust iVal) (fromJust mVal)
-    return (initCb, deinitCb, syncCb, paintCb)
+    return (setupCb, cleanupCb, syncCb, paintCb)
 
 -- | Creates a new 'OpenGLDelegate' from setup, paint, and cleanup functions.
 newOpenGLDelegate :: (Marshal m, CanGetFrom m ~ Yes) =>
-    (IO i) -> (OpenGLPaint i m -> IO ()) -> (i -> IO ()) -> IO OpenGLDelegate
-newOpenGLDelegate initFn paintFn deinitFn = do
+    (OpenGLSetup -> IO i) -> (OpenGLPaint i m -> IO ()) -> (i -> IO ()) ->
+    IO OpenGLDelegate
+newOpenGLDelegate setupFn paintFn cleanupFn = do
     hndl <- hsqmlCreateGldelegate
-    hsqmlGldelegateSetup hndl (newOpenGLCallbacks initFn paintFn deinitFn)
+    hsqmlGldelegateSetup hndl (newOpenGLCallbacks setupFn paintFn cleanupFn)
     return $ OpenGLDelegate hndl
