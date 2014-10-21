@@ -147,13 +147,15 @@ void HsQMLCanvasBackEnd::doRendering()
 
 void HsQMLCanvasBackEnd::doCleanup()
 {
-    mGL->makeCurrent(mWindow);
-    mGL = NULL;
+    if (mGL) {
+        mGL->makeCurrent(mWindow);
+        mGL = NULL;
 
-    mTexture.reset();
-    mFBO.reset();
+        mTexture.reset();
+        mFBO.reset();
 
-    mGLCallbacks->mCleanupCb();
+        mGLCallbacks->mCleanupCb();
+    }
 }
 
 void HsQMLCanvasBackEnd::doCleanupKill()
