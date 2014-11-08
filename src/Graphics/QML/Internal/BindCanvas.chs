@@ -25,7 +25,7 @@ import System.IO.Unsafe
 type SetupCb = CInt -> IO ()
 type CleanupCb = IO ()
 type SyncCb = HsQMLJValHandle -> IO CInt
-type PaintCb = CDouble -> CDouble -> IO ()
+type PaintCb = Ptr CFloat -> IO ()
 type MakeCb = Ptr (FunPtr SetupCb) -> Ptr (FunPtr CleanupCb) ->
     Ptr (FunPtr SyncCb) -> Ptr (FunPtr PaintCb) -> IO ()
 type CallbacksFactory = IO (SetupCb, CleanupCb, SyncCb, PaintCb)

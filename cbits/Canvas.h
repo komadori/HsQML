@@ -6,6 +6,7 @@
 #include <QtCore/QMetaType>
 #include <QtCore/QScopedPointer>
 #include <QtCore/QSharedData>
+#include <QtGui/qopengl.h>
 #include <QtGui/QOpenGLContext>
 #include <QtGui/QOpenGLFramebufferObject>
 #include <QtQuick/QQuickItem>
@@ -13,6 +14,7 @@
 #include "hsqml.h"
 
 class QSGTexture;
+class QSGTransformNode;
 class QQuickWindow;
 class HsQMLCanvasBackEnd;
 
@@ -71,7 +73,7 @@ class HsQMLCanvas : public QQuickItem
     Q_PROPERTY(Status status READ status NOTIFY statusChanged)
 
 public:
-    enum Status {Okay, BadDelegate, BadModel, BadConfig, BadBind};
+    enum Status {Okay, BadDelegate, BadModel, BadConfig, BadProcs, BadBind};
     enum DisplayMode {Above, Below, Inline};
 
     HsQMLCanvas(QQuickItem* = NULL);
@@ -129,10 +131,12 @@ class HsQMLCanvasBackEnd : public QObject
 
 public:
     HsQMLCanvasBackEnd(
-        QQuickWindow*, const HsQMLGLDelegate::CallbacksRef&);
+        QQuickWindow*,
+        const HsQMLGLDelegate::CallbacksRef&,
+        HsQMLCanvas::DisplayMode);
     ~HsQMLCanvasBackEnd();
-    void setModeSize(HsQMLCanvas::DisplayMode, qreal, qreal);
-    QSGTexture* updateFBO();
+    void setTransformNode(QSGTransformNode*, qreal, qreal);
+    QSGTexture* updateFBO(qreal, qreal);
     HsQMLCanvas::Status status() const;
 
 private:
@@ -144,11 +148,21 @@ private:
     Q_SLOT void doCleanupKill();
     Q_SIGNAL void statusChanged(HsQMLCanvas::Status);
 
+    typedef void (*GLViewportFn)(GLint,GLint,GLsizei,GLsizei);
+    typedef void (*GLClearColorFn)(GLclampf,GLclampf,GLclampf,GLclampf);
+    typedef void (*GLClearFn)(GLbitfield);
+
     QQuickWindow* mWindow;
     HsQMLGLDelegate::CallbacksRef mGLCallbacks;
     QOpenGLContext* mGL;
+    GLViewportFn mGLViewportFn;
+    GLClearColorFn mGLClearColorFn;
+    GLClearFn mGLClearFn;
     HsQMLCanvas::Status mStatus;
     HsQMLCanvas::DisplayMode mDisplayMode;
+    qreal mItemWidth;
+    qreal mItemHeight;
+    QSGTransformNode* mTransformNode;
     qreal mCanvasWidth;
     qreal mCanvasHeight;
     QScopedPointer<QOpenGLFramebufferObject> mFBO;

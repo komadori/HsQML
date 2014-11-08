@@ -16,7 +16,8 @@ module Graphics.QML.Canvas (
     OpenGLPaint,
     OpenGLPaint',
     setupData,
-    modelData
+    modelData,
+    matrixPtr
 ) where
 
 import Graphics.QML.Internal.BindCanvas
@@ -28,6 +29,8 @@ import Data.IORef
 import Data.Maybe
 import Data.Tagged
 import Control.Monad.Trans.Maybe
+import Foreign.Ptr (Ptr)
+import Foreign.C.Types (CFloat)
 
 -- | Delegate for painting OpenGL graphics.
 newtype OpenGLDelegate = OpenGLDelegate HsQMLGLDelegateHandle
@@ -72,7 +75,10 @@ data OpenGLPaint s m = OpenGLPaint {
     -- | Gets the setup state.
     setupData  :: s,
     -- | Gets the active model.
-    modelData :: m
+    modelData :: m,
+    -- | Pointer to a 4 by 4 matrix which transform coordinates in the range
+    -- (-1, -1) to (1, 1) on to the target rectangle in the scene.
+    matrixPtr :: Ptr CFloat
 }
 
 -- | Specialised version of `OpenGLPaint` with no model.
@@ -94,10 +100,10 @@ newOpenGLCallbacks setupFn paintFn cleanupFn = do
              mVal <- runMaybeT $ mFromJVal ptr
              writeIORef mRef mVal
              return $ if isJust mVal then 1 else 0
-        paintCb _ _ = do
+        paintCb mPtr = do
             iVal <- readIORef iRef
             mVal <- readIORef mRef
-            paintFn $ OpenGLPaint (fromJust iVal) (fromJust mVal)
+            paintFn $ OpenGLPaint (fromJust iVal) (fromJust mVal) mPtr
     return (setupCb, cleanupCb, syncCb, paintCb)
 
 -- | Creates a new 'OpenGLDelegate' from setup, paint, and cleanup functions.

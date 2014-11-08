@@ -4,6 +4,7 @@
 #include <QtCore/qmath.h>
 #include <QtQuick/QSGSimpleTextureNode>
 #include <QtQuick/QSGTexture>
+#include <QtQuick/QSGTransformNode>
 #include <QtQuick/QQuickWindow>
 
 HsQMLGLCallbacks::HsQMLGLCallbacks(
@@ -58,39 +59,55 @@ HsQMLGLDelegate::CallbacksRef HsQMLGLDelegate::makeCallbacks()
 }
 
 HsQMLCanvasBackEnd::HsQMLCanvasBackEnd(
-    QQuickWindow* win, const HsQMLGLDelegate::CallbacksRef& cbs)
+    QQuickWindow* win,
+    const HsQMLGLDelegate::CallbacksRef& cbs,
+    HsQMLCanvas::DisplayMode mode)
     : mWindow(win)
     , mGLCallbacks(cbs)
     , mGL(NULL)
     , mStatus(HsQMLCanvas::Okay)
+    , mDisplayMode(mode)
+    , mItemWidth(0)
+    , mItemHeight(0)
+    , mTransformNode(NULL)
+    , mCanvasWidth(0)
+    , mCanvasHeight(0)
 {
-    QObject::connect(
-        win, SIGNAL(beforeRendering()),
-        this, SLOT(doRendering()));
+    if (HsQMLCanvas::Above == mDisplayMode) {
+        QObject::connect(
+            win, SIGNAL(afterRendering()),
+            this, SLOT(doRendering()));
+    }
+    else {
+        QObject::connect(
+            win, SIGNAL(beforeRendering()),
+            this, SLOT(doRendering()));
+    }
 }
 
 HsQMLCanvasBackEnd::~HsQMLCanvasBackEnd()
 {
 }
 
-void HsQMLCanvasBackEnd::setModeSize(
-    HsQMLCanvas::DisplayMode mode, qreal w, qreal h)
+void HsQMLCanvasBackEnd::setTransformNode(
+    QSGTransformNode* tn, qreal w, qreal h)
 {
-    mDisplayMode = mode;
-    mCanvasWidth = w;
-    mCanvasHeight = h;
+    mTransformNode = tn;
+    mItemWidth = w;
+    mItemHeight = h;
 }
 
-QSGTexture* HsQMLCanvasBackEnd::updateFBO()
+QSGTexture* HsQMLCanvasBackEnd::updateFBO(qreal w, qreal h)
 {
     if (HsQMLCanvas::Inline == mDisplayMode) {
-        if (!mFBO || mFBO->width() != mCanvasWidth ||
-                     mFBO->height() != mCanvasHeight) {
+        if (!mFBO || w != mCanvasWidth || h != mCanvasHeight) {
+            mCanvasWidth = w;
+            mCanvasHeight = h;
+            QSize dims(qCeil(mCanvasWidth), qCeil(mCanvasHeight));
             mFBO.reset(new QOpenGLFramebufferObject(
-                qCeil(mCanvasWidth), qCeil(mCanvasHeight),
-                QOpenGLFramebufferObject::Depth));
+                dims, QOpenGLFramebufferObject::Depth));
             mTexture.reset(mWindow->createTextureFromId(
-                mFBO->texture(), mFBO->size()));
+                mFBO->texture(), dims, QQuickWindow::TextureHasAlphaChannel));
         }
     }
     else {
@@ -126,19 +143,53 @@ void HsQMLCanvasBackEnd::doRendering()
             case QSurfaceFormat::OpenGLES: ctype = HSQML_GL_ES; break;
             default: setStatus(HsQMLCanvas::BadConfig); return;
         }
+        mGLViewportFn = reinterpret_cast<GLViewportFn>(
+            mGL->getProcAddress("glViewport"));
+        mGLClearColorFn = reinterpret_cast<GLClearColorFn>(
+            mGL->getProcAddress("glClearColor"));
+        mGLClearFn = reinterpret_cast<GLClearFn>(
+            mGL->getProcAddress("glClear"));
+        if (!mGLViewportFn || !mGLClearColorFn || !mGLClearFn) {
+            setStatus(HsQMLCanvas::BadProcs);
+            return;
+        }
         mGLCallbacks->mSetupCb(ctype);
     }
 
+    QMatrix4x4 matrix;
     bool inlineMode = HsQMLCanvas::Inline == mDisplayMode;
     if (inlineMode) {
         if (!mFBO->bind()) {
             setStatus(HsQMLCanvas::BadBind);
             return;
         }
+        mGLViewportFn(0, 0, qCeil(mCanvasWidth), qCeil(mCanvasHeight));
+        mGLClearColorFn(0, 0, 0, 0);
+        mGLClearFn(GL_COLOR_BUFFER_BIT |
+            GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    }
+    else {
+        // Calculate matrix for non-inline display modes
+        QMatrix4x4 smatrix;
+        QSGNode* node = mTransformNode;
+        while (node) {
+            if (QSGNode::TransformNodeType == node->type()) {
+                QSGTransformNode* tnode = static_cast<QSGTransformNode*>(node);
+                smatrix = tnode->matrix() * smatrix;
+            }
+            node = node->parent();
+        }
+        matrix.translate(-1, 1);
+        matrix.scale(2.0f/mWindow->width(), -2.0f/mWindow->height());
+        matrix *= smatrix;
+        matrix.scale(mItemWidth/2.0f, mItemHeight/2.0f);
+        matrix.translate(1, 1);
+
+        mGLViewportFn(0, 0, mWindow->width(), mWindow->height());
     }
 
     setStatus(HsQMLCanvas::Okay);
-    mGLCallbacks->mPaintCb(mCanvasWidth, mCanvasHeight);
+    mGLCallbacks->mPaintCb(matrix.data());
 
     if (inlineMode) {
         mFBO->release();
@@ -203,11 +254,21 @@ void HsQMLCanvas::geometryChanged(const QRectF& rect, const QRectF&)
 QSGNode* HsQMLCanvas::updatePaintNode(
     QSGNode* oldNode, UpdatePaintNodeData* paintData)
 {
-    // Display nothing if there's no delegate
+    // Window always needs repainting
+    mWindow->update();
+
+    // Lazily create new callbacks
     if (!mGLCallbacks) {
-        setStatus(BadDelegate);
-        delete oldNode;
-        return NULL;
+        mGLCallbacks = mDelegate.value<HsQMLGLDelegate>().makeCallbacks();
+        mLoadModel = true;
+        mValidModel = false;
+
+        // Display nothing without a valid delegate
+        if (!mGLCallbacks) {
+            setStatus(BadDelegate);
+            delete oldNode;
+            return NULL;
+        }
     }
 
     // Process model update
@@ -227,7 +288,7 @@ QSGNode* HsQMLCanvas::updatePaintNode(
 
     // Create back-end on the rendering thread
     if (!mBackEnd) {
-        mBackEnd = new HsQMLCanvasBackEnd(mWindow, mGLCallbacks);
+        mBackEnd = new HsQMLCanvasBackEnd(mWindow, mGLCallbacks, mDisplayMode);
 
         // Monitor back-end's status
         QObject::connect(
@@ -235,11 +296,17 @@ QSGNode* HsQMLCanvas::updatePaintNode(
             this, SLOT(doBackEndStatusChanged(HsQMLCanvas::Status)));
         setStatus(mBackEnd->status(), true);
     }
-    mBackEnd->setModeSize(mDisplayMode, mCanvasWidth, mCanvasHeight);
     setStatus(Okay);
 
+    // Save pointer to transform node
+    if (Inline != mDisplayMode)
+    {
+        mBackEnd->setTransformNode(paintData->transformNode, width(), height());
+    }
+
     // Produce texture node if needed
-    if (QSGTexture* texture = mBackEnd->updateFBO()) {
+    if (QSGTexture* texture =
+            mBackEnd->updateFBO(mCanvasWidth, mCanvasHeight)) {
         QSGSimpleTextureNode* n = static_cast<QSGSimpleTextureNode*>(oldNode);
         if (!n) {
             n = new QSGSimpleTextureNode();
@@ -261,6 +328,7 @@ void HsQMLCanvas::detachBackEnd()
             mBackEnd, "doCleanupKill", Qt::QueuedConnection);
         QObject::disconnect(mBackEnd, 0, this, 0);
         mBackEnd = NULL;
+        mGLCallbacks.reset();
     }
 }
 
@@ -274,6 +342,7 @@ void HsQMLCanvas::setDisplayMode(HsQMLCanvas::DisplayMode mode)
     bool change = mDisplayMode != mode;
     mDisplayMode = mode;
     if (change) {
+        detachBackEnd();
         displayModeChanged();
         update();
     }
@@ -333,11 +402,8 @@ void HsQMLCanvas::setDelegate(const QVariant& d)
     bool change = mDelegate != d;
     mDelegate = d;
     if (change) {
-        mGLCallbacks = d.value<HsQMLGLDelegate>().makeCallbacks();
         detachBackEnd();
         delegateChanged();
-        mLoadModel = true;
-        mValidModel = false;
         update();
     }
 }

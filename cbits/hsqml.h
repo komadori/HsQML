@@ -191,8 +191,7 @@ typedef int (*HsQMLGLSyncCb)(
     HsQMLJValHandle*);
 
 typedef void (*HsQMLGLPaintCb)(
-    double,
-    double);
+    float*);
 
 typedef void (*HsQMLGLMakeCallbacksCb)(
     HsQMLGLSetupCb*,
