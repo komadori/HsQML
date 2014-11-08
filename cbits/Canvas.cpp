@@ -156,6 +156,13 @@ void HsQMLCanvasBackEnd::doRendering()
         mGLCallbacks->mSetupCb(ctype);
     }
 
+    // Reset OpenGL state before rendering
+#if QT_VERSION >= 0x050200
+    mWindow->resetOpenGLState();
+#else
+#warning Resetting OpenGL state requires Qt 5.2 or later
+#endif
+
     QMatrix4x4 matrix;
     bool inlineMode = HsQMLCanvas::Inline == mDisplayMode;
     if (inlineMode) {
