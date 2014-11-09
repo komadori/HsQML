@@ -17,6 +17,7 @@ class QSGTexture;
 class QSGTransformNode;
 class QQuickWindow;
 class HsQMLCanvasBackEnd;
+class HsQMLWindowInfoImpl;
 
 class HsQMLGLCallbacks : public QSharedData
 {
@@ -54,6 +55,34 @@ private:
 };
 
 Q_DECLARE_METATYPE(HsQMLGLDelegate)
+
+class HsQMLWindowInfoImpl : public QSharedData
+{
+public:
+    HsQMLWindowInfoImpl(QQuickWindow*);
+    
+private:
+    friend class HsQMLWindowInfo;
+    QQuickWindow* mWin;
+    int mBelowCount;
+    bool mBelowClear;
+};
+
+class HsQMLWindowInfo
+{
+public:
+    HsQMLWindowInfo();
+    static HsQMLWindowInfo getWindowInfo(QQuickWindow*);
+    void addBelow();
+    void removeBelow();
+    bool needsBelowClear();
+    void endFrame();
+
+private:
+    QExplicitlySharedDataPointer<HsQMLWindowInfoImpl> mImpl;
+};
+
+Q_DECLARE_METATYPE(HsQMLWindowInfo)
 
 class HsQMLCanvas : public QQuickItem
 {
@@ -144,6 +173,7 @@ private:
 
     void setStatus(HsQMLCanvas::Status);
     Q_SLOT void doRendering();
+    Q_SLOT void doEndFrame();
     Q_SLOT void doCleanup();
     Q_SLOT void doCleanupKill();
     Q_SIGNAL void statusChanged(HsQMLCanvas::Status);
@@ -153,6 +183,7 @@ private:
     typedef void (*GLClearFn)(GLbitfield);
 
     QQuickWindow* mWindow;
+    HsQMLWindowInfo mWinInfo;
     HsQMLGLDelegate::CallbacksRef mGLCallbacks;
     QOpenGLContext* mGL;
     GLViewportFn mGLViewportFn;
