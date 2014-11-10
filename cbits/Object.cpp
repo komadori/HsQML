@@ -18,7 +18,7 @@ HsQMLObjectFinaliser::~HsQMLObjectFinaliser()
     gManager->freeFun(reinterpret_cast<HsFunPtr>(mFinaliseCb));
 }
 
-void HsQMLObjectFinaliser::finalise(HsQMLObjectProxy* proxy)
+void HsQMLObjectFinaliser::finalise(HsQMLObjectProxy* proxy) const
 {
     mFinaliseCb(reinterpret_cast<HsQMLObjectHandle*>(proxy));
 }
@@ -119,12 +119,17 @@ void HsQMLObjectProxy::addFinaliser(const HsQMLObjectFinaliser::Ref& f)
 
 void HsQMLObjectProxy::runFinalisers()
 {
-    QMutexLocker locker(&mFinaliseMutex);
-    Q_FOREACH(HsQMLObjectFinaliser::Ref f, mFinalisers) {
+    // Copy and clear finalisers under lock
+    mFinaliseMutex.lock();
+    const Finalisers fs = mFinalisers;
+    mFinalisers.clear();
+    mFinaliseMutex.unlock();
+
+    // Call finalisers outside lock so they can re-addFinaliser()
+    Q_FOREACH(const HsQMLObjectFinaliser::Ref& f, fs) {
         ref(Handle);
         f->finalise(this);
     }
-    mFinalisers.clear();
 }
 
 HsQMLEngine* HsQMLObjectProxy::engine() const

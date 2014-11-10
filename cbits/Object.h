@@ -23,7 +23,7 @@ public:
 
     HsQMLObjectFinaliser(HsQMLObjFinaliserCb);
     ~HsQMLObjectFinaliser();
-    void finalise(HsQMLObjectProxy*);
+    void finalise(HsQMLObjectProxy*) const;
 
 private:
     Q_DISABLE_COPY(HsQMLObjectFinaliser);
@@ -59,7 +59,8 @@ private:
     QAtomicInt mRefCount;
     QAtomicInt mHndlCount;
     QMutex mFinaliseMutex;
-    QVarLengthArray<HsQMLObjectFinaliser::Ref, 1> mFinalisers;
+    typedef QVarLengthArray<HsQMLObjectFinaliser::Ref, 1> Finalisers;
+    Finalisers mFinalisers;
 };
 
 class HsQMLObjectEvent : public QEvent
