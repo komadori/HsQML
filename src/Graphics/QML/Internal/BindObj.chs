@@ -10,7 +10,7 @@ import Graphics.QML.Internal.Types
 import Control.Exception (bracket)
 import Control.Monad (void)
 import Foreign.C.Types
-import Foreign.Marshal.Utils (toBool)
+import Foreign.Marshal.Utils (fromBool, toBool)
 import Foreign.Ptr
 import Foreign.ForeignPtr.Safe
 import Foreign.ForeignPtr.Unsafe
@@ -67,6 +67,9 @@ withMaybeHsQMLObjectHandle Nothing = \f -> f nullPtr
 foreign import ccall "hsqml.h &hsqml_finalise_object_handle"
   hsqmlFinaliseObjectHandlePtr :: FunPtr (Ptr (HsQMLObjectHandle) -> IO ())
 
+foreign import ccall "hsqml.h &hsqml_finalise_object_weak_handle"
+  hsqmlFinaliseObjectWeakHandlePtr :: FunPtr (Ptr (HsQMLObjectHandle) -> IO ())
+
 newObjectHandle :: Ptr HsQMLObjectHandle -> IO HsQMLObjectHandle
 newObjectHandle p = do
   fp <- newForeignPtr hsqmlFinaliseObjectHandlePtr p
@@ -83,7 +86,7 @@ isNullObjectHandle (HsQMLObjectHandle fp) =
 
 {#fun unsafe hsqml_object_set_active as ^
   {withMaybeHsQMLObjectHandle* `Maybe HsQMLObjectHandle'} ->
- `Bool' toBool #}
+  `Bool' toBool #}
 
 withActiveObject :: HsQMLObjectHandle -> IO () -> IO ()
 withActiveObject hndl action =
@@ -116,8 +119,49 @@ withActiveObject hndl action =
   {id `HsQMLJValHandle'} ->
   `HsQMLObjectHandle' newObjectHandle* #}
 
+{#fun unsafe hsqml_object_reference_handle as ^
+  {id `Ptr HsQMLObjectHandle',
+   fromBool `Bool'} ->
+  `()' #}
+
+copyObjectHandle :: HsQMLObjectHandle -> Bool -> IO HsQMLObjectHandle
+copyObjectHandle (HsQMLObjectHandle fp) weak = do
+    withForeignPtr fp $ \p -> do
+        hsqmlObjectReferenceHandle p weak
+        fp' <- newForeignPtr final p
+        return $ HsQMLObjectHandle fp'
+    where final = if weak
+                  then hsqmlFinaliseObjectWeakHandlePtr
+                  else hsqmlFinaliseObjectHandlePtr
+
 {#fun hsqml_fire_signal as ^
   {withHsQMLObjectHandle* `HsQMLObjectHandle',
    `Int',
    id `Ptr (Ptr ())'} ->
   `()' #}
+
+{#pointer *HsQMLObjFinaliserHandle as ^ foreign newtype #}
+
+foreign import ccall "hsqml.h &hsqml_finalise_obj_finaliser"
+  hsqmlFinaliseObjFinaliserPtr :: FunPtr (Ptr HsQMLObjFinaliserHandle -> IO ())
+
+type ObjFinaliserFunc = Ptr HsQMLObjectHandle -> IO ()
+
+foreign import ccall "wrapper"  
+  marshalObjFinaliser :: ObjFinaliserFunc -> IO (FunPtr ObjFinaliserFunc)
+
+newObjFinaliserHandle ::
+    Ptr HsQMLObjFinaliserHandle -> IO HsQMLObjFinaliserHandle
+newObjFinaliserHandle p = do
+    fp <- newForeignPtr hsqmlFinaliseObjFinaliserPtr p
+    return $ HsQMLObjFinaliserHandle fp
+
+{#fun unsafe hsqml_create_obj_finaliser as ^
+  {id `FunPtr ObjFinaliserFunc'} ->
+  `HsQMLObjFinaliserHandle' newObjFinaliserHandle* #}
+
+{#fun unsafe hsqml_object_add_finaliser as ^
+  {withHsQMLObjectHandle* `HsQMLObjectHandle',
+   withHsQMLObjFinaliserHandle* `HsQMLObjFinaliserHandle'} ->
+  `()' #}
+

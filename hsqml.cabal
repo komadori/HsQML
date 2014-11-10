@@ -51,6 +51,7 @@ Library
         Graphics.QML.Engine
         Graphics.QML.Marshal
         Graphics.QML.Objects
+        Graphics.QML.Objects.Weak
     Other-modules:
         Graphics.QML.Internal.BindPrim
         Graphics.QML.Internal.BindCanvas

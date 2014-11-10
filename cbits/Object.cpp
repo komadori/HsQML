@@ -1,12 +1,27 @@
 #include <HsFFI.h>
 #include <QtCore/QString>
+#include <QtCore/QMutexLocker>
 #include <QtQml/QQmlEngine>
 
 #include "Object.h"
 #include "Class.h"
 #include "Manager.h"
 
-static const char* cRefSrcNames[] = {"Hndl", "Obj", "Event", "Var"};
+static const char* cRefSrcNames[] = {"Hndl", "Weak", "Obj", "Event", "Var"};
+
+HsQMLObjectFinaliser::HsQMLObjectFinaliser(HsQMLObjFinaliserCb cb)
+    : mFinaliseCb(cb)
+{}
+
+HsQMLObjectFinaliser::~HsQMLObjectFinaliser()
+{
+    gManager->freeFun(reinterpret_cast<HsFunPtr>(mFinaliseCb));
+}
+
+void HsQMLObjectFinaliser::finalise(HsQMLObjectProxy* proxy)
+{
+    mFinaliseCb(reinterpret_cast<HsQMLObjectHandle*>(proxy));
+}
 
 HsQMLObjectProxy::HsQMLObjectProxy(HsStablePtr haskell, HsQMLClass* klass)
     : mHaskell(haskell)
@@ -60,6 +75,7 @@ void HsQMLObjectProxy::clearObject()
         mKlass->name(), mSerial, mObject));
 
     mObject = NULL;
+    runFinalisers();
 }
 
 void HsQMLObjectProxy::tryGCLock()
@@ -79,13 +95,36 @@ void HsQMLObjectProxy::removeGCLock()
 {
     Q_ASSERT(gManager->isEventThread());
 
-    if (mObject && mHndlCount.loadAcquire() == 0 && mObject->isGCLocked()) {
-        mObject->clearGCLock();
+    if (mObject && mHndlCount.loadAcquire() == 0) {
+        if (mObject->isGCLocked()) {
+            mObject->clearGCLock();
 
-        HSQML_LOG(5,
-            QString().sprintf("Unlock QObject, class=%s, id=%d, qptr=%p.",
-            mKlass->name(), mSerial, mObject));
+            HSQML_LOG(5,
+                QString().sprintf("Unlock QObject, class=%s, id=%d, qptr=%p.",
+                mKlass->name(), mSerial, mObject));
+        }
+        else {
+            // If there had been a QML object then this would have happened
+            // when the QML GC collected it.
+            runFinalisers();
+        }
     }
+}
+
+void HsQMLObjectProxy::addFinaliser(const HsQMLObjectFinaliser::Ref& f)
+{
+    QMutexLocker locker(&mFinaliseMutex);
+    mFinalisers.append(f);
+}
+
+void HsQMLObjectProxy::runFinalisers()
+{
+    QMutexLocker locker(&mFinaliseMutex);
+    Q_FOREACH(HsQMLObjectFinaliser::Ref f, mFinalisers) {
+        ref(Handle);
+        f->finalise(this);
+    }
+    mFinalisers.clear();
 }
 
 HsQMLEngine* HsQMLObjectProxy::engine() const
@@ -112,7 +151,7 @@ void HsQMLObjectProxy::ref(RefSrc src)
 
 void HsQMLObjectProxy::deref(RefSrc src)
 {
-    // Remove JavaScript GC lock when there are no handles
+    // Remove JavaScript GC lock when there are no strong handles
     if (src == Handle || src == Variant) {
         int hndlCount = mHndlCount.fetchAndAddOrdered(-1);
         if (hndlCount == 1 && mObject) {
@@ -340,12 +379,29 @@ extern HsQMLObjectHandle* hsqml_get_object_from_jval(
     return hsqml_get_object_from_pointer(jval->toQObject());
 }
 
+extern void hsqml_object_reference_handle(
+    HsQMLObjectHandle* hndl,
+    int weak)
+{
+    HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
+    proxy->ref(weak ? HsQMLObjectProxy::WeakHandle : HsQMLObjectProxy::Handle);
+}
+
 extern void hsqml_finalise_object_handle(
     HsQMLObjectHandle* hndl)
 {
     if (hndl) {
         HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
         proxy->deref(HsQMLObjectProxy::Handle);
+    }
+}
+
+extern void hsqml_finalise_object_weak_handle(
+    HsQMLObjectHandle* hndl)
+{
+    if (hndl) {
+        HsQMLObjectProxy* proxy = (HsQMLObjectProxy*)hndl;
+        proxy->deref(HsQMLObjectProxy::WeakHandle);
     }
 }
 
@@ -362,4 +418,26 @@ extern void hsqml_fire_signal(
         HsQMLObject* obj = proxy->object(engine);
         QMetaObject::activate(obj, proxy->klass()->metaObj(), idx, args);
     }
+}
+
+extern HsQMLObjFinaliserHandle* hsqml_create_obj_finaliser(
+    HsQMLObjFinaliserCb cb)
+{
+    return reinterpret_cast<HsQMLObjFinaliserHandle*>(
+        new HsQMLObjectFinaliser::Ref(new HsQMLObjectFinaliser(cb)));
+}
+
+extern void hsqml_finalise_obj_finaliser(
+    HsQMLObjFinaliserHandle* hndl)
+{
+    HsQMLObjectFinaliser::Ref* fp =
+        reinterpret_cast<HsQMLObjectFinaliser::Ref*>(hndl);
+    delete fp;
+}
+
+extern void hsqml_object_add_finaliser(
+    HsQMLObjectHandle* hndl, HsQMLObjFinaliserHandle* fhndl)
+{
+    HsQMLObjectProxy* proxy = reinterpret_cast<HsQMLObjectProxy*>(hndl);
+    proxy->addFinaliser(*reinterpret_cast<HsQMLObjectFinaliser::Ref*>(fhndl));
 }

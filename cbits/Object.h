@@ -4,11 +4,32 @@
 #include <QtCore/QObject>
 #include <QtCore/QAtomicInt>
 #include <QtCore/QEvent>
+#include <QtCore/QExplicitlySharedDataPointer>
+#include <QtCore/QMutex>
+#include <QtCore/QVarLengthArray>
 #include <QtQml/QJSValue>
+
+#include "hsqml.h"
 
 class HsQMLEngine;
 class HsQMLClass;
 class HsQMLObject;
+class HsQMLObjectProxy;
+
+class HsQMLObjectFinaliser : public QSharedData
+{
+public:
+    typedef QExplicitlySharedDataPointer<HsQMLObjectFinaliser> Ref;
+
+    HsQMLObjectFinaliser(HsQMLObjFinaliserCb);
+    ~HsQMLObjectFinaliser();
+    void finalise(HsQMLObjectProxy*);
+
+private:
+    Q_DISABLE_COPY(HsQMLObjectFinaliser);
+
+    HsQMLObjFinaliserCb mFinaliseCb;
+};
 
 class HsQMLObjectProxy
 {
@@ -21,18 +42,24 @@ public:
     void clearObject();
     void tryGCLock();
     void removeGCLock();
+    void addFinaliser(const HsQMLObjectFinaliser::Ref&);
+    void runFinalisers();
     HsQMLEngine* engine() const;
-    enum RefSrc {Handle, Object, Event, Variant};
+    enum RefSrc {Handle, WeakHandle, Object, Event, Variant};
     void ref(RefSrc);
     void deref(RefSrc);
 
 private:
+    Q_DISABLE_COPY(HsQMLObjectProxy);
+
     HsStablePtr mHaskell;
     HsQMLClass* mKlass;
     int mSerial;
     HsQMLObject* volatile mObject;
     QAtomicInt mRefCount;
     QAtomicInt mHndlCount;
+    QMutex mFinaliseMutex;
+    QVarLengthArray<HsQMLObjectFinaliser::Ref, 1> mFinalisers;
 };
 
 class HsQMLObjectEvent : public QEvent
@@ -62,6 +89,8 @@ public:
     HsQMLEngine* engine() const;
 
 private:
+    Q_DISABLE_COPY(HsQMLObject);
+
     HsQMLObjectProxy* mProxy;
     HsStablePtr mHaskell;
     HsQMLClass* mKlass;

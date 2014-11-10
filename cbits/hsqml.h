@@ -162,11 +162,31 @@ extern HsQMLObjectHandle* hsqml_get_object_from_pointer(
 extern HsQMLObjectHandle* hsqml_get_object_from_jval(
     HsQMLJValHandle*);
 
+extern void hsqml_object_reference_handle(
+    HsQMLObjectHandle*, int);
+
 extern void hsqml_finalise_object_handle(
+    HsQMLObjectHandle*);
+
+extern void hsqml_finalise_object_weak_handle(
     HsQMLObjectHandle*);
 
 extern void hsqml_fire_signal(
     HsQMLObjectHandle*, int, void**);
+
+/* Object Finaliser */
+typedef char HsQMLObjFinaliserHandle;
+
+typedef void (*HsQMLObjFinaliserCb)(HsQMLObjectHandle*);
+
+extern HsQMLObjFinaliserHandle* hsqml_create_obj_finaliser(
+    HsQMLObjFinaliserCb);
+
+extern void hsqml_finalise_obj_finaliser(
+    HsQMLObjFinaliserHandle*);
+
+extern void hsqml_object_add_finaliser(
+    HsQMLObjectHandle*, HsQMLObjFinaliserHandle*);
 
 /* Engine */
 extern void hsqml_create_engine(
