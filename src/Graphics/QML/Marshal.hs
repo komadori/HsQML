@@ -12,9 +12,11 @@ module Graphics.QML.Marshal (
     marshaller),
   ModeBidi,
   ModeFrom,
+  ModeTo,
   ModeRetVoid,
   ModeObjBidi,
   ModeObjFrom,
+  ModeObjTo,
   Yes,
   CanGetFrom,
   ICanGetFrom,
@@ -37,6 +39,8 @@ module Graphics.QML.Marshal (
   bidiMarshaller,
   fromMarshallerIO,
   fromMarshaller,
+  toMarshallerIO,
+  toMarshaller
 ) where
 
 import Graphics.QML.Internal.BindPrim
@@ -303,3 +307,34 @@ fromMarshaller ::
     forall a b. (Marshal a, CanGetFrom a ~ Yes) =>
     (a -> b) -> FromMarshaller a b
 fromMarshaller fromFn = fromMarshallerIO (return . fromFn)
+
+type ToMarshaller a b = Marshaller b
+    No
+    (MarshalMode a ICanPassTo ())
+    (MarshalMode a ICanReturnTo ())
+    (MarshalMode a IIsObjType ())
+    (MarshalMode a IGetObjType ())
+
+-- | Provides a "to" 'Marshaller' which allows you to define an instance of
+-- 'Marshal' for your own type @b@ in terms of another marshallable type @a@.
+-- Type @b@ should have a 'MarshalMode' of 'ModeObjTo' or 'ModeTo'
+-- depending on whether @a@ was an object type or not.
+toMarshallerIO ::
+    forall a b. (Marshal a, CanPassTo a ~ Yes) =>
+    (b -> IO a) -> ToMarshaller a b
+toMarshallerIO toFn = Marshaller {
+    mTypeCVal_ = retag (mTypeCVal :: Tagged a TypeId),
+    mFromCVal_ = unimplFromCVal,
+    mToCVal_ = \val ptr -> flip mToCVal ptr =<< toFn val,
+    mWithCVal_ = \val f -> flip mWithCVal f =<< toFn val,
+    mFromJVal_ = unimplFromJVal,
+    mWithJVal_ = \val f -> flip mWithJVal f =<< toFn val,
+    mFromHndl_ = unimplFromHndl,
+    mToHndl_ = \val -> mToHndl =<< toFn val}
+
+-- | Variant of 'toMarshallerIO' where the conversion function between types
+-- @a@ and @b@ does not live in the IO monad.
+toMarshaller ::
+    forall a b. (Marshal a, CanPassTo a ~ Yes) =>
+    (b -> a) -> ToMarshaller a b
+toMarshaller toFn = toMarshallerIO (return . toFn)

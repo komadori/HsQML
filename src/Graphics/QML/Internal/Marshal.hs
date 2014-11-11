@@ -83,6 +83,14 @@ type instance ModeFrom ICanReturnTo = No
 type instance ModeFrom IIsObjType = No
 type instance ModeFrom IGetObjType = No
 
+-- | 'MarshalMode' for non-object types with to-only marshalling.
+type family ModeTo c
+type instance ModeTo ICanGetFrom = No
+type instance ModeTo ICanPassTo = Yes
+type instance ModeTo ICanReturnTo = Yes
+type instance ModeTo IIsObjType = No
+type instance ModeTo IGetObjType = No
+
 -- | 'MarshalMode' for void in method returns.
 type family ModeRetVoid c
 type instance ModeRetVoid ICanGetFrom = No
@@ -106,6 +114,14 @@ type instance ModeObjFrom a ICanPassTo = No
 type instance ModeObjFrom a ICanReturnTo = No
 type instance ModeObjFrom a IIsObjType = Yes
 type instance ModeObjFrom a IGetObjType = a
+
+-- | 'MarshalMode' for object types with to-only marshalling.
+type family ModeObjTo a c
+type instance ModeObjTo a ICanGetFrom = No
+type instance ModeObjTo a ICanPassTo = Yes
+type instance ModeObjTo a ICanReturnTo = Yes
+type instance ModeObjTo a IIsObjType = Yes
+type instance ModeObjTo a IGetObjType = a
 
 -- | Type value indicating a capability is supported.
 data Yes
