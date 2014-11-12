@@ -226,7 +226,7 @@ implicitSignals ms =
             (\_ _ -> return ())
             Nothing
             (Just k)
-    in map (uncurry impMember) $ zip [0..] impKeys
+    in map (uncurry impMember) $ zip [(0::Int)..] impKeys
 
 --
 -- Default Class
