@@ -18,27 +18,22 @@ module Graphics.QML.Objects.Weak (
 ) where
 
 import Graphics.QML.Internal.BindObj
-import Graphics.QML.Internal.Marshal
-import Graphics.QML.Objects
+import Graphics.QML.Internal.Objects
 
 import Control.Concurrent.MVar
 import qualified Data.Map as Map
 import Data.Map (Map)
-import Data.Typeable
 
 -- | Represents a weak reference to a QML object which wraps the type @tt@.
 --
 -- Unlike ordinary strong references, a weak reference does not prevent the
 -- QML garbage collector from collecting the underlying object. Weak references
 -- can be used to monitor the life cycles of QML objects.
-data WeakObjRef tt = WeakObjRef {
-    objHndl :: HsQMLObjectHandle
-}
+newtype WeakObjRef tt = WeakObjRef HsQMLObjectHandle
 
 -- | Converts a strong 'ObjRef' into a 'WeakObjRef'. 
-toWeakObjRef :: (Typeable tt) => ObjRef tt -> IO (WeakObjRef tt)
-toWeakObjRef obj = do
-    hndl <- mToHndl obj
+toWeakObjRef :: ObjRef tt -> IO (WeakObjRef tt)
+toWeakObjRef (ObjRef hndl) = do
     hndl' <- copyObjectHandle hndl True
     return $ WeakObjRef hndl'
 
@@ -46,10 +41,10 @@ toWeakObjRef obj = do
 --
 -- If the underlying QML object has already been collected then the resulting
 -- 'ObjRef' can be used to reincarnate it.
-fromWeakObjRef :: (Typeable tt) => WeakObjRef tt -> IO (ObjRef tt)
-fromWeakObjRef wobj = do
-    hndl <- copyObjectHandle (objHndl wobj) False
-    mFromHndl hndl
+fromWeakObjRef :: WeakObjRef tt -> IO (ObjRef tt)
+fromWeakObjRef (WeakObjRef hndl) = do
+    hndl' <- copyObjectHandle hndl False
+    return $ ObjRef hndl'
 
 -- | Represents an object finaliser function for QML objects which wrap the
 -- type @tt@.
@@ -61,12 +56,11 @@ data ObjFinaliser tt = ObjFinaliser HsQMLObjFinaliserHandle
 -- comitted to collecting the underlying QML object. The 'ObjRef' passed into
 -- the finaliser can be used to reincarnate the object, but this QML object
 -- will have a distinct identity to the original.
-newObjFinaliser :: (Typeable tt) => (ObjRef tt -> IO ()) -> IO (ObjFinaliser tt)
+newObjFinaliser :: (ObjRef tt -> IO ()) -> IO (ObjFinaliser tt)
 newObjFinaliser f = do
     fPtr <- marshalObjFinaliser $ \hPtr -> do
         hndl <- newObjectHandle hPtr
-        obj <- mFromHndl hndl
-        f obj
+        f $ ObjRef hndl
     final <- hsqmlCreateObjFinaliser fPtr
     return $ ObjFinaliser final
 
@@ -77,9 +71,8 @@ newObjFinaliser f = do
 -- behaviour of the Haskell and QML garbage collectors. All outstanding
 -- finalisers will be run when the QML engine is terminated provided that the
 -- program does not prematurely exit.
-addObjFinaliser :: (Typeable tt) => ObjFinaliser tt -> ObjRef tt -> IO ()
-addObjFinaliser (ObjFinaliser final) obj = do
-    hndl <- mToHndl obj
+addObjFinaliser :: ObjFinaliser tt -> ObjRef tt -> IO ()
+addObjFinaliser (ObjFinaliser final) (ObjRef hndl) =
     hsqmlObjectAddFinaliser hndl final
 
 -- | Represents an object factory which maintains a one-to-one mapping between
@@ -101,17 +94,18 @@ data FactoryPool tt = FactoryPool {
 }
 
 -- | Creates a new 'FactoryPool' using the supplied factory function.
-newFactoryPool :: (Ord tt, Typeable tt) =>
+newFactoryPool :: (Ord tt) =>
     (tt -> IO (ObjRef tt)) -> IO (FactoryPool tt)
 newFactoryPool factory = do
     pool <- newMVar Map.empty
-    finaliser <- newObjFinaliser $ \obj ->
-        modifyMVar_ pool (return . Map.delete (fromObjRef obj))
+    finaliser <- newObjFinaliser $ \obj -> do
+        value <- fromObjRefIO obj
+        modifyMVar_ pool (return . Map.delete value)
     return $ FactoryPool factory pool finaliser
 
 -- | Return the pool's canonical QML object for a value of @tt@, either by
 -- creating it or looking it up in the pool's cache of objects.
-getPoolObject :: (Ord tt, Typeable tt) =>
+getPoolObject :: (Ord tt) =>
     FactoryPool tt -> tt -> IO (ObjRef tt)
 getPoolObject (FactoryPool factory pool finaliser) value =
     modifyMVar pool $ \pmap ->

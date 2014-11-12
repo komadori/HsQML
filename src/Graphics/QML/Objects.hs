@@ -59,10 +59,10 @@ import Graphics.QML.Internal.BindObj
 import Graphics.QML.Internal.JobQueue
 import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.MetaObj
+import Graphics.QML.Internal.Objects
 import Graphics.QML.Internal.Types
 
 import Control.Concurrent.MVar
-import Control.Monad.Trans.Maybe
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -73,7 +73,6 @@ import Data.Typeable
 import Data.IORef
 import Data.Unique
 import Foreign.Ptr
-import Foreign.ForeignPtr
 import Foreign.Storable
 import Foreign.Marshal.Array
 import System.IO.Unsafe
@@ -82,32 +81,6 @@ import Numeric
 --
 -- ObjRef
 --
-
--- | Represents an instance of the QML class which wraps the type @tt@.
-data ObjRef tt = ObjRef {
-  objHndl :: HsQMLObjectHandle
-}
-
-instance (Typeable tt) => Marshal (ObjRef tt) where
-    type MarshalMode (ObjRef tt) c d = ModeObjBidi tt c
-    marshaller = Marshaller {
-        mTypeCVal_ = retag (mTypeCVal :: Tagged AnyObjRef TypeId),
-        mFromCVal_ = \ptr -> do
-            anyRef <- mFromCVal ptr
-            MaybeT $ return $ fromAnyObjRef anyRef,
-        mToCVal_ = \obj ptr ->
-            mToCVal (AnyObjRef $ objHndl obj) ptr,
-        mWithCVal_ = \obj f ->
-            mWithCVal (AnyObjRef $ objHndl obj) f,
-        mFromJVal_ = \ptr -> do
-            anyRef <- mFromJVal ptr
-            MaybeT $ return $ fromAnyObjRef anyRef,
-        mWithJVal_ = \obj f ->
-            mWithJVal (AnyObjRef $ objHndl obj) f,
-        mFromHndl_ = \hndl ->
-            return $ ObjRef hndl,
-        mToHndl_ = \obj ->
-            return $ objHndl obj}
 
 -- | Creates a QML object given a 'Class' and a Haskell value of type @tt@.
 newObject :: forall tt. Class tt -> tt -> IO (ObjRef tt)
@@ -126,37 +99,6 @@ newObjectDC obj = do
 fromObjRef :: ObjRef tt -> tt
 fromObjRef = unsafeDupablePerformIO . fromObjRefIO
 
-fromObjRefIO :: ObjRef tt -> IO tt
-fromObjRefIO = hsqmlObjectGetHsValue . objHndl
-
--- | Represents an instance of a QML class which wraps an arbitrary Haskell
--- type. Unlike 'ObjRef', an 'AnyObjRef' only carries the type of its Haskell
--- value dynamically and does not encode it into the static type.
-data AnyObjRef = AnyObjRef {
-  anyObjHndl :: HsQMLObjectHandle
-}
-
-instance Marshal AnyObjRef where
-    type MarshalMode AnyObjRef c d = ModeObjBidi No c
-    marshaller = Marshaller {
-        mTypeCVal_ = Tagged tyJSValue,
-        mFromCVal_ = jvalFromCVal,
-        mToCVal_ = jvalToCVal,
-        mWithCVal_ = jvalWithCVal,
-        mFromJVal_ = \ptr -> MaybeT $ do
-            hndl <- hsqmlGetObjectFromJval ptr
-            return $ if isNullObjectHandle hndl
-                then Nothing else Just $ AnyObjRef hndl,
-        mWithJVal_ = \(AnyObjRef hndl@(HsQMLObjectHandle ptr)) f -> do
-            jval <- hsqmlObjectGetJval hndl
-            ret <- f jval
-            touchForeignPtr ptr
-            return ret,
-        mFromHndl_ = \hndl ->
-            return $ AnyObjRef hndl,
-        mToHndl_ = \obj ->
-            return $ anyObjHndl obj}
-
 -- | Upcasts an 'ObjRef' into an 'AnyObjRef'.
 anyObjRef :: ObjRef tt -> AnyObjRef
 anyObjRef (ObjRef hndl) = AnyObjRef hndl
@@ -166,24 +108,12 @@ anyObjRef (ObjRef hndl) = AnyObjRef hndl
 fromAnyObjRef :: (Typeable tt) => AnyObjRef -> Maybe (ObjRef tt)
 fromAnyObjRef = unsafeDupablePerformIO . fromAnyObjRefIO
 
-fromAnyObjRefIO :: forall tt. (Typeable tt) =>
-    AnyObjRef -> IO (Maybe (ObjRef tt))
-fromAnyObjRefIO (AnyObjRef hndl) = do
-    info <- hsqmlObjectGetHsTyperep hndl
-    let srcRep = typeOf (undefined :: tt)
-        dstRep = cinfoObjType info
-    if srcRep == dstRep
-        then return $ Just $ ObjRef hndl
-        else return Nothing
-
 --
 -- Class
 --
 
 -- | Represents a QML class which wraps the type @tt@.
-data Class tt = Class {
-  classHndl :: HsQMLClassHandle
-}
+newtype Class tt = Class HsQMLClassHandle
 
 -- | Creates a new QML class for the type @tt@.
 newClass :: forall tt. (Typeable tt) => [Member tt] -> IO (Class tt)
