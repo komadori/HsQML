@@ -3,7 +3,7 @@ module Graphics.QML.Internal.MetaObj where
 import Graphics.QML.Internal.Types
 
 import Control.Monad
-import Control.Monad.Trans.State
+import Control.Monad.Trans.State (State, execState, get, put)
 import Data.Bits
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -35,8 +35,8 @@ crlAppend1 (CRList n xs) x = CRList (n+1) (x:xs)
 crlAppend :: CRList a -> [a] -> CRList a
 crlAppend (CRList n xs) ys = CRList n' xs'
   where (xs', n')       = rev ys xs n
-        rev []     vs n = (vs, n)
-        rev (u:us) vs n = rev us (u:vs) (n+1)
+        rev []     vs m = (vs, m)
+        rev (u:us) vs m = rev us (u:vs) (m+1)
 
 crlToNewArray :: (Storable b) => (a -> IO b) -> CRList a -> IO (Ptr b)
 crlToNewArray f (CRList len lst) = do
@@ -122,8 +122,7 @@ compileClass name ms =
   in enc
 
 filterMembers :: MemberKind -> [Member tt] -> [Member tt]
-filterMembers k ms =
-  filter (\m -> k == memberKind m) ms
+filterMembers k = filter (\m -> k == memberKind m)
 
 newMOCState :: MOCState -> MOCState
 newMOCState enc = MOCState
@@ -147,12 +146,12 @@ writeString str = do
   let msChr = mStrChar state
       msInf = mStrInfo state
       msMap = mStrMap state
-  case (Map.lookup str msMap) of
+  case Map.lookup str msMap of
     Just idx -> writeInt idx
     Nothing  -> do
       let idx = crlLen msInf - 1
-          msChr' = msChr `crlAppend` (map castCharToCChar str) `crlAppend1` 0
-          msInf' = msInf `crlAppend1` (fromIntegral $ crlLen msChr')
+          msChr' = msChr `crlAppend` map castCharToCChar str `crlAppend1` 0
+          msInf' = msInf `crlAppend1` fromIntegral (crlLen msChr')
           msMap' = Map.insert str (fromIntegral idx) msMap
       put $ state {
         mStrChar = msChr',
@@ -166,15 +165,15 @@ writeMethodParams m = do
   let types = memberTypes m
       datal = mData state
       mpMap = mParamMap state
-  case (Map.lookup types mpMap) of
-    Just idx -> return ()
+  case Map.lookup types mpMap of
+    Just _ -> return ()
     Nothing  -> do
       let idx = crlLen datal
           mpMap' = Map.insert types (fromIntegral idx) mpMap
       put $ state {
         mParamMap = mpMap'}
-      mapM_ writeInt $ map typeId types
-      mapM_ writeString $ replicate (length $ memberParams m) ""
+      mapM_ (writeInt . typeId) types
+      replicateM_ (length $ memberParams m) $ writeString ""
 
 writeMethod :: Member tt -> State MOCState ()
 writeMethod m = do
@@ -191,8 +190,8 @@ writeMethod m = do
   state <- get
   put $ state {
     mDataMethodsIdx = mplus (mDataMethodsIdx state) (Just idx),
-    mMethodCount = mc + (mMethodCount state),
-    mSignalCount = sc + (mSignalCount state),
+    mMethodCount = mc + mMethodCount state,
+    mSignalCount = sc + mSignalCount state,
     mSigMap = maybe (mSigMap state) (\k ->
       Map.insert k (fromIntegral $ mSignalCount state) (mSigMap state)) $
       memberKey m,
@@ -205,13 +204,13 @@ writeProperty p = do
   writeString $ memberName p
   writeInt $ typeId $ memberType p
   writeInt (pfReadable .|. pfScriptable .|.
-    (if (ConstPropertyMember == memberKind p) then pfConstant else 0) .|.
-    (if (isJust $ memberFunAux p) then pfWritable else 0) .|.
-    (if (isJust $ memberKey p) then pfNotify else 0))
+    (if ConstPropertyMember == memberKind p then pfConstant else 0) .|.
+    (if isJust (memberFunAux p) then pfWritable else 0) .|.
+    (if isJust (memberKey p) then pfNotify else 0))
   state <- get
   put $ state {
     mDataPropsIdx = mplus (mDataPropsIdx state) (Just idx),
-    mPropertyCount = 1 + (mPropertyCount state),
+    mPropertyCount = 1 + mPropertyCount state,
     mFuncProperties = mFuncProperties state
       `crlAppend1` (Just $ memberFun p) `crlAppend1` memberFunAux p
   }

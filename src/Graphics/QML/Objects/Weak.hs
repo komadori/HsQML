@@ -95,9 +95,9 @@ addObjFinaliser (ObjFinaliser final) obj = do
 -- again from the pool. Conversely, if an object instance is no longer being
 -- used then pool will not prevent it from being garbage collected.
 data FactoryPool tt = FactoryPool {
-    factory   :: tt -> IO (ObjRef tt),
-    pool      :: MVar (Map tt (WeakObjRef tt)),
-    finaliser :: ObjFinaliser tt
+    factory_   :: tt -> IO (ObjRef tt),
+    pool_      :: MVar (Map tt (WeakObjRef tt)),
+    finaliser_ :: ObjFinaliser tt
 }
 
 -- | Creates a new 'FactoryPool' using the supplied factory function.
@@ -114,13 +114,13 @@ newFactoryPool factory = do
 getPoolObject :: (Ord tt, Typeable tt) =>
     FactoryPool tt -> tt -> IO (ObjRef tt)
 getPoolObject (FactoryPool factory pool finaliser) value =
-    modifyMVar pool $ \map ->
-        case Map.lookup value map of
+    modifyMVar pool $ \pmap ->
+        case Map.lookup value pmap of
             Just wkObj -> do
                 obj <- fromWeakObjRef wkObj
-                return (map, obj)
+                return (pmap, obj)
             Nothing  -> do
                 obj <- factory value
                 addObjFinaliser finaliser obj
                 wkObj <- toWeakObjRef obj
-                return (Map.insert value wkObj map, obj) 
+                return (Map.insert value wkObj pmap, obj)

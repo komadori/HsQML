@@ -93,15 +93,15 @@ instance (Typeable tt) => Marshal (ObjRef tt) where
     marshaller = Marshaller {
         mTypeCVal_ = retag (mTypeCVal :: Tagged AnyObjRef TypeId),
         mFromCVal_ = \ptr -> do
-            any <- mFromCVal ptr
-            MaybeT $ return $ fromAnyObjRef any,
+            anyRef <- mFromCVal ptr
+            MaybeT $ return $ fromAnyObjRef anyRef,
         mToCVal_ = \obj ptr ->
             mToCVal (AnyObjRef $ objHndl obj) ptr,
         mWithCVal_ = \obj f ->
             mWithCVal (AnyObjRef $ objHndl obj) f,
         mFromJVal_ = \ptr -> do
-            any <- mFromJVal ptr
-            MaybeT $ return $ fromAnyObjRef any,
+            anyRef <- mFromJVal ptr
+            MaybeT $ return $ fromAnyObjRef anyRef,
         mWithJVal_ = \obj f ->
             mWithJVal (AnyObjRef $ objHndl obj) f,
         mFromHndl_ = \hndl ->
@@ -324,7 +324,7 @@ mkUniformFunc f = \pt pv -> do
 newtype VoidIO = VoidIO {runVoidIO :: (IO ())}
 
 instance MethodSuffix VoidIO where
-    mkMethodFunc _ f pv = errIO $ runVoidIO f
+    mkMethodFunc _ f _ = errIO $ runVoidIO f
     mkMethodTypes = Tagged $ MethodTypeInfo [] tyVoid
 
 class IsVoidIO a

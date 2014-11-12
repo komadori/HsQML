@@ -73,8 +73,8 @@ runEngineImpl config stopCb = do
     hsqmlInit
     let obj = contextObject config
         DocumentPath res = initialDocument config
-    hndl <- sequenceA $ fmap mToHndl $ obj
-    mWithCVal (T.pack res) $ \resPtr -> do
+    hndl <- sequenceA $ fmap mToHndl obj
+    mWithCVal (T.pack res) $ \resPtr ->
         hsqmlCreateEngine hndl (HsQMLStringHandle $ castPtr resPtr) stopCb
     return Engine
 
@@ -99,8 +99,7 @@ runEngineWith config with = RunQML $ do
 -- | Starts a new QML engine using the supplied configuration and returns
 -- immediately without blocking.
 runEngineAsync :: EngineConfig -> RunQML Engine
-runEngineAsync config = RunQML $ do
-    runEngineImpl config (return ())
+runEngineAsync config = RunQML $ runEngineImpl config (return ())
 
 -- | Conveniance function that both runs the event loop and starts a new QML
 -- engine. It blocks keeping the event loop running until the engine has
@@ -114,7 +113,7 @@ runEngineLoop config =
 newtype RunQML a = RunQML (IO a) deriving (Functor, Applicative, Monad)
 
 instance MonadIO RunQML where
-    liftIO io = RunQML io
+    liftIO = RunQML
 
 -- | This function enters the Qt event loop and executes the supplied function
 -- in the 'RunQML' monad on a new unbound thread. The event loop will continue
@@ -136,7 +135,7 @@ runEventLoop (RunQML runFn) = tryRunInBoundThread $ do
             ret <- try runFn
             case ret of
                 Left ex -> putMVar finishVar $ throwIO (ex :: SomeException)
-                Right ret -> putMVar finishVar $ return ret
+                Right ret' -> putMVar finishVar $ return ret'
             hsqmlEvloopRelease
         yieldCb = if rtsSupportsBoundThreads
                   then Nothing
@@ -149,7 +148,7 @@ runEventLoop (RunQML runFn) = tryRunInBoundThread $ do
             finFn
 
 tryRunInBoundThread :: IO a -> IO a
-tryRunInBoundThread action = do
+tryRunInBoundThread action =
     if rtsSupportsBoundThreads
     then runInBoundThread action
     else action
@@ -193,15 +192,15 @@ newtype DocumentPath = DocumentPath String
 fileDocument :: FilePath -> DocumentPath
 fileDocument fp =
     let ds = splitDirectories fp
-        abs = isAbsolute fp
+        isAbs = isAbsolute fp
         fixHead =
             (\cs -> if null cs then [] else '/':cs) .
-            takeWhile (\c -> not $ c `elem` pathSeparators)
+            takeWhile (`notElem` pathSeparators)
         mapHead _ [] = []
         mapHead f (x:xs) = f x : xs
         afp = intercalate "/" $ mapHead fixHead ds
         rfp = intercalate "/" ds
-    in DocumentPath $ if abs then "file://" ++ afp else rfp
+    in DocumentPath $ if isAbs then "file://" ++ afp else rfp
 
 -- | Converts a URI string into a 'DocumentPath'.
 uriDocument :: String -> DocumentPath

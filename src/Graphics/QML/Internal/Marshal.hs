@@ -34,7 +34,7 @@ tyDouble  = TypeId 6
 tyString  = TypeId 10
 tyObject  = TypeId 39
 tyVoid    = TypeId 43
-tyJSValue = TypeId $ hsqmlJValTypeId
+tyJSValue = TypeId hsqmlJValTypeId
 
 type MTypeCValFunc t = Tagged t TypeId
 type MFromCValFunc t = Ptr () -> ErrIO t
