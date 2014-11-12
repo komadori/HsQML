@@ -19,9 +19,11 @@ types which can be marshalled between Haskell and JavaScript.
 -- * Graphics.QML
   module Graphics.QML.Engine,
   module Graphics.QML.Marshal,
-  module Graphics.QML.Objects
+  module Graphics.QML.Objects,
+  module Graphics.QML.Objects.Weak
 ) where
 
 import Graphics.QML.Engine
 import Graphics.QML.Marshal
 import Graphics.QML.Objects
+import Graphics.QML.Objects.Weak
