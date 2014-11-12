@@ -62,7 +62,6 @@ data OpenGLType
 mapGLType :: HsQMLGLCanvasType -> OpenGLType
 mapGLType HsqmlGlDesktop = OpenGLDesktop
 mapGLType HsqmlGlEs      = OpenGLES
-mapGLType _              = error "Bad HsQMLGLCanvasType"
 
 -- | Encapsulates parameters for OpenGL setup.
 data OpenGLSetup = OpenGLSetup {
