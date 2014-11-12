@@ -9,10 +9,7 @@ module Graphics.QML.Internal.BindCore where
 {#import Graphics.QML.Internal.BindObj #}
 
 import Foreign.C.Types
-import Foreign.C.String
-import Foreign.Marshal.Utils
 import Foreign.Ptr
-import Foreign.StablePtr
 
 #include <HsFFI.h>
 

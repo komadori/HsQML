@@ -49,14 +49,11 @@ import Graphics.QML.Internal.Types
 
 import Control.Monad
 import Control.Monad.Trans.Maybe
-import Data.Maybe
 import Data.Tagged
 import Data.Int
 import Data.Text (Text)
-import qualified Data.Text as T
 import qualified Data.Text.Foreign as T
 import Foreign.C.Types
-import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable

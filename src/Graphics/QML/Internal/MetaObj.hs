@@ -1,7 +1,5 @@
 module Graphics.QML.Internal.MetaObj where
 
-import Graphics.QML.Internal.BindObj
-import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.Types
 
 import Control.Monad

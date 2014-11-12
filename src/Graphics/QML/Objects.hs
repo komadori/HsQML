@@ -54,8 +54,6 @@ module Graphics.QML.Objects (
   defPropertySigRW'
 ) where
 
-import System.IO
-
 import Graphics.QML.Internal.BindCore
 import Graphics.QML.Internal.BindObj
 import Graphics.QML.Internal.JobQueue
@@ -67,7 +65,6 @@ import Control.Concurrent.MVar
 import Control.Monad.Trans.Maybe
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Maybe
 import Data.Proxy
@@ -78,7 +75,6 @@ import Data.Unique
 import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Storable
-import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import System.IO.Unsafe
 import Numeric

@@ -1,7 +1,6 @@
 module Graphics.QML.Internal.Types where
 
 import Data.Map (Map)
-import qualified Data.Map as Map
 import Data.Typeable
 import Data.Unique
 import Foreign.Ptr

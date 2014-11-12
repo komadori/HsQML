@@ -34,18 +34,16 @@ import Graphics.QML.Internal.JobQueue
 import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.BindPrim
 import Graphics.QML.Internal.BindCore
-import Graphics.QML.Marshal
+import Graphics.QML.Marshal ()
 import Graphics.QML.Objects
 
 import Control.Applicative
 import Control.Concurrent
-import Control.Concurrent.MVar
 import Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class
 import qualified Data.Text as T
 import Data.List
-import Data.Maybe
 import Data.Traversable
 import Data.Typeable
 import Foreign.Ptr
