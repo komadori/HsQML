@@ -19,10 +19,10 @@ import Foreign.Storable
 
 {#pointer *HsQMLGLDelegateHandle as ^ foreign newtype #}
 
-type SetupCb = CInt -> IO ()
+type SetupCb = CInt -> CInt -> CInt -> IO ()
 type CleanupCb = IO ()
 type SyncCb = HsQMLJValHandle -> IO CInt
-type PaintCb = Ptr CFloat -> IO ()
+type PaintCb = Ptr CFloat -> CFloat -> CFloat -> IO ()
 type MakeCb = Ptr (FunPtr SetupCb) -> Ptr (FunPtr CleanupCb) ->
     Ptr (FunPtr SyncCb) -> Ptr (FunPtr PaintCb) -> IO ()
 type CallbacksFactory = IO (SetupCb, CleanupCb, SyncCb, PaintCb)

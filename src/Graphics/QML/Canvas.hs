@@ -13,11 +13,15 @@ module Graphics.QML.Canvas (
         OpenGLES),
     OpenGLSetup,
     openGLType,
+    openGLMajor,
+    openGLMinor,
     OpenGLPaint,
     OpenGLPaint',
     setupData,
     modelData,
-    matrixPtr
+    matrixPtr,
+    itemWidth,
+    itemHeight
 ) where
 
 import Graphics.QML.Internal.BindCanvas
@@ -66,7 +70,11 @@ mapGLType HsqmlGlEs      = OpenGLES
 -- | Encapsulates parameters for OpenGL setup.
 data OpenGLSetup = OpenGLSetup {
     -- | Type of OpenGL context.
-    openGLType :: OpenGLType
+    openGLType :: OpenGLType,
+    -- | Major version number of OpenGL context.
+    openGLMajor :: Int,
+    -- | Minor version number of OpenGL context.
+    openGLMinor :: Int
 }
 
 -- | Encapsulates parameters for OpenGL paint.
@@ -77,7 +85,11 @@ data OpenGLPaint s m = OpenGLPaint {
     modelData :: m,
     -- | Pointer to a 4 by 4 matrix which transform coordinates in the range
     -- (-1, -1) to (1, 1) on to the target rectangle in the scene.
-    matrixPtr :: Ptr CFloat
+    matrixPtr :: Ptr CFloat,
+    -- | Width of the canvas item in its local coordinate system.
+    itemWidth :: Float,
+    -- | Height of the canvas item in its local coordinate system.
+    itemHeight :: Float
 }
 
 -- | Specialised version of `OpenGLPaint` with no model.
@@ -89,8 +101,10 @@ newOpenGLCallbacks :: (Marshal m, CanGetFrom m ~ Yes) =>
 newOpenGLCallbacks setupFn paintFn cleanupFn = do
     iRef <- newIORef Nothing
     mRef <- newIORef Nothing
-    let setupCb ctype = do
-            iVal <- setupFn $ OpenGLSetup (mapGLType $ cIntToEnum ctype)
+    let setupCb ctype major minor = do
+            iVal <- setupFn $ OpenGLSetup
+                (mapGLType $ cIntToEnum ctype)
+                (fromIntegral major) (fromIntegral minor)
             writeIORef iRef $ Just iVal
         cleanupCb = do
             iVal <- readIORef iRef
@@ -99,10 +113,12 @@ newOpenGLCallbacks setupFn paintFn cleanupFn = do
              mVal <- runMaybeT $ mFromJVal ptr
              writeIORef mRef mVal
              return $ if isJust mVal then 1 else 0
-        paintCb mPtr = do
+        paintCb mPtr w h = do
             iVal <- readIORef iRef
             mVal <- readIORef mRef
-            paintFn $ OpenGLPaint (fromJust iVal) (fromJust mVal) mPtr
+            paintFn $ OpenGLPaint
+                (fromJust iVal) (fromJust mVal)
+                mPtr (realToFrac w) (realToFrac h)
     return (setupCb, cleanupCb, syncCb, paintCb)
 
 -- | Creates a new 'OpenGLDelegate' from setup, paint, and cleanup functions.

@@ -201,7 +201,8 @@ void HsQMLCanvasBackEnd::doRendering()
         QObject::connect(
             mGL, SIGNAL(aboutToBeDestroyed()), this, SLOT(doCleanup()));
         HsQMLGLCanvasType ctype;
-        switch (mGL->format().renderableType()) {
+        QSurfaceFormat format = mGL->format();
+        switch (format.renderableType()) {
             case QSurfaceFormat::OpenGL: ctype = HSQML_GL_DESKTOP; break;
             case QSurfaceFormat::OpenGLES: ctype = HSQML_GL_ES; break;
             default: setStatus(HsQMLCanvas::BadConfig); return;
@@ -216,7 +217,8 @@ void HsQMLCanvasBackEnd::doRendering()
             setStatus(HsQMLCanvas::BadProcs);
             return;
         }
-        mGLCallbacks->mSetupCb(ctype);
+        mGLCallbacks->mSetupCb(
+            ctype, format.majorVersion(), format.minorVersion());
     }
 
     // Reset OpenGL state before rendering
@@ -268,7 +270,7 @@ void HsQMLCanvasBackEnd::doRendering()
     }
 
     setStatus(HsQMLCanvas::Okay);
-    mGLCallbacks->mPaintCb(matrix.data());
+    mGLCallbacks->mPaintCb(matrix.data(), mItemWidth, mItemHeight);
 
     if (inlineMode) {
         mFBO->release();
@@ -333,6 +335,7 @@ void HsQMLCanvas::geometryChanged(const QRectF& rect, const QRectF&)
     if (!mCanvasHeightSet) {
         setCanvasHeight(rect.height(), false);
     }
+    update();
 }
 
 QSGNode* HsQMLCanvas::updatePaintNode(
@@ -383,10 +386,9 @@ QSGNode* HsQMLCanvas::updatePaintNode(
     setStatus(Okay);
 
     // Save pointer to transform node
-    if (Inline != mDisplayMode)
-    {
-        mBackEnd->setTransformNode(paintData->transformNode, width(), height());
-    }
+    mBackEnd->setTransformNode(
+        Inline != mDisplayMode ? paintData->transformNode : NULL,
+        width(), height());
 
     // Produce texture node if needed
     if (QSGTexture* texture =

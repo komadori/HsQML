@@ -203,7 +203,7 @@ typedef enum {
 } HsQMLGLCanvasType;
 
 typedef void (*HsQMLGLSetupCb)(
-    HsQMLGLCanvasType);
+    HsQMLGLCanvasType, int, int);
 
 typedef void (*HsQMLGLCleanupCb)();
 
@@ -211,7 +211,7 @@ typedef int (*HsQMLGLSyncCb)(
     HsQMLJValHandle*);
 
 typedef void (*HsQMLGLPaintCb)(
-    float*);
+    float*, float, float);
 
 typedef void (*HsQMLGLMakeCallbacksCb)(
     HsQMLGLSetupCb*,
