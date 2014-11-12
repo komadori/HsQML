@@ -207,35 +207,35 @@ mToHndl :: forall t. (Marshal t) => MToHndlFunc t
 mToHndl = mToHndl_ (marshaller :: MarshallerFor t)
 
 unimplFromCVal :: MFromCValFunc t
-unimplFromCVal = \_ -> error "Type does not support mFromCVal."
+unimplFromCVal _ = error "Type does not support mFromCVal."
 
 unimplToCVal :: MToCValFunc t
-unimplToCVal = \_ _ -> error "Type does not support mToCVal."
+unimplToCVal _ _ = error "Type does not support mToCVal."
 
 unimplWithCVal :: MWithCValFunc t
-unimplWithCVal = \_ _ -> error "Type does not support mWithCVal."
+unimplWithCVal _ _ = error "Type does not support mWithCVal."
 
 unimplFromJVal :: MFromJValFunc t
-unimplFromJVal = \_ -> error "Type does not support mFromJVal."
+unimplFromJVal _ = error "Type does not support mFromJVal."
 
 unimplWithJVal :: MWithJValFunc t
-unimplWithJVal = \_ _ -> error "Type does not support mWithJVal."
+unimplWithJVal _ _ = error "Type does not support mWithJVal."
 
 unimplFromHndl :: MFromHndlFunc t
-unimplFromHndl = \_ -> error "Type does not support mFromHndl."
+unimplFromHndl _ = error "Type does not support mFromHndl."
 
 unimplToHndl :: MToHndlFunc t
-unimplToHndl = \_ -> error "Type does not support mToHndl."
+unimplToHndl _ = error "Type does not support mToHndl."
 
 jvalFromCVal :: (Marshal t) => MFromCValFunc t
 jvalFromCVal = mFromJVal . HsQMLJValHandle . castPtr
 
 jvalToCVal :: (Marshal t) => MToCValFunc t
-jvalToCVal = \val ptr -> mWithJVal val $ \jval ->
+jvalToCVal val ptr = mWithJVal val $ \jval ->
     hsqmlSetJval (HsQMLJValHandle $ castPtr ptr) jval
 
 jvalWithCVal :: (Marshal t) => MWithCValFunc t
-jvalWithCVal = \val f -> mWithJVal val $ \(HsQMLJValHandle ptr) ->
+jvalWithCVal val f = mWithJVal val $ \(HsQMLJValHandle ptr) ->
     f $ castPtr ptr
 
 instance Marshal () where
