@@ -4,7 +4,33 @@
     FlexibleInstances
   #-}
 
--- | Facility for drawing graphics directly from Haskell into a QML element. 
+{-| Facility for drawing OpenGL graphics into the QML scenegraph.
+
+To use this facility, you must place a @HaskellCanvas@ item into your
+QML scene. This item can be imported from the @HsQML.Canvas 1.0@ namespace
+using the @import@ statement in your QML script. It has several properties
+which can be set from QML:
+
+[@displayMode@] Specifies how the canvas is rendered with respect to the
+rest of the scene. Possible values are:
+
+    [@HaskellCanvas.Above@] The canvas shares a buffer with the scenegraph
+    and is painted top of other items.
+    [@HaskellCanvas.Inline@] The canvas has its own framebuffer object and the
+    contents of this buffer are painted inline with other items (default).
+    [@HaskellCanvas.Below@] The canvas shares a buffer with the scenegraph
+    and is painted underneath other items.
+
+[@canvasWidth@] Width of the framebuffer object in pixels. Defaults to the
+item width.
+[@canvasHeight@] Height of the framebuffer object in pixels. Defaults to the
+item height.
+[@delegate@] A marshalled 'OpenGLDelegate' value which specifies the Haskell
+functions used to render the canvas.
+[@model@] A value passed to delegate's paint function. The canvas is
+repainted whenever this value changes.
+[@status@] Either @HaskellCanvas.Okay@ or an error code (read only).
+-}
 module Graphics.QML.Canvas (
     OpenGLDelegate,
     newOpenGLDelegate,
