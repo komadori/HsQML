@@ -1,5 +1,14 @@
 HsQML - Release History
 
+release-0.3.2.0 - 2014.11.13
+
+  * Added OpenGL canvas support.
+  * Added weak references and object finalisers.
+  * Added FactoryPool abstraction.
+  * Added To-only custom marshallers.
+  * Added Ignored type.
+  * Relaxed Cabal dependency constraint on 'text'.
+
 release-0.3.1.1 - 2014.07.31
 
   * Fixed crash when storing Haskell objects in QML variants.
