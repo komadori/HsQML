@@ -57,12 +57,16 @@ HsQMLObject* HsQMLObjectProxy::object(HsQMLEngine* engine)
     Q_ASSERT(engine);
     if (!mObject) {
         mObject = new HsQMLObject(this, engine);
-        tryGCLock();
 
         HSQML_LOG(5,
             QString().sprintf("New QObject, class=%s, id=%d, qptr=%p.",
             mKlass->name(), mSerial, mObject));
     }
+
+    // Old objects may have lost their lock via weak references in addition
+    // to new objects needing it.
+    tryGCLock();
+
     return mObject;
 }
 
