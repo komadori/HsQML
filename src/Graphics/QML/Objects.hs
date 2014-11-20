@@ -150,7 +150,7 @@ implicitSignals ms =
         impKeys = filter (flip Set.notMember sigKeys) $ mapMaybe memberKey $
             filterMembers PropertyMember ms
         impMember i k = Member SignalMember
-            ("__implictSignal" ++ show i)
+            ("__implicitSignal" ++ show i)
             tyVoid
             []
             (\_ _ -> return ())
