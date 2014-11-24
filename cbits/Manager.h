@@ -66,6 +66,7 @@ private:
     void (*mFreeFun)(HsFunPtr);
     void (*mFreeStable)(HsStablePtr);
     QSet<const QObject*> mObjectSet;
+    bool mOneTime;
     const QVariant::Handler* mOriginalHandler;
     QVariant::Handler mHookedHandler;
     HsQMLManagerApp* mApp;
