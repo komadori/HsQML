@@ -59,7 +59,6 @@ HsQMLManager::HsQMLManager(
     , mAtExit(false)
     , mFreeFun(freeFun)
     , mFreeStable(freeStable)
-    , mOneTime(false)
     , mOriginalHandler(qcoreVariantHandler())
     , mHookedHandler(*mOriginalHandler)
     , mApp(NULL)
@@ -209,17 +208,14 @@ HsQMLManager::EventLoopStatus HsQMLManager::runEventLoop(
     }
 
     // Perform one-time initialisation
-    if (!mOneTime) {
+    if (!mApp) {
         // Install hooked handler for QVariants
         QVariantPrivate::registerHandler(0, &mHookedHandler);
 
         // Register custom types
         qRegisterMetaType<HsQMLEngineConfig>("HsQMLEngineConfig");
         qmlRegisterType<HsQMLCanvas>("HsQML.Canvas", 1, 0, "HaskellCanvas");
-    }
 
-    // Create the application object
-    if (!mApp) {
         // Create application object
         mApp = new HsQMLManagerApp();
     }
@@ -268,20 +264,15 @@ HsQMLManager::EventLoopStatus HsQMLManager::runEventLoop(
         mYieldCb = NULL;
     }
 
-    if (ret) {
-        // Flush start event in case of early exit
+    // Return
+    if (ret == 0) {
+        return HSQML_EVLOOP_OK;
+    }
+    else {
         QCoreApplication::removePostedEvents(
             mApp, HsQMLManagerApp::StartedLoopEvent);
+        return HSQML_EVLOOP_OTHER_ERROR;
     }
-
-#ifdef Q_OS_LINUX
-    // Delete QApplication object to ensure X connection is closed at process
-    // exit. Some platforms prevent recreating it, but Linux appears okay.
-    delete mApp;
-    mApp = NULL;
-#endif
-
-    return ret ? HSQML_EVLOOP_OTHER_ERROR : HSQML_EVLOOP_OK;
 }
 
 HsQMLManager::EventLoopStatus HsQMLManager::requireEventLoop()
