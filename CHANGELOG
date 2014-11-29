@@ -1,5 +1,12 @@
 HsQML - Release History
 
+release-0.3.2.1 - 2014.11.29
+
+  * Added function to shutdown the Qt framework.
+  * Fixed intermittent crash on exit under Linux.
+  * Fixed reanimated objects being passed to QML as undefined.
+  * Fixed typo in the names of implicit property signals.
+
 release-0.3.2.0 - 2014.11.13
 
   * Added OpenGL canvas support.
