@@ -60,7 +60,6 @@ HsQMLManager::HsQMLManager(
     , mFreeFun(freeFun)
     , mFreeStable(freeStable)
     , mOriginalHandler(qcoreVariantHandler())
-    , mHookedHandler(*mOriginalHandler)
     , mApp(NULL)
     , mLock(QMutex::Recursive)
     , mRunning(false)
@@ -76,10 +75,6 @@ HsQMLManager::HsQMLManager(
     if (env) {
         setLogLevel(QString(env).toInt());
     }
-
-    // Set hooked handler functions
-    mHookedHandler.construct = &hooked_construct;
-    mHookedHandler.clear = &hooked_clear;
 }
 
 void HsQMLManager::setLogLevel(int ll)
@@ -207,16 +202,8 @@ HsQMLManager::EventLoopStatus HsQMLManager::runEventLoop(
             "Warning: CPU cannot idle when using the non-threaded RTS.");
     }
 
-    // Perform one-time initialisation
+    // Create application object
     if (!mApp) {
-        // Install hooked handler for QVariants
-        QVariantPrivate::registerHandler(0, &mHookedHandler);
-
-        // Register custom types
-        qRegisterMetaType<HsQMLEngineConfig>("HsQMLEngineConfig");
-        qmlRegisterType<HsQMLCanvas>("HsQML.Canvas", 1, 0, "HaskellCanvas");
-
-        // Create application object
         mApp = new HsQMLManagerApp();
     }
 
@@ -333,9 +320,19 @@ HsQMLManagerApp::HsQMLManagerApp()
     : mArgC(1)
     , mArg0(0)
     , mArgV(&mArg0)
+    , mHookedHandler(*gManager->mOriginalHandler)
     , mApp(mArgC, &mArgV)
 {
     mApp.setQuitOnLastWindowClosed(false);
+
+    // Install hooked handler for QVariants
+    mHookedHandler.construct = &hooked_construct;
+    mHookedHandler.clear = &hooked_clear;
+    QVariantPrivate::registerHandler(0, &mHookedHandler);
+
+    // Register custom types
+    qRegisterMetaType<HsQMLEngineConfig>("HsQMLEngineConfig");
+    qmlRegisterType<HsQMLCanvas>("HsQML.Canvas", 1, 0, "HaskellCanvas");
 }
 
 HsQMLManagerApp::~HsQMLManagerApp()

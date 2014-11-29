@@ -67,7 +67,6 @@ private:
     void (*mFreeStable)(HsStablePtr);
     QSet<const QObject*> mObjectSet;
     const QVariant::Handler* mOriginalHandler;
-    QVariant::Handler mHookedHandler;
     HsQMLManagerApp* mApp;
     QMutex mLock;
     bool mRunning;
@@ -113,6 +112,7 @@ private:
     int mArgC;
     char mArg0;
     char* mArgV;
+    QVariant::Handler mHookedHandler;
     QApplication mApp;
 };
 
