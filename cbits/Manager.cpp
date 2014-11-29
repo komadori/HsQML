@@ -28,6 +28,18 @@ static const char* cCounterNames[] = {
     "ObjectSerial"
 };
 
+// This definition overrides a symbol in the GHC RTS
+#ifdef HSQML_USE_EXIT_HOOK
+#ifdef Q_OS_LINUX // TODO: Test on other platforms.
+extern "C" void OnExitHook()
+{
+    if (gManager) {
+        gManager->shutdown();
+    }
+}
+#endif
+#endif
+
 static void dump_counters()
 {
     Q_ASSERT (gManager);

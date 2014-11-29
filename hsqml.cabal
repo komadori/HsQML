@@ -35,6 +35,11 @@ Flag ForceGHCiLib
         Force enable GHCi workaround library if not using shared libraries.
     Default: True
 
+Flag UseExitHook
+    Description:
+        Override the OnExitHook symbol to shutdown the Qt framework on exit.
+    Default: True
+
 Library
     Default-language: Haskell2010
     Build-depends:
@@ -79,6 +84,8 @@ Library
     Build-tools: c2hs
     if flag(ForceGHCiLib)
         X-force-ghci-lib: True
+    if flag(UseExitHook)
+        CC-options: -DHSQML_USE_EXIT_HOOK
     if os(windows) && !flag(UsePkgConfig)
         Include-dirs: /QT_ROOT/include
         Extra-libraries:
