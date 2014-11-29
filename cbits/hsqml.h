@@ -21,6 +21,7 @@ typedef void (*HsQMLTrivialCb)();
 typedef enum {
     HSQML_EVLOOP_OK = 0,
     HSQML_EVLOOP_ALREADY_RUNNING,
+    HSQML_EVLOOP_POST_SHUTDOWN,
     HSQML_EVLOOP_WRONG_THREAD,
     HSQML_EVLOOP_NOT_RUNNING,
     HSQML_EVLOOP_OTHER_ERROR
@@ -36,6 +37,8 @@ extern HsQMLEventLoopStatus hsqml_evloop_require();
 extern void hsqml_evloop_release();
 
 extern void hsqml_evloop_notify_jobs();
+
+extern HsQMLEventLoopStatus hsqml_evloop_shutdown();
 
 /* String */
 typedef char HsQMLStringHandle;

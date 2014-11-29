@@ -54,6 +54,7 @@ public:
     void setActiveEngine(HsQMLEngine*);
     HsQMLEngine* activeEngine();
     void postObjectEvent(HsQMLObjectEvent*);
+    EventLoopStatus shutdown();
 
 private:
     friend class HsQMLManagerApp;
@@ -71,6 +72,7 @@ private:
     QMutex mLock;
     bool mRunning;
     int mRunCount;
+    bool mShutdown;
     void* mStackBase;
     HsQMLTrivialCb mStartCb;
     HsQMLTrivialCb mJobsCb;

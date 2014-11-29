@@ -63,6 +63,10 @@ withMaybeTrivialCb Nothing = \cont -> cont nullFunPtr
   {} ->
   `()' #}
 
+{#fun unsafe hsqml_evloop_shutdown as ^
+  {} ->
+  `HsQMLEventLoopStatus' cIntToEnum #}
+
 {#fun hsqml_create_engine as ^
   {withMaybeHsQMLObjectHandle* `Maybe HsQMLObjectHandle',
    id `HsQMLStringHandle',

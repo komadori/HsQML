@@ -22,6 +22,7 @@ module Graphics.QML.Engine (
   RunQML(),
   runEventLoop,
   requireEventLoop,
+  shutdownQt,
   EventLoopException(),
 
   -- * Document Paths
@@ -168,9 +169,31 @@ requireEventLoop (RunQML runFn) = do
                 Nothing -> return ()
     bracket_ reqFn hsqmlEvloopRelease runFn
 
+-- | Shuts down and frees resources used by the Qt framework, preventing
+-- further use of the event loop. The framework is initialised when
+-- 'runEventLoop' is first called and remains initialised afterwards so that
+-- the event loop can be reentered if desired (e.g. when using GHCi). Once
+-- shut down, the framework cannot be reinitialised.
+--
+-- It is recommended that you call this function at the end of your program as
+-- this library will try, but cannot guarantee in all configurations to be able
+-- to shut it down for you. Failing to shutdown the framework has been known to
+-- intermittently cause crashes on process exit on some platforms.
+--
+-- This function must be called from the event loop thread and the event loop
+-- must not be running at the time otherwise an 'EventLoopException' will be
+-- thrown.
+shutdownQt :: IO ()
+shutdownQt = do
+    status <- hsqmlEvloopShutdown
+    case statusException status of
+        Just ex -> throw ex
+        Nothing -> return ()
+
 statusException :: HsQMLEventLoopStatus -> Maybe EventLoopException
 statusException HsqmlEvloopOk = Nothing
 statusException HsqmlEvloopAlreadyRunning = Just EventLoopAlreadyRunning
+statusException HsqmlEvloopPostShutdown = Just EventLoopPostShutdown
 statusException HsqmlEvloopWrongThread = Just EventLoopWrongThread
 statusException HsqmlEvloopNotRunning = Just EventLoopNotRunning
 statusException _ = Just EventLoopOtherError
@@ -178,6 +201,7 @@ statusException _ = Just EventLoopOtherError
 -- | Exception type used to report errors pertaining to the event loop.
 data EventLoopException
     = EventLoopAlreadyRunning
+    | EventLoopPostShutdown
     | EventLoopWrongThread
     | EventLoopNotRunning
     | EventLoopOtherError

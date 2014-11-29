@@ -64,6 +64,7 @@ HsQMLManager::HsQMLManager(
     , mLock(QMutex::Recursive)
     , mRunning(false)
     , mRunCount(0)
+    , mShutdown(false)
     , mStackBase(NULL)
     , mStartCb(NULL)
     , mJobsCb(NULL)
@@ -178,9 +179,12 @@ HsQMLManager::EventLoopStatus HsQMLManager::runEventLoop(
 {
     QMutexLocker locker(&mLock);
 
-    // Check if already running
+    // Check for invalid state
     if (mRunning) {
         return HSQML_EVLOOP_ALREADY_RUNNING;
+    }
+    else if (mShutdown) {
+        return HSQML_EVLOOP_POST_SHUTDOWN;
     }
 
     // Check if event loop bound to a different thread
@@ -316,6 +320,25 @@ void HsQMLManager::postObjectEvent(HsQMLObjectEvent* ev)
     QCoreApplication::postEvent(mApp, ev);
 }
 
+HsQMLManager::EventLoopStatus HsQMLManager::shutdown()
+{
+    QMutexLocker locker(&mLock);
+
+    if (mRunning) {
+        return HSQML_EVLOOP_ALREADY_RUNNING;
+    }
+    else if (isEventThread()) {
+        HSQML_LOG(1, "Deleting QApplication object.");
+        delete mApp;
+        mApp = NULL;
+        mShutdown = true;
+    }
+    else if (mApp) {
+        return HSQML_EVLOOP_WRONG_THREAD; 
+    }
+    return HSQML_EVLOOP_OK;
+}
+
 HsQMLManagerApp::HsQMLManagerApp()
     : mArgC(1)
     , mArg0(0)
@@ -412,6 +435,14 @@ extern "C" void hsqml_evloop_release()
 extern "C" void hsqml_evloop_notify_jobs()
 {
     gManager->notifyJobs();
+}
+
+extern "C" HsQMLEventLoopStatus hsqml_evloop_shutdown()
+{
+    if (gManager) {
+        return gManager->shutdown();
+    }
+    return HSQML_EVLOOP_OK;
 }
 
 extern "C" void hsqml_set_debug_loglevel(int ll)
