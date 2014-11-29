@@ -28,7 +28,7 @@ static const char* cCounterNames[] = {
     "ObjectSerial"
 };
 
-extern "C" void hsqml_dump_counters()
+static void dump_counters()
 {
     Q_ASSERT (gManager);
     if (gManager->checkLogLevel(1)) {
@@ -86,7 +86,7 @@ void HsQMLManager::setLogLevel(int ll)
 {
     mLogLevel = ll;
     if (ll > 0 && !mAtExit) {
-        if (atexit(&hsqml_dump_counters) == 0) {
+        if (atexit(&dump_counters) == 0) {
             mAtExit = true;
         }
         else {
