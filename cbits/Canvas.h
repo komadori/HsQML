@@ -200,4 +200,81 @@ private:
     QScopedPointer<QSGTexture> mTexture;
 };
 
+class HsQMLContextControl : public QQuickItem
+{
+    Q_OBJECT
+    Q_ENUMS(ContextType)
+    Q_ENUMS(ContextProfile)
+    Q_PROPERTY(int majorVersion READ majorVersion WRITE setMajorVersion
+        RESET unsetMajorVersion NOTIFY contextChanged);
+    Q_PROPERTY(int minorVersion READ minorVersion WRITE setMinorVersion
+        RESET unsetMinorVersion NOTIFY contextChanged);
+    Q_PROPERTY(ContextType contextType READ contextType WRITE setContextType
+        RESET unsetContextType NOTIFY contextChanged);
+    Q_PROPERTY(ContextProfile contextProfile READ contextProfile
+        WRITE setContextProfile RESET unsetContextProfile
+        NOTIFY contextChanged);
+    Q_PROPERTY(bool deprecatedFunctions READ deprecatedFunctions
+        WRITE setDeprecatedFunctions
+        RESET unsetDeprecatedFunctions NOTIFY contextChanged);
+    Q_PROPERTY(bool when READ when WRITE setWhen);
+
+public:
+    enum ContextType {
+        TypeUnset   = -1,
+        UnknownType = QSurfaceFormat::DefaultRenderableType,
+        OpenGL      = QSurfaceFormat::OpenGL,
+        OpenGLES    = QSurfaceFormat::OpenGLES
+    };
+    enum ContextProfile {
+        ProfileUnset         = -1,
+        NoProfile            = QSurfaceFormat::NoProfile,
+        CoreProfile          = QSurfaceFormat::CoreProfile,
+        CompatibilityProfile = QSurfaceFormat::CompatibilityProfile
+    };
+
+    HsQMLContextControl(QQuickItem* = NULL);
+    ~HsQMLContextControl();
+
+    Q_SIGNAL void contextChanged();
+    int majorVersion();
+    void setMajorVersion(int);
+    void unsetMajorVersion();
+    int minorVersion();
+    void setMinorVersion(int);
+    void unsetMinorVersion();
+    ContextType contextType();
+    void setContextType(ContextType);
+    void unsetContextType();
+    ContextProfile contextProfile();
+    void setContextProfile(ContextProfile);
+    void unsetContextProfile();
+    bool deprecatedFunctions();
+    void setDeprecatedFunctions(bool, bool = true);
+    void unsetDeprecatedFunctions();
+    bool when();
+    void setWhen(bool);
+
+private:
+    Q_DISABLE_COPY(HsQMLContextControl);
+
+    Q_SLOT void doWindowChanged(QQuickWindow*);
+    Q_SLOT void doSceneGraphInit();
+    void classBegin();
+    void componentComplete();
+    void controlContext();
+    QQuickWindow* mWindow;
+    QSurfaceFormat mOriginal;
+    QSurfaceFormat mCurrent;
+    int mMajorVersion;
+    int mMinorVersion;
+    ContextType mContextType;
+    ContextProfile mContextProfile;
+    bool mDeprecatedFunctions;
+    bool mDeprecatedFunctionsSet;
+    bool mWhen;
+    bool mDefer;
+    bool mPending;
+};
+
 #endif //HSQML_CANVAS_H

@@ -541,6 +541,239 @@ void HsQMLCanvas::doBackEndStatusChanged(Status status)
     setStatus(status, true);
 }
 
+HsQMLContextControl::HsQMLContextControl(QQuickItem* parent)
+    : QQuickItem(parent)
+    , mWindow(NULL)
+    , mMajorVersion(-1)
+    , mMinorVersion(-1)
+    , mContextType(TypeUnset)
+    , mContextProfile(ProfileUnset)
+    , mDeprecatedFunctions(false)
+    , mDeprecatedFunctionsSet(false)
+    , mWhen(true)
+    , mDefer(false)
+    , mPending(false)
+{
+    QObject::connect(
+        this, SIGNAL(windowChanged(QQuickWindow*)),
+        this, SLOT(doWindowChanged(QQuickWindow*)));
+}
+
+HsQMLContextControl::~HsQMLContextControl()
+{
+}
+
+int HsQMLContextControl::majorVersion()
+{
+    return mCurrent.majorVersion();
+}
+
+void HsQMLContextControl::setMajorVersion(int major)
+{
+    bool change = mMajorVersion != major;
+    mMajorVersion = major;
+    if (change) {
+        controlContext();
+    }
+}
+
+void HsQMLContextControl::unsetMajorVersion()
+{
+    setMajorVersion(-1);
+}
+
+int HsQMLContextControl::minorVersion()
+{
+    return mCurrent.minorVersion();
+}
+
+void HsQMLContextControl::setMinorVersion(int minor)
+{
+    bool change = mMinorVersion != minor;
+    mMinorVersion = minor;
+    if (change) {
+        controlContext();
+    }
+}
+
+void HsQMLContextControl::unsetMinorVersion()
+{
+    setMinorVersion(-1);
+}
+
+HsQMLContextControl::ContextType HsQMLContextControl::contextType()
+{
+    return static_cast<ContextType>(mCurrent.renderableType());
+}
+
+void HsQMLContextControl::setContextType(ContextType type)
+{
+    bool change = mContextType != type;
+    mContextType = type;
+    if (change) {
+        controlContext();
+    }
+}
+
+void HsQMLContextControl::unsetContextType()
+{
+    setContextType(TypeUnset);
+}
+
+HsQMLContextControl::ContextProfile HsQMLContextControl::contextProfile()
+{
+    return static_cast<ContextProfile>(mCurrent.profile());
+}
+
+void HsQMLContextControl::setContextProfile(ContextProfile profile)
+{
+    bool change = mContextProfile != profile;
+    mContextProfile = profile;
+    if (change) {
+        controlContext();
+    }
+}
+
+void HsQMLContextControl::unsetContextProfile()
+{
+    setContextProfile(ProfileUnset);
+}
+
+bool HsQMLContextControl::deprecatedFunctions()
+{
+    return mCurrent.testOption(QSurfaceFormat::DeprecatedFunctions);
+}
+
+void HsQMLContextControl::setDeprecatedFunctions(bool df, bool set)
+{
+    bool change = (mDeprecatedFunctionsSet != set) ||
+        (mDeprecatedFunctionsSet && (mDeprecatedFunctions != df));
+    mDeprecatedFunctions = df;
+    mDeprecatedFunctionsSet = set;
+    if (change) {
+        controlContext();
+    }
+}
+
+void HsQMLContextControl::unsetDeprecatedFunctions()
+{
+    setDeprecatedFunctions(false, false);
+}
+
+bool HsQMLContextControl::when()
+{
+    return mWhen;
+}
+
+void HsQMLContextControl::setWhen(bool when)
+{
+    mWhen = when;
+    if (mPending && !mDefer && mWhen) {
+        controlContext();
+    }
+}
+
+void HsQMLContextControl::classBegin()
+{
+    mDefer = true;
+}
+
+void HsQMLContextControl::componentComplete()
+{
+    mDefer = false;
+    if (mPending && mWhen) {
+        controlContext();
+    }
+}
+
+void HsQMLContextControl::doWindowChanged(QQuickWindow* win)
+{
+    if (mWindow) {
+        QObject::disconnect(mWindow, 0, this, 0);
+    }
+    mWindow = win;
+    if (mWindow) {
+        QObject::connect(
+            mWindow, SIGNAL(sceneGraphInitialized()),
+            this, SLOT(doSceneGraphInit()));
+        mOriginal = mWindow->requestedFormat();
+        mCurrent = mWindow->openglContext() ?
+            mWindow->openglContext()->format() : mWindow->format();
+    }
+    else {
+        mOriginal = QSurfaceFormat();
+        mCurrent = QSurfaceFormat();
+    }
+    contextChanged();
+
+    if ((mMajorVersion >=0) || (mMinorVersion >= 0) ||
+        (mContextType != TypeUnset) || (mContextProfile != ProfileUnset) ||
+        !mDeprecatedFunctionsSet) {
+        controlContext();
+    }
+}
+
+void HsQMLContextControl::doSceneGraphInit()
+{
+    mCurrent = mWindow->openglContext()->format();
+    contextChanged();
+}
+
+void HsQMLContextControl::controlContext()
+{
+    // Do nothing if no window
+    if (!mWindow) {
+        return;
+    }
+
+    // Do nothing if changes are being deferred
+    if (mDefer || !mWhen) {
+        mPending = true;
+        return;
+    }
+    mPending = false;
+
+    QSurfaceFormat fmt = mOriginal;
+    if (mMajorVersion >= 0) {
+        fmt.setMajorVersion(mMajorVersion);
+    }
+    if (mMinorVersion >= 0) {
+        fmt.setMinorVersion(mMinorVersion);
+    }
+    if (mContextType >= 0) {
+        fmt.setRenderableType(static_cast<QSurfaceFormat::RenderableType>(
+            mContextType));
+    }
+    if (mContextProfile >= 0) {
+        fmt.setProfile(static_cast<QSurfaceFormat::OpenGLContextProfile>(
+            mContextProfile));
+    }
+    if (mDeprecatedFunctionsSet) {
+#if QT_VERSION >= 0x050300
+        fmt.setOption(QSurfaceFormat::DeprecatedFunctions,
+            mDeprecatedFunctions);
+#else
+        if (mDeprecatedFunctions) {
+            fmt.setOption(QSurfaceFormat::DeprecatedFunctions);
+        }
+#endif
+    }
+    if (fmt == mWindow->requestedFormat()) {
+        return;
+    }
+    mWindow->setFormat(fmt);
+
+    // Recreate OpenGL context
+    mWindow->setPersistentOpenGLContext(false);
+    mWindow->setPersistentSceneGraph(false);
+    bool visible = mWindow->isVisible();
+    mWindow->destroy();
+    mWindow->releaseResources();
+    mWindow->setVisible(visible);
+    mWindow->setPersistentOpenGLContext(true);
+    mWindow->setPersistentSceneGraph(true);
+}
+
 HsQMLGLDelegateHandle* hsqml_create_gldelegate()
 {
     return reinterpret_cast<HsQMLGLDelegateHandle*>(new HsQMLGLDelegate());

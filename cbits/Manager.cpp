@@ -368,6 +368,8 @@ HsQMLManagerApp::HsQMLManagerApp()
     // Register custom types
     qRegisterMetaType<HsQMLEngineConfig>("HsQMLEngineConfig");
     qmlRegisterType<HsQMLCanvas>("HsQML.Canvas", 1, 0, "HaskellCanvas");
+    qmlRegisterType<HsQMLContextControl>(
+        "HsQML.Canvas", 1, 0, "OpenGLContextControl");
 }
 
 HsQMLManagerApp::~HsQMLManagerApp()
