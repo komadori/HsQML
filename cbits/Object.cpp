@@ -39,6 +39,7 @@ HsQMLObjectProxy::~HsQMLObjectProxy()
 {
     mKlass->deref(HsQMLClass::ObjProxy);
     gManager->updateCounter(HsQMLManager::ObjectCount, -1);
+    gManager->freeStable(mHaskell);
 }
 
 HsStablePtr HsQMLObjectProxy::haskell() const
