@@ -24,6 +24,12 @@ HsQMLEngine::HsQMLEngine(const HsQMLEngineConfig& config)
         mObjects << ctx;
     }
 
+    // Engine settings
+    mEngine.setImportPathList(
+        QStringList(config.importPaths) << mEngine.importPathList());
+    mEngine.setPluginPathList(
+        QStringList(config.pluginPaths) << mEngine.pluginPathList());
+
     // Load document
     mComponent.loadUrl(QUrl(config.initialURL));
 }
@@ -95,11 +101,19 @@ void HsQMLEngine::componentStatus(QQmlComponent::Status status)
 extern "C" void hsqml_create_engine(
     HsQMLObjectHandle* contextObject,
     HsQMLStringHandle* initialURL,
+    HsQMLStringHandle** importPaths,
+    HsQMLStringHandle** pluginPaths,
     HsQMLTrivialCb stopCb)
 {
     HsQMLEngineConfig config;
     config.contextObject = reinterpret_cast<HsQMLObjectProxy*>(contextObject);
     config.initialURL = *reinterpret_cast<QString*>(initialURL);
+    for (QString** p = reinterpret_cast<QString**>(importPaths); *p; p++) {
+        config.importPaths.push_back(**p);
+    }
+    for (QString** p = reinterpret_cast<QString**>(pluginPaths); *p; p++) {
+        config.pluginPaths.push_back(**p);
+    }
     config.stopCb = stopCb;
 
     Q_ASSERT (gManager);

@@ -195,6 +195,8 @@ extern void hsqml_object_add_finaliser(
 extern void hsqml_create_engine(
     HsQMLObjectHandle*,
     HsQMLStringHandle*,
+    HsQMLStringHandle**,
+    HsQMLStringHandle**,
     HsQMLTrivialCb stopCb);
 
 /* Canvas */

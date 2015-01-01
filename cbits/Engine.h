@@ -22,6 +22,8 @@ struct HsQMLEngineConfig
 
     HsQMLObjectProxy* contextObject;
     QString initialURL;
+    QStringList importPaths;
+    QStringList pluginPaths;
     HsQMLTrivialCb stopCb;
 };
 

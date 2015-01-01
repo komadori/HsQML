@@ -70,6 +70,8 @@ withMaybeTrivialCb Nothing = \cont -> cont nullFunPtr
 {#fun hsqml_create_engine as ^
   {withMaybeHsQMLObjectHandle* `Maybe HsQMLObjectHandle',
    id `HsQMLStringHandle',
+   id `Ptr HsQMLStringHandle',
+   id `Ptr HsQMLStringHandle',
    withTrivialCb* `TrivialCb'} ->
   `()' #}
 

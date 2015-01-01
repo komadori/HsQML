@@ -10,7 +10,9 @@ module Graphics.QML.Engine (
   EngineConfig(
     EngineConfig,
     initialDocument,
-    contextObject),
+    contextObject,
+    importPaths,
+    pluginPaths),
   defaultEngineConfig,
   Engine,
   runEngine,
@@ -47,15 +49,21 @@ import qualified Data.Text as T
 import Data.List
 import Data.Traversable
 import Data.Typeable
+import Foreign.Marshal.Array
 import Foreign.Ptr
-import System.FilePath (isAbsolute, splitDirectories, pathSeparators)
+import Foreign.Storable
+import System.FilePath (FilePath, isAbsolute, splitDirectories, pathSeparators)
 
 -- | Holds parameters for configuring a QML runtime engine.
 data EngineConfig = EngineConfig {
   -- | Path to the first QML document to be loaded.
   initialDocument    :: DocumentPath,
   -- | Context 'Object' made available to QML script code.
-  contextObject      :: Maybe AnyObjRef
+  contextObject      :: Maybe AnyObjRef,
+  -- | Additional search paths for QML modules
+  importPaths        :: [FilePath],
+  -- | Additional search paths for QML native plugins
+  pluginPaths        :: [FilePath]
 }
 
 -- | Default engine configuration. Loads @\"main.qml\"@ from the current
@@ -63,7 +71,9 @@ data EngineConfig = EngineConfig {
 defaultEngineConfig :: EngineConfig
 defaultEngineConfig = EngineConfig {
   initialDocument    = DocumentPath "main.qml",
-  contextObject      = Nothing
+  contextObject      = Nothing,
+  importPaths        = [],
+  pluginPaths        = []
 }
 
 -- | Represents a QML engine.
@@ -74,10 +84,26 @@ runEngineImpl config stopCb = do
     hsqmlInit
     let obj = contextObject config
         DocumentPath res = initialDocument config
+        impPaths = importPaths config
+        plugPaths = pluginPaths config
     hndl <- sequenceA $ fmap mToHndl obj
     mWithCVal (T.pack res) $ \resPtr ->
-        hsqmlCreateEngine hndl (HsQMLStringHandle $ castPtr resPtr) stopCb
+        withManyArray0 mWithCVal (map T.pack impPaths) nullPtr $ \impPtr ->
+        withManyArray0 mWithCVal (map T.pack plugPaths) nullPtr $ \plugPtr ->
+            hsqmlCreateEngine hndl (HsQMLStringHandle $ castPtr resPtr)
+                (castPtr impPtr) (castPtr plugPtr) stopCb
     return Engine
+
+withMany :: (a -> (b -> m c) -> m c) -> [a] -> ([b] -> m c) -> m c
+withMany func as cont =
+    let rec (a:as') bs = func a (\b -> rec as' (bs . (b:)))
+        rec []      bs = cont $ bs []
+    in rec as id
+
+withManyArray0 :: Storable b =>
+    (a -> (b -> IO c) -> IO c) -> [a] -> b -> (Ptr b -> IO c) -> IO c
+withManyArray0 func as term cont =
+    withMany func as $ \ptrs -> withArray0 term ptrs cont
 
 -- | Starts a new QML engine using the supplied configuration and blocks until
 -- the engine has terminated.
