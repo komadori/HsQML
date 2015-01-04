@@ -34,6 +34,7 @@ module Graphics.QML.Objects (
 
   -- * Signals
   defSignal,
+  defSignalNamedParams,
   fireSignal,
   SignalKey,
   newSignalKey,
@@ -61,6 +62,7 @@ import Graphics.QML.Internal.Marshal
 import Graphics.QML.Internal.MetaObj
 import Graphics.QML.Internal.Objects
 import Graphics.QML.Internal.Types
+import Graphics.QML.Objects.ParamNames
 
 import Control.Concurrent.MVar
 import Data.Map (Map)
@@ -283,7 +285,7 @@ defMethod name f =
   in Member MethodMember
        name
        (methodReturnType crude)
-       (methodParamTypes crude)
+       (map (\t->("",t)) $ methodParamTypes crude)
        (mkUniformFunc f)
        Nothing
        Nothing
@@ -308,13 +310,21 @@ data SignalTypeInfo = SignalTypeInfo {
 -- or ii) value-based using a 'SignalKey' value creating using 'newSignalKey'.
 defSignal ::
     forall obj skv. (SignalKeyValue skv) => String -> skv -> Member obj
-defSignal name key =
+defSignal name key = defSignalNamedParams name key anonParams
+
+-- | Defines a named signal with named parameters. This is otherwise identical
+-- to 'defSignal', but allows QML code to reference signal parameters by-name
+-- in addition to by-position.
+defSignalNamedParams :: forall obj skv. (SignalKeyValue skv) =>
+    String -> skv ->
+    ParamNames (SignalParamNames (SignalValueParams skv)) -> Member obj
+defSignalNamedParams name key pnames =
     let crude = untag (mkSignalTypes ::
             Tagged (SignalValueParams skv) SignalTypeInfo)
     in Member SignalMember
         name
         tyVoid
-        (signalParamTypes crude)
+        (paramNames pnames `zip` signalParamTypes crude)
         (\_ _ -> return ())
         Nothing
         (Just $ signalKey key)
@@ -376,13 +386,15 @@ instance (SignalSuffix p) => SignalKeyValue (SignalKey p) where
     signalKey (SignalKey u) = DataKey u
 
 -- | Supports marshalling an arbitrary number of arguments into a QML signal.
-class SignalSuffix ss where
+class (AnonParams (SignalParamNames ss)) => SignalSuffix ss where
+    type SignalParamNames ss
     mkSignalArgs  :: forall usr.
         ((usr -> IO ()) -> IO ()) -> ([Ptr ()] -> usr -> IO ()) -> ss
     mkSignalTypes :: Tagged ss SignalTypeInfo
 
 instance (Marshal a, CanPassTo a ~ Yes, SignalSuffix b) =>
     SignalSuffix (a -> b) where
+    type SignalParamNames (a -> b) = String -> SignalParamNames b
     mkSignalArgs start cont param =
         mkSignalArgs start (\ps usr ->
             mWithCVal param (\ptr ->
@@ -394,6 +406,7 @@ instance (Marshal a, CanPassTo a ~ Yes, SignalSuffix b) =>
         in Tagged $ SignalTypeInfo (typ:p)
 
 instance SignalSuffix (IO ()) where
+    type SignalParamNames (IO ()) = ()
     mkSignalArgs start cont =
         start $ cont []
     mkSignalTypes =

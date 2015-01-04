@@ -69,7 +69,7 @@ data Member tt = Member {
     memberKind   :: MemberKind,
     memberName   :: String,
     memberType   :: TypeId,
-    memberParams :: [TypeId],
+    memberParams :: [(String, TypeId)],
     memberFun    :: UniformFunc,
     memberFunAux :: Maybe UniformFunc,
     memberKey    :: Maybe MemberKey
@@ -173,7 +173,7 @@ writeMethodParams m = do
       put $ state {
         mParamMap = mpMap'}
       mapM_ (writeInt . typeId) types
-      replicateM_ (length $ memberParams m) $ writeString ""
+      mapM_ (writeString . fst) $ memberParams m
 
 writeMethod :: Member tt -> State MOCState ()
 writeMethod m = do
@@ -223,7 +223,7 @@ writePropertySig p = do
     memberKey p
 
 memberTypes :: Member tt -> [TypeId]
-memberTypes m = memberType m : memberParams m
+memberTypes m = memberType m : (map snd $ memberParams m)
 
 typeId :: TypeId -> CUInt
 typeId (TypeId tyid) = fromIntegral tyid
