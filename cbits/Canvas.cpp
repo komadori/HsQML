@@ -397,8 +397,8 @@ QSGNode* HsQMLCanvas::updatePaintNode(
         if (!n) {
             n = new QSGSimpleTextureNode();
         }
-        n->setRect(0, 0, width(), height());
         n->setTexture(texture);
+        n->setRect(0, 0, width(), height());
         return n;
     }
 
