@@ -7,9 +7,9 @@
 {-| Facility for drawing OpenGL graphics into the QML scenegraph.
 
 To use this facility, you must place a @HaskellCanvas@ item into your
-QML scene. This item can be imported from the @HsQML.Canvas 1.0@ namespace
-using the @import@ statement in your QML script. It has several properties
-which can be set from QML:
+QML scene. This item can be imported from the @HsQML.Canvas 1.0@ module using
+an @import@ statement in your QML script. It has several properties which can
+be set from QML:
 
 [@displayMode@] Specifies how the canvas is rendered with respect to the
 rest of the scene. Possible values are:
@@ -30,6 +30,30 @@ functions used to render the canvas.
 [@model@] A value passed to delegate's paint function. The canvas is
 repainted whenever this value changes.
 [@status@] Either @HaskellCanvas.Okay@ or an error code (read only).
+
+The @HsQML.Canvas 1.0@ module also contains another type of item called
+@OpenGLConextControl@ which can be used to configure the OpenGL context used by
+your windows. When placed inside a QML window, it has several properties which
+when read return the current state of that window's OpenGL context, and when
+written to cause the window's context to be reconfigured with a request for the
+supplied setting. Note that as reconfiguring the context may cause a visible
+window to dis- and re-appear, it's recommended to supply the desired settings
+at startup or otherwise before the corresponding window is made visible.
+Available properties are as below:
+
+[@majorVersion@] Major component of the OpenGL version.
+[@minorVersion@] Minor component of the OpenGL version.
+[@contextType@] The type of OpenGL context. One of:
+@OpenGLContextControl.UnknownType@, @OpenGLContextControl.OpenGL@, or
+@OpenGLContextControl.OpenGLES@.
+[@contextProfile@] The OpenGL context's profile. One of:
+@OpenGLContextControl.NoProfile@, @OpenGLContextControl.CoreProfile@, or
+@OpenGLContextControl.CompatibilityProfile@.
+[@deprecatedFunctions@] True if deprecated functions are available.
+[@depthBufferSize@] Depth buffer size in bits.
+[@stencilBufferSize@] Stencil buffer size in bits.
+[@when@] Any changes to the OpenGL context while this property is set to false
+will be deferred until it is true again. The default value is true.
 -}
 module Graphics.QML.Canvas (
     OpenGLDelegate,
