@@ -217,6 +217,12 @@ class HsQMLContextControl : public QQuickItem
     Q_PROPERTY(bool deprecatedFunctions READ deprecatedFunctions
         WRITE setDeprecatedFunctions
         RESET unsetDeprecatedFunctions NOTIFY contextChanged);
+    Q_PROPERTY(int depthBufferSize READ depthBufferSize
+        WRITE setDepthBufferSize
+        RESET unsetDepthBufferSize NOTIFY contextChanged);
+    Q_PROPERTY(int stencilBufferSize READ stencilBufferSize
+        WRITE setStencilBufferSize
+        RESET unsetStencilBufferSize NOTIFY contextChanged);
     Q_PROPERTY(bool when READ when WRITE setWhen);
 
 public:
@@ -252,6 +258,12 @@ public:
     bool deprecatedFunctions();
     void setDeprecatedFunctions(bool, bool = true);
     void unsetDeprecatedFunctions();
+    int depthBufferSize();
+    void setDepthBufferSize(int);
+    void unsetDepthBufferSize();
+    int stencilBufferSize();
+    void setStencilBufferSize(int);
+    void unsetStencilBufferSize();
     bool when();
     void setWhen(bool);
 
@@ -272,6 +284,8 @@ private:
     ContextProfile mContextProfile;
     bool mDeprecatedFunctions;
     bool mDeprecatedFunctionsSet;
+    int mDepthBufferSize;
+    int mStencilBufferSize;
     bool mWhen;
     bool mDefer;
     bool mPending;

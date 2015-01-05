@@ -550,6 +550,8 @@ HsQMLContextControl::HsQMLContextControl(QQuickItem* parent)
     , mContextProfile(ProfileUnset)
     , mDeprecatedFunctions(false)
     , mDeprecatedFunctionsSet(false)
+    , mDepthBufferSize(0)
+    , mStencilBufferSize(0)
     , mWhen(true)
     , mDefer(false)
     , mPending(false)
@@ -660,6 +662,44 @@ void HsQMLContextControl::unsetDeprecatedFunctions()
     setDeprecatedFunctions(false, false);
 }
 
+int HsQMLContextControl::depthBufferSize()
+{
+    return mCurrent.depthBufferSize();
+}
+
+void HsQMLContextControl::setDepthBufferSize(int size)
+{
+    bool change = mDepthBufferSize != size;
+    mDepthBufferSize = size;
+    if (change) {
+        controlContext();
+    }
+}
+
+void HsQMLContextControl::unsetDepthBufferSize()
+{
+    setDepthBufferSize(0);
+}
+
+int HsQMLContextControl::stencilBufferSize()
+{
+    return mCurrent.stencilBufferSize();
+}
+
+void HsQMLContextControl::setStencilBufferSize(int size)
+{
+    bool change = mStencilBufferSize != size;
+    mStencilBufferSize = size;
+    if (change) {
+        controlContext();
+    }
+}
+
+void HsQMLContextControl::unsetStencilBufferSize()
+{
+    setStencilBufferSize(0);
+}
+
 bool HsQMLContextControl::when()
 {
     return mWhen;
@@ -758,6 +798,8 @@ void HsQMLContextControl::controlContext()
         }
 #endif
     }
+    fmt.setDepthBufferSize(qMax(fmt.depthBufferSize(), mDepthBufferSize));
+    fmt.setStencilBufferSize(qMax(fmt.stencilBufferSize(), mStencilBufferSize));
     if (fmt == mWindow->requestedFormat()) {
         return;
     }
