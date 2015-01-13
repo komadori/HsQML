@@ -7,6 +7,7 @@ import Data.Char
 import Data.List
 import Data.Maybe
 import Distribution.Simple
+import Distribution.Simple.Compiler
 import Distribution.Simple.BuildPaths
 import Distribution.Simple.LocalBuildInfo
 import Distribution.Simple.Program
@@ -22,38 +23,54 @@ import Distribution.PackageDescription
 import Language.Haskell.TH
 import System.FilePath
 
--- Use Template Haskell to support both the pre- and post-1.18 Cabal API
+-- Use Template Haskell to support different versions of the Cabal API
 $(let
-    newCabalAPI = cabalVersion >= Version [1,17,0] []
+    post118CabalAPI = cabalVersion >= Version [1,17,0] []
+    post122CabalAPI = cabalVersion >= Version [1,21,0] []
     vnameE = VarE . mkName
     vnameP = VarP . mkName
     cnameE = ConE . mkName
     app2E f x y = AppE (AppE f x) y
     app3E f x y z = AppE (app2E f x y) z
+    app4E f x y z u = AppE (app3E f x y z) u
+    app5E f x y z u v = AppE (app4E f x y z u) v
     nothingE = cnameE "Nothing"
     falseE = cnameE "False"
     -- 'LocalBuildInfo' record changed fields in Cabal 1.18
-    extractCLBI = if newCabalAPI
+    extractCLBI = if post118CabalAPI
         then app2E (vnameE "getComponentLocalBuildInfo")
             (vnameE "x") (cnameE "CLibName")
         else AppE (vnameE "fromJust") $ AppE (vnameE "libraryConfig")
             (vnameE "x")
     -- 'programFindLocation' field changed signature in Cabal 1.18
-    adaptFindLoc = if newCabalAPI
+    adaptFindLoc = if post118CabalAPI
         then LamE [vnameP "f", vnameP "x", WildP] $
             AppE (vnameE "f") (vnameE "x")
         else vnameE "id"
     -- 'rawSystemStdInOut' function changed signature in Cabal 1.18
-    rawSystemStdErr = if newCabalAPI
-        then AppE (app3E (app3E (vnameE "rawSystemStdInOut")
+    rawSystemStdErr = if post118CabalAPI
+        then app4E (app3E (vnameE "rawSystemStdInOut")
             (vnameE "v") (vnameE "p") (vnameE "a"))
-            nothingE nothingE nothingE) falseE 
-        else app2E (app3E (vnameE "rawSystemStdInOut")
-            (vnameE "v") (vnameE "p") (vnameE "a")) nothingE falseE
+            nothingE nothingE nothingE falseE 
+        else app5E (vnameE "rawSystemStdInOut")
+            (vnameE "v") (vnameE "p") (vnameE "a") nothingE falseE
     -- 'programPostConf' field changed signature in Cabal 1.18
-    noPostConf = if newCabalAPI
+    noPostConf = if post118CabalAPI
         then LamE [WildP, vnameP "c"] $ AppE (vnameE "return") (vnameE "c")
         else LamE [WildP, WildP] $ AppE (vnameE "return") (cnameE "[]")
+    -- 'generateRegistrationInfo' function changed signature in Cabal 1.22
+    genRegInfo = if post122CabalAPI
+        then LamE [vnameP "pdb"] $ app2E (vnameE ">>=")
+                (AppE (vnameE "absolutePackageDBPaths") (vnameE "pdb")) $
+            LamE [vnameP "apdb"] $
+            app5E (app4E (vnameE "generateRegistrationInfo")
+                (vnameE "verb") (vnameE "pkg") (vnameE "lib") (vnameE "lbi"))
+                (vnameE "clbi") (vnameE "inp")
+                (AppE (vnameE "relocatable") (vnameE "lbi")) (vnameE "dir")
+                (AppE (vnameE "registrationPackageDB") (vnameE "apdb"))
+        else LamE [WildP] $ app3E (app4E (vnameE "generateRegistrationInfo")
+            (vnameE "verb") (vnameE "pkg") (vnameE "lib") (vnameE "lbi"))
+            (vnameE "clbi") (vnameE "inp") (vnameE "dir")
     in return [
         FunD (mkName "extractCLBI") [
             Clause [vnameP "x"] (NormalB extractCLBI) []],
@@ -63,7 +80,11 @@ $(let
             Clause [vnameP "v", vnameP "p", vnameP "a"] (
                 NormalB rawSystemStdErr) []],
         FunD (mkName "noPostConf") [
-            Clause [] (NormalB noPostConf) []]])
+            Clause [] (NormalB noPostConf) []],
+        FunD (mkName "genRegInfo") [
+            Clause [vnameP "verb", vnameP "pkg", vnameP "lib", vnameP "lbi",
+                vnameP "clbi", vnameP "inp", vnameP "dir"] (
+                    NormalB genRegInfo) []]])
 
 main :: IO ()
 main = defaultMainWithHooks simpleUserHooks {
@@ -237,8 +258,7 @@ regWithQt pkg@PackageDescription { library = Just lib } lbi _ flags = do
       dist    = fromFlag $ regDistPref flags
       pkgDb   = withPackageDB lbi
       clbi    = extractCLBI lbi
-  instPkgInfo <- generateRegistrationInfo
-    verb pkg lib lbi clbi inplace dist
+  instPkgInfo <- genRegInfo verb pkg lib lbi clbi inplace dist pkgDb
   let instPkgInfo' = instPkgInfo {
         -- Add extra library for GHCi workaround
         I.extraGHCiLibraries =

@@ -1,5 +1,6 @@
 #!/usr/bin/runhaskell 
 -- This is an alternate version of Setup.hs which doesn't use Template Haskell.
+-- It's appropriate for Cabal >= 1.18 && < 1.22
 module Main where
 
 import Control.Monad
@@ -31,6 +32,9 @@ adaptFindLoc f x _ = f x
 rawSystemStdErr v p a = rawSystemStdInOut v p a Nothing Nothing Nothing False
 -- 'programPostConf' field changed signature in Cabal 1.18
 noPostConf _ c = return c
+-- 'generateRegistrationInfo' function will change signature in Cabal 1.22
+genRegInfo verb pkg lib lbi clbi inp dir _ =
+    generateRegistrationInfo verb pkg lib lbi clbi inp dir
 
 main :: IO ()
 main = defaultMainWithHooks simpleUserHooks {
@@ -204,8 +208,7 @@ regWithQt pkg@PackageDescription { library = Just lib } lbi _ flags = do
       dist    = fromFlag $ regDistPref flags
       pkgDb   = withPackageDB lbi
       clbi    = extractCLBI lbi
-  instPkgInfo <- generateRegistrationInfo
-    verb pkg lib lbi clbi inplace dist
+  instPkgInfo <- genRegInfo verb pkg lib lbi clbi inplace dist pkgDb
   let instPkgInfo' = instPkgInfo {
         -- Add extra library for GHCi workaround
         I.extraGHCiLibraries =
