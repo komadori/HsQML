@@ -28,8 +28,8 @@ instance (Typeable tt) => Marshal (ObjRef tt) where
             mToCVal (AnyObjRef hndl) ptr,
         mWithCVal_ = \(ObjRef hndl) f ->
             mWithCVal (AnyObjRef hndl) f,
-        mFromJVal_ = \ptr -> do
-            anyObj <- mFromJVal ptr
+        mFromJVal_ = \_ ptr -> do
+            anyObj <- mFromJVal Weak ptr
             MaybeT $ fromAnyObjRefIO anyObj,
         mWithJVal_ = \(ObjRef hndl) f ->
             mWithJVal (AnyObjRef hndl) f,
@@ -53,7 +53,7 @@ instance Marshal AnyObjRef where
         mFromCVal_ = jvalFromCVal,
         mToCVal_ = jvalToCVal,
         mWithCVal_ = jvalWithCVal,
-        mFromJVal_ = \ptr -> MaybeT $ do
+        mFromJVal_ = \_ ptr -> MaybeT $ do
             hndl <- hsqmlGetObjectFromJval ptr
             return $ if isNullObjectHandle hndl
                 then Nothing else Just $ AnyObjRef hndl,

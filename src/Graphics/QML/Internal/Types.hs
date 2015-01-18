@@ -18,3 +18,5 @@ data ClassInfo = ClassInfo {
     cinfoObjType :: TypeRep,
     cinfoSignals :: Map MemberKey Int
 }
+
+data Strength = Strong | Weak

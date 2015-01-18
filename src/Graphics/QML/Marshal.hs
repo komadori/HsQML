@@ -69,8 +69,8 @@ instance Marshal Bool where
         mFromCVal_ = jvalFromCVal,
         mToCVal_ = jvalToCVal,
         mWithCVal_ = jvalWithCVal,
-        mFromJVal_ = \ptr ->
-            MaybeT $ fromJVal hsqmlIsJvalBool hsqmlGetJvalBool ptr,
+        mFromJVal_ = \s ptr ->
+            MaybeT $ fromJVal s hsqmlIsJvalBool hsqmlGetJvalBool ptr,
         mWithJVal_ = \bool f ->
             withJVal hsqmlInitJvalBool bool f,
         mFromHndl_ = unimplFromHndl,
@@ -91,8 +91,8 @@ instance Marshal Int32 where
         mWithCVal_ = \int f ->
             alloca $ \(ptr :: Ptr CInt) ->
                 mToCVal int (castPtr ptr) >> f (castPtr ptr),
-        mFromJVal_ = \ptr ->
-            MaybeT $ fromJVal hsqmlIsJvalNumber (
+        mFromJVal_ = \s ptr ->
+            MaybeT $ fromJVal s hsqmlIsJvalNumber (
                 fmap fromIntegral . hsqmlGetJvalInt) ptr,
         mWithJVal_ = \int f ->
             withJVal hsqmlInitJvalInt (fromIntegral int) f,
@@ -106,7 +106,7 @@ instance Marshal Int where
         mFromCVal_ = fmap (fromIntegral :: Int32 -> Int) . mFromCVal,
         mToCVal_ = \int ptr -> mToCVal (fromIntegral int :: Int32) ptr,
         mWithCVal_ = \int f -> mWithCVal (fromIntegral int :: Int32) f,
-        mFromJVal_ = fmap (fromIntegral :: Int32 -> Int) . mFromJVal,
+        mFromJVal_ = \s -> fmap (fromIntegral :: Int32 -> Int) . mFromJVal s,
         mWithJVal_ = \int f -> mWithJVal (fromIntegral int :: Int32) f,
         mFromHndl_ = unimplFromHndl,
         mToHndl_ = unimplToHndl}
@@ -126,8 +126,8 @@ instance Marshal Double where
         mWithCVal_ = \num f ->
             alloca $ \(ptr :: Ptr CDouble) ->
                 mToCVal num (castPtr ptr) >> f (castPtr ptr),
-        mFromJVal_ = \ptr ->
-            MaybeT $ fromJVal hsqmlIsJvalNumber (
+        mFromJVal_ = \s ptr ->
+            MaybeT $ fromJVal s hsqmlIsJvalNumber (
                 fmap realToFrac . hsqmlGetJvalDouble) ptr,
         mWithJVal_ = \num f ->
             withJVal hsqmlInitJvalDouble (realToFrac num) f,
@@ -157,9 +157,9 @@ instance Marshal Text where
             withStrHndl $ \(HsQMLStringHandle ptr) -> do
                 mToCVal txt $ castPtr ptr
                 f $ castPtr ptr,
-        mFromJVal_ = \jval ->
+        mFromJVal_ = \s jval ->
             MaybeT $ withStrHndl $ \sHndl -> runMaybeT $ do
-                MaybeT $ fromJVal hsqmlIsJvalString (
+                MaybeT $ fromJVal s hsqmlIsJvalString (
                     flip hsqmlGetJvalString sHndl) jval
                 let (HsQMLStringHandle ptr) = sHndl
                 mFromCVal $ castPtr ptr,
@@ -184,7 +184,7 @@ instance (Marshal a) => Marshal (Maybe a) where
         mFromCVal_ = jvalFromCVal,
         mToCVal_ = jvalToCVal,
         mWithCVal_ = jvalWithCVal,
-        mFromJVal_ = \jval -> errIO $ runMaybeT $ mFromJVal jval,
+        mFromJVal_ = \_ jval -> errIO $ runMaybeT $ mFromJVal Weak jval,
         mWithJVal_ = \val f ->
             case val of
                 Just val' -> mWithJVal val' f
@@ -207,12 +207,12 @@ instance (Marshal a) => Marshal [a] where
         mFromCVal_ = jvalFromCVal,
         mToCVal_ = jvalToCVal,
         mWithCVal_ = jvalWithCVal,
-        mFromJVal_ = \jval -> MaybeT $ do
+        mFromJVal_ = \s jval -> MaybeT $ do
             len <- hsqmlGetJvalArrayLength jval
             withJVal hsqmlInitJvalNull True $ \tmp ->
                 runMaybeT $ forM [0..len-1] $ \i -> do
                     errIO $ hsqmlJvalArrayGet jval i tmp
-                    mFromJVal tmp,
+                    mFromJVal s tmp,
         mWithJVal_ = \vs f ->
             withJVal hsqmlInitJvalArray (length vs) $ \jval -> do
                 forM_ (zip [0..] vs) $ uncurry $ \i val ->
@@ -237,7 +237,7 @@ instance Marshal Ignored where
         mFromCVal_ = jvalFromCVal,
         mToCVal_ = unimplToCVal,
         mWithCVal_ = unimplWithCVal,
-        mFromJVal_ = \_ -> MaybeT . return $ Just Ignored,
+        mFromJVal_ = \_ _ -> MaybeT . return $ Just Ignored,
         mWithJVal_ = unimplWithJVal,
         mFromHndl_ = unimplFromHndl,
         mToHndl_ = unimplToHndl}
@@ -261,7 +261,7 @@ bidiMarshallerIO fromFn toFn = Marshaller {
     mFromCVal_ = \ptr -> (errIO . fromFn) =<< mFromCVal ptr,
     mToCVal_ = \val ptr -> flip mToCVal ptr =<< toFn val,
     mWithCVal_ = \val f -> flip mWithCVal f =<< toFn val,
-    mFromJVal_ = \ptr -> (errIO . fromFn) =<< mFromJVal ptr,
+    mFromJVal_ = \s ptr -> (errIO . fromFn) =<< mFromJVal s ptr,
     mWithJVal_ = \val f -> flip mWithJVal f =<< toFn val,
     mFromHndl_ = \hndl -> fromFn =<< mFromHndl hndl,
     mToHndl_ = \val -> mToHndl =<< toFn val}
@@ -293,7 +293,7 @@ fromMarshallerIO fromFn = Marshaller {
     mFromCVal_ = \ptr -> (errIO . fromFn) =<< mFromCVal ptr,
     mToCVal_ = unimplToCVal,
     mWithCVal_ = unimplWithCVal,
-    mFromJVal_ = \ptr -> (errIO . fromFn) =<< mFromJVal ptr,
+    mFromJVal_ = \s ptr -> (errIO . fromFn) =<< mFromJVal s ptr,
     mWithJVal_ = unimplWithJVal,
     mFromHndl_ = \hndl -> fromFn =<< mFromHndl hndl,
     mToHndl_ = unimplToHndl}

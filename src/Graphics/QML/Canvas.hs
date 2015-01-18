@@ -77,6 +77,7 @@ module Graphics.QML.Canvas (
 import Graphics.QML.Internal.BindCanvas
 import Graphics.QML.Internal.BindPrim
 import Graphics.QML.Internal.Marshal
+import Graphics.QML.Internal.Types
 import Graphics.QML.Marshal
 
 import Data.IORef
@@ -96,7 +97,7 @@ instance Marshal OpenGLDelegate where
         mFromCVal_ = jvalFromCVal,
         mToCVal_ = jvalToCVal,
         mWithCVal_ = jvalWithCVal,
-        mFromJVal_ = \ptr -> MaybeT $ do
+        mFromJVal_ = \_ ptr -> MaybeT $ do
             hndl <- hsqmlCreateGldelegate
             hsqmlGldelegateFromJval hndl ptr
             return $ Just $ OpenGLDelegate hndl,
@@ -160,7 +161,7 @@ newOpenGLCallbacks setupFn paintFn cleanupFn = do
             iVal <- readIORef iRef
             cleanupFn $ fromJust iVal
         syncCb ptr = do
-             mVal <- runMaybeT $ mFromJVal ptr
+             mVal <- runMaybeT $ mFromJVal Strong ptr
              writeIORef mRef mVal
              return $ if isJust mVal then 1 else 0
         paintCb mPtr w h = do

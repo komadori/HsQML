@@ -41,7 +41,7 @@ type MFromCValFunc t = Ptr () -> ErrIO t
 type MToCValFunc t = t -> Ptr () -> IO ()
 type MWithCValFunc t = (forall b. t -> (Ptr () -> IO b) -> IO b)
 
-type MFromJValFunc t = HsQMLJValHandle -> ErrIO t
+type MFromJValFunc t = Strength -> HsQMLJValHandle -> ErrIO t
 type MWithJValFunc t = (forall b. t -> (HsQMLJValHandle -> IO b) -> IO b)
 
 type MFromHndlFunc t = HsQMLObjectHandle -> IO t
@@ -228,7 +228,7 @@ unimplToHndl :: MToHndlFunc t
 unimplToHndl _ = error "Type does not support mToHndl."
 
 jvalFromCVal :: (Marshal t) => MFromCValFunc t
-jvalFromCVal = mFromJVal . HsQMLJValHandle . castPtr
+jvalFromCVal = mFromJVal Strong . HsQMLJValHandle . castPtr
 
 jvalToCVal :: (Marshal t) => MToCValFunc t
 jvalToCVal val ptr = mWithJVal val $ \jval ->

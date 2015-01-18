@@ -4,6 +4,8 @@
 
 module Graphics.QML.Internal.BindPrim where
 
+import Graphics.QML.Internal.Types
+
 import Foreign.C.Types
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Utils
@@ -139,9 +141,11 @@ hsqmlJValTypeId = unsafeDupablePerformIO $ hsqmlGetJvalTypeid
   `()' #}
 
 fromJVal ::
-    (HsQMLJValHandle -> IO Bool) -> (HsQMLJValHandle -> IO a) ->
+    Strength -> (HsQMLJValHandle -> IO Bool) -> (HsQMLJValHandle -> IO a) ->
     HsQMLJValHandle -> IO (Maybe a)
-fromJVal isFn getFn jval = do
+fromJVal Strong _ getFn jval =
+    fmap Just $ getFn jval
+fromJVal Weak isFn getFn jval = do
     is <- isFn jval
     if is then fmap Just $ getFn jval else return Nothing
 
