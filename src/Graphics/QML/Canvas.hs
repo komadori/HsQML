@@ -99,8 +99,8 @@ instance Marshal OpenGLDelegate where
         mWithCVal_ = jvalWithCVal,
         mFromJVal_ = \_ ptr -> MaybeT $ do
             hndl <- hsqmlCreateGldelegate
-            hsqmlGldelegateFromJval hndl ptr
-            return $ Just $ OpenGLDelegate hndl,
+            fromJVal Weak (hsqmlGldelegateFromJval hndl)
+                (const . return $ OpenGLDelegate hndl) ptr,
         mWithJVal_ = \(OpenGLDelegate hndl) f ->
             withJVal (flip hsqmlGldelegateToJval) hndl f,
         mFromHndl_ = unimplFromHndl,

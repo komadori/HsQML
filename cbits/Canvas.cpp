@@ -44,6 +44,11 @@ void HsQMLGLDelegate::setup(HsQMLGLMakeCallbacksCb makeContextCb)
     mImpl = new HsQMLGLDelegateImpl(makeContextCb);
 }
 
+bool HsQMLGLDelegate::isValid()
+{
+    return mImpl;
+}
+
 HsQMLGLDelegate::CallbacksRef HsQMLGLDelegate::makeCallbacks()
 {
     CallbacksRef dataPtr;
@@ -845,7 +850,7 @@ void hsqml_gldelegate_to_jval(
         gManager->activeEngine()->declEngine()->toScriptValue(*delegate));
 }
 
-void hsqml_gldelegate_from_jval(
+int hsqml_gldelegate_from_jval(
     HsQMLGLDelegateHandle* hndl,
     HsQMLJValHandle* jhndl)
 {
@@ -853,4 +858,5 @@ void hsqml_gldelegate_from_jval(
     QJSValue* value = reinterpret_cast<QJSValue*>(jhndl);
     *delegate = gManager->activeEngine()->declEngine()->
         fromScriptValue<HsQMLGLDelegate>(*value); 
+    return delegate->isValid();
 }

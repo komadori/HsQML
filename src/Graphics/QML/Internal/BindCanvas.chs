@@ -7,6 +7,7 @@ module Graphics.QML.Internal.BindCanvas where
 {#import Graphics.QML.Internal.BindPrim #}
 
 import Foreign.C.Types
+import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Foreign.ForeignPtr.Safe
 import Foreign.Storable
@@ -85,4 +86,4 @@ newGLDelegateHandle p = do
 {#fun unsafe hsqml_gldelegate_from_jval as ^
   {withHsQMLGLDelegateHandle* `HsQMLGLDelegateHandle',
    id `HsQMLJValHandle'} ->
-  `()' #}
+  `Bool' toBool #}

@@ -237,7 +237,7 @@ extern void hsqml_gldelegate_to_jval(
     HsQMLGLDelegateHandle*,
     HsQMLJValHandle*);
 
-extern void hsqml_gldelegate_from_jval(
+extern int hsqml_gldelegate_from_jval(
     HsQMLGLDelegateHandle*,
     HsQMLJValHandle*);
 

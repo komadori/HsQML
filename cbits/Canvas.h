@@ -47,6 +47,7 @@ public:
     HsQMLGLDelegate();
     ~HsQMLGLDelegate();
     void setup(HsQMLGLMakeCallbacksCb);
+    bool isValid();
     typedef QExplicitlySharedDataPointer<HsQMLGLCallbacks> CallbacksRef;
     CallbacksRef makeCallbacks();
 
