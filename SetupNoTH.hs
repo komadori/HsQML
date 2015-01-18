@@ -20,8 +20,12 @@ import Distribution.Verbosity
 import qualified Distribution.InstalledPackageInfo as I
 import qualified Distribution.ModuleName as ModuleName
 import Distribution.PackageDescription
+import System.Environment
 import System.FilePath
 
+-- 'setEnv' function was added in base 4.7.0.0
+setEnvShim :: String -> String -> IO ()
+setEnvShim _ _ = return ()
 -- 'LocalBuildInfo' record changed fields in Cabal 1.18
 extractCLBI :: LocalBuildInfo -> ComponentLocalBuildInfo
 extractCLBI x = getComponentLocalBuildInfo x CLibName
@@ -37,10 +41,17 @@ genRegInfo verb pkg lib lbi clbi inp dir _ =
     generateRegistrationInfo verb pkg lib lbi clbi inp dir
 
 main :: IO ()
-main = defaultMainWithHooks simpleUserHooks {
-  confHook = confWithQt, buildHook = buildWithQt,
-  copyHook = copyWithQt, instHook = instWithQt,
-  regHook = regWithQt}
+main = do
+  -- If system uses qtchooser(1) then encourage it to choose Qt 5
+  env <- getEnvironment
+  case lookup "QT_SELECT" env of
+    Nothing -> setEnvShim "QT_SELECT" "5"
+    _       -> return ()
+  -- Chain standard setup
+  defaultMainWithHooks simpleUserHooks {
+    confHook = confWithQt, buildHook = buildWithQt,
+    copyHook = copyWithQt, instHook = instWithQt,
+    regHook = regWithQt}
 
 getCustomStr :: String -> PackageDescription -> String
 getCustomStr name pkgDesc =

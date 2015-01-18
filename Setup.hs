@@ -21,10 +21,13 @@ import qualified Distribution.InstalledPackageInfo as I
 import qualified Distribution.ModuleName as ModuleName
 import Distribution.PackageDescription
 import Language.Haskell.TH
+import System.Environment
+import qualified System.Info as Info
 import System.FilePath
 
 -- Use Template Haskell to support different versions of the Cabal API
 $(let
+    post4700BaseAPI = Info.compilerVersion >= Version [7,7] []
     post118CabalAPI = cabalVersion >= Version [1,17,0] []
     post122CabalAPI = cabalVersion >= Version [1,21,0] []
     vnameE = VarE . mkName
@@ -36,6 +39,10 @@ $(let
     app5E f x y z u v = AppE (app4E f x y z u) v
     nothingE = cnameE "Nothing"
     falseE = cnameE "False"
+    -- 'setEnv' function was added in base 4.7.0.0
+    setEnvShim = if post4700BaseAPI
+        then vnameE "setEnv"
+        else LamE [WildP, WildP] $ AppE (vnameE "return") (cnameE "()")
     -- 'LocalBuildInfo' record changed fields in Cabal 1.18
     extractCLBI = if post118CabalAPI
         then app2E (vnameE "getComponentLocalBuildInfo")
@@ -72,6 +79,8 @@ $(let
             (vnameE "verb") (vnameE "pkg") (vnameE "lib") (vnameE "lbi"))
             (vnameE "clbi") (vnameE "inp") (vnameE "dir")
     in return [
+        FunD (mkName "setEnvShim") [
+            Clause [] (NormalB setEnvShim) []],
         FunD (mkName "extractCLBI") [
             Clause [vnameP "x"] (NormalB extractCLBI) []],
         FunD (mkName "adaptFindLoc") [
@@ -87,10 +96,17 @@ $(let
                     NormalB genRegInfo) []]])
 
 main :: IO ()
-main = defaultMainWithHooks simpleUserHooks {
-  confHook = confWithQt, buildHook = buildWithQt,
-  copyHook = copyWithQt, instHook = instWithQt,
-  regHook = regWithQt}
+main = do
+  -- If system uses qtchooser(1) then encourage it to choose Qt 5
+  env <- getEnvironment
+  case lookup "QT_SELECT" env of
+    Nothing -> setEnvShim "QT_SELECT" "5"
+    _       -> return ()
+  -- Chain standard setup
+  defaultMainWithHooks simpleUserHooks {
+    confHook = confWithQt, buildHook = buildWithQt,
+    copyHook = copyWithQt, instHook = instWithQt,
+    regHook = regWithQt}
 
 getCustomStr :: String -> PackageDescription -> String
 getCustomStr name pkgDesc =
