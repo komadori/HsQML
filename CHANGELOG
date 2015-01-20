@@ -1,5 +1,17 @@
 HsQML - Release History
 
+release-0.3.3.0 - 2015.01.20
+
+  * Added support for Cabal 1.22 API.
+  * Added facility for controlling the OpenGL context.
+  * Added defSignal variant with ability to set parameter names.
+  * Added option for setting the module and plugin search paths.
+  * Changed Setup script to set QT_SELECT (base >= 4.7).
+  * Fixed crash resizing canvas in Inline mode.
+  * Fixed leaking stable pointers when objects are collected.
+  * Fixed Canvas delegate marshaller to fail on invalid values.
+  * Fixed discrepancy between kinds of type conversion.
+
 release-0.3.2.1 - 2014.11.29
 
   * Added function to shutdown the Qt framework.
