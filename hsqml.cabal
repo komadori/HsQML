@@ -10,7 +10,7 @@ Maintainer:         komadori@gekkou.co.uk
 Stability:          experimental
 Homepage:           http://www.gekkou.co.uk/software/hsqml/
 Bug-reports:        http://trac.gekkou.co.uk/hsqml/
-Category:           Graphics
+Category:           Graphics, GUI
 Synopsis:           Haskell binding for Qt Quick
 Extra-source-files:
     README CHANGELOG SetupNoTH.hs
