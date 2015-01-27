@@ -3,6 +3,7 @@
 
 #include <QtCore/QScopedPointer>
 #include <QtCore/QString>
+#include <QtCore/QStringList>
 #include <QtCore/QUrl>
 #include <QtQml/QQmlEngine>
 #include <QtQml/QQmlContext>
