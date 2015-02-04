@@ -40,6 +40,11 @@ Flag UseExitHook
         Override the OnExitHook symbol to shutdown the Qt framework on exit.
     Default: True
 
+Flag EnableQmlDebugging
+    Description:
+        Allow the QML debug server to be enabled via Qt arguments.
+    Default: True
+
 Library
     Default-language: Haskell2010
     Build-depends:
@@ -87,6 +92,8 @@ Library
         X-force-ghci-lib: True
     if flag(UseExitHook)
         CC-options: -DHSQML_USE_EXIT_HOOK
+    if flag(EnableQmlDebugging)
+        CC-options: -DQT_QML_DEBUG_NO_WARNING
     if os(windows) && !flag(UsePkgConfig)
         Include-dirs: /QT_ROOT/include
         Extra-libraries:

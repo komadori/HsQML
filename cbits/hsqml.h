@@ -8,12 +8,10 @@ extern "C" {
 #include <stddef.h>
 #include <HsFFI.h>
 
-/* Manager */
+/* Init */
 extern void hsqml_init(
     void (*)(HsFunPtr),
     void (*)(HsStablePtr));
-
-extern void hsqml_set_debug_loglevel(int);
 
 /* Event Loop */
 typedef void (*HsQMLTrivialCb)();
@@ -190,6 +188,11 @@ extern void hsqml_finalise_obj_finaliser(
 
 extern void hsqml_object_add_finaliser(
     HsQMLObjectHandle*, HsQMLObjFinaliserHandle*);
+
+/* Global */
+extern int hsqml_set_args(HsQMLStringHandle**);
+
+extern void hsqml_set_debug_loglevel(int);
 
 /* Engine */
 extern void hsqml_create_engine(

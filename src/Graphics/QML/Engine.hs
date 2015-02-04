@@ -24,6 +24,7 @@ module Graphics.QML.Engine (
   RunQML(),
   runEventLoop,
   requireEventLoop,
+  setQtArgs,
   shutdownQt,
   EventLoopException(),
 
@@ -194,6 +195,21 @@ requireEventLoop (RunQML runFn) = do
                 Just ex -> throw ex
                 Nothing -> return ()
     bracket_ reqFn hsqmlEvloopRelease runFn
+
+-- | Sets the program name and command line arguments used by Qt and returns
+-- True if successful. This must be called before the first time the Qt event
+-- loop is entered otherwise it will have no effect and return False. By
+-- default Qt receives no arguments and the program name is set to "HsQML".
+--
+-- Note that unless HsQML was configured with the EnableQmlDebugging flag set
+-- to false, Qt will accept arguments to enable the QML debugging service and
+-- hence you may wish to exercise caution over passing untrusted input through
+-- this interface.
+setQtArgs :: String -> [String] -> IO Bool
+setQtArgs prog args = do
+    hsqmlInit
+    withManyArray0 mWithCVal (map T.pack (prog:args)) nullPtr
+        (hsqmlSetArgs . castPtr)
 
 -- | Shuts down and frees resources used by the Qt framework, preventing
 -- further use of the event loop. The framework is initialised when

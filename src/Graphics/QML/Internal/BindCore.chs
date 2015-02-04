@@ -9,6 +9,7 @@ module Graphics.QML.Internal.BindCore where
 {#import Graphics.QML.Internal.BindObj #}
 
 import Foreign.C.Types
+import Foreign.Marshal.Utils (toBool)
 import Foreign.Ptr
 
 #include <HsFFI.h>
@@ -30,6 +31,10 @@ foreign import ccall "HsFFI.h &hs_free_stable_ptr"
 
 hsqmlInit :: IO ()
 hsqmlInit = hsqmlInit_ hsFreeFunPtr hsFreeStablePtr
+
+{#fun unsafe hsqml_set_args as ^
+  {id `Ptr HsQMLStringHandle'} ->
+  `Bool' toBool #}
 
 type TrivialCb = IO ()
 

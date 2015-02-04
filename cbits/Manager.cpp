@@ -83,6 +83,9 @@ HsQMLManager::HsQMLManager(
     , mYieldCb(NULL)
     , mActiveEngine(NULL)
 {
+    // Set default Qt args
+    setArgs(QStringList("HsQML"));
+
     // Get log level from environment
     const char* env = std::getenv("HSQML_DEBUG_LOG_LEVEL");
     if (env) {
@@ -127,6 +130,28 @@ void HsQMLManager::freeFun(HsFunPtr funPtr)
 void HsQMLManager::freeStable(HsStablePtr stablePtr)
 {
     mFreeStable(stablePtr);
+}
+
+bool HsQMLManager::setArgs(const QStringList& args)
+{
+    if (mApp || mShutdown) {
+        return false;
+    }
+
+    mArgs.clear();
+    mArgs.reserve(args.size());
+    mArgsPtrs.clear();
+    mArgsPtrs.reserve(args.size());
+    Q_FOREACH(const QString& arg, args) {
+        mArgs << arg.toLocal8Bit(); 
+        mArgsPtrs << mArgs.last().data();
+    }
+    return true;
+}
+
+QVector<char*>& HsQMLManager::argsPtrs()
+{
+    return mArgsPtrs;
 }
 
 void HsQMLManager::registerObject(const QObject* obj)
@@ -352,12 +377,11 @@ HsQMLManager::EventLoopStatus HsQMLManager::shutdown()
 }
 
 HsQMLManagerApp::HsQMLManagerApp()
-    : mArgC(1)
-    , mArg0(0)
-    , mArgV(&mArg0)
-    , mHookedHandler(*gManager->mOriginalHandler)
-    , mApp(mArgC, &mArgV)
+    : mHookedHandler(*gManager->mOriginalHandler)
+    , mArgC(gManager->argsPtrs().size())
+    , mApp(mArgC, gManager->argsPtrs().data())
 {
+    gManager->argsPtrs().resize(mArgC);
     mApp.setQuitOnLastWindowClosed(false);
 
     // Install hooked handler for QVariants
@@ -426,6 +450,16 @@ extern "C" void hsqml_init(
             delete manager;
         }
     }
+}
+
+extern "C" int hsqml_set_args(
+    HsQMLStringHandle** args)
+{
+    QStringList argsList;
+    for (QString** p = reinterpret_cast<QString**>(args); *p; p++) {
+        argsList.push_back(**p);
+    }
+    return gManager->setArgs(argsList);
 }
 
 extern "C" HsQMLEventLoopStatus hsqml_evloop_run(

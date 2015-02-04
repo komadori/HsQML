@@ -3,10 +3,13 @@
 
 #include <QtCore/QAtomicPointer>
 #include <QtCore/QAtomicInt>
+#include <QtCore/QByteArray>
 #include <QtCore/QMutex>
 #include <QtCore/QSet>
 #include <QtCore/QString>
+#include <QtCore/QStringList>
 #include <QtCore/QVariant>
+#include <QtCore/QVector>
 #include <QtWidgets/QApplication>
 
 #include "hsqml.h"
@@ -39,6 +42,8 @@ public:
     int updateCounter(CounterId, int);
     void freeFun(HsFunPtr);
     void freeStable(HsStablePtr);
+    bool setArgs(const QStringList&);
+    QVector<char*>& argsPtrs();
     void registerObject(const QObject*);
     void unregisterObject(const QObject*);
     void hookedConstruct(QVariant::Private*, const void*);
@@ -66,6 +71,8 @@ private:
     bool mAtExit;
     void (*mFreeFun)(HsFunPtr);
     void (*mFreeStable)(HsStablePtr);
+    QVector<QByteArray> mArgs;
+    QVector<char*> mArgsPtrs;
     QSet<const QObject*> mObjectSet;
     const QVariant::Handler* mOriginalHandler;
     HsQMLManagerApp* mApp;
@@ -111,10 +118,8 @@ public:
 private:
     Q_DISABLE_COPY(HsQMLManagerApp)
 
-    int mArgC;
-    char mArg0;
-    char* mArgV;
     QVariant::Handler mHookedHandler;
+    int mArgC;
     QApplication mApp;
 };
 
