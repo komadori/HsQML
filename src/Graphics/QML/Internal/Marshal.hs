@@ -10,6 +10,7 @@ import Graphics.QML.Internal.Types
 import Graphics.QML.Internal.BindPrim
 import Graphics.QML.Internal.BindObj
 
+import Control.Exception (SomeException(SomeException), catch)
 import Control.Monad.Trans.Maybe
 import Data.Maybe
 import Data.Tagged
@@ -20,7 +21,7 @@ type ErrIO a = MaybeT IO a
 
 runErrIO :: ErrIO a -> IO ()
 runErrIO m = do
-  r <- runMaybeT m
+  r <- catch (runMaybeT m) $ \(SomeException _) -> return Nothing
   if isNothing r
   then hPutStrLn stderr "Warning: Marshalling error."
   else return ()
