@@ -95,6 +95,7 @@ void HsQMLEngine::componentStatus(QQmlComponent::Status status)
         }
         deleteLater();
         break;}
+    default: break;
     }
 }
 

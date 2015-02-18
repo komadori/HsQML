@@ -423,6 +423,7 @@ void HsQMLManagerApp::customEvent(QEvent* ev)
     case HsQMLManagerApp::RemoveGCLockEvent: {
         static_cast<HsQMLObjectEvent*>(ev)->process();
         break;}
+    default: break;
     }
 }
 
