@@ -80,12 +80,14 @@ Library
         cbits/Engine.cpp
         cbits/Intrinsics.cpp
         cbits/Manager.cpp
+        cbits/Model.cpp
         cbits/Object.cpp
     Include-dirs: cbits
     X-moc-headers:
         cbits/Canvas.h
         cbits/Engine.h
         cbits/Manager.h
+        cbits/Model.h
     X-separate-cbits: True
     Build-tools: c2hs
     if flag(ForceGHCiLib)

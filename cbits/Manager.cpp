@@ -10,6 +10,7 @@
 
 #include "Canvas.h"
 #include "Manager.h"
+#include "Model.h"
 #include "Object.h"
 
 // Declarations for part of Qt's internal API
@@ -394,6 +395,8 @@ HsQMLManagerApp::HsQMLManagerApp()
     qmlRegisterType<HsQMLCanvas>("HsQML.Canvas", 1, 0, "HaskellCanvas");
     qmlRegisterType<HsQMLContextControl>(
         "HsQML.Canvas", 1, 0, "OpenGLContextControl");
+    qmlRegisterType<HsQMLAutoListModel>(
+        "HsQML.Model", 1, 0, "AutoListModel");
 }
 
 HsQMLManagerApp::~HsQMLManagerApp()
