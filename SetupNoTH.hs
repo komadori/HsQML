@@ -63,6 +63,12 @@ getCustomFlag :: String -> PackageDescription -> Bool
 getCustomFlag name pkgDesc =
   fromMaybe False . simpleParse $ getCustomStr name pkgDesc
 
+xForceGHCiLib, xMocHeaders, xFrameworkDirs, xSeparateCbits :: String
+xForceGHCiLib  = "x-force-ghci-lib"
+xMocHeaders    = "x-moc-headers"
+xFrameworkDirs = "x-framework-dirs"
+xSeparateCbits = "x-separate-cbits"
+
 confWithQt :: (GenericPackageDescription, HookedBuildInfo) -> ConfigFlags ->
   IO LocalBuildInfo
 confWithQt (gpd,hbi) flags = do
@@ -79,9 +85,9 @@ confWithQt (gpd,hbi) flags = do
   -- Find Qt moc program and store in database
   (_,_,db') <- requireProgramVersion verb
     mocProgram qtVersionRange (withPrograms lbi)
-  -- Force enable GHCi workaround library if flag set and not using shared libs 
+  -- Force enable GHCi workaround library if flag set and not using shared libs
   let forceGHCiLib =
-        (getCustomFlag "x-force-ghci-lib" $ localPkgDescr lbi) &&
+        (getCustomFlag xForceGHCiLib $ localPkgDescr lbi) &&
         (not $ withSharedLib lbi)
   -- Update LocalBuildInfo
   return lbi {withPrograms = db',
@@ -129,21 +135,25 @@ buildWithQt pkgDesc lbi hooks flags = do
 fixQtBuild :: Verbosity -> LocalBuildInfo -> BuildInfo -> IO BuildInfo
 fixQtBuild verb lbi build = do
   let moc  = fromJust $ lookupProgram mocProgram $ withPrograms lbi
-      incs = words $ fromMaybe "" $ lookup "x-moc-headers" $
-        customFieldsBI build
+      option name = words $ fromMaybe "" $ lookup name $ customFieldsBI build
+      incs = option xMocHeaders
       bDir = buildDir lbi
       cpps = map (\inc ->
         bDir </> (takeDirectory inc) </>
         ("moc_" ++ (takeBaseName inc) ++ ".cpp")) incs
+      args = map ("-I"++) (includeDirs build) ++
+             map ("-F"++) (option xFrameworkDirs)
+  -- Run moc on each of the header files containing QObject subclasses
   mapM_ (\(i,o) -> do
       createDirectoryIfMissingVerbose verb True (takeDirectory o)
-      runProgram verb moc [i,"-o",o]) $ zip incs cpps
+      runProgram verb moc $ [i,"-o",o] ++ args) $ zip incs cpps
+  -- Add the moc generated source files to be compiled
   return build {cSources = cpps ++ cSources build,
                 ccOptions = "-fPIC" : ccOptions build}
 
 needsGHCiFix :: PackageDescription -> LocalBuildInfo -> Bool
 needsGHCiFix pkgDesc lbi =
-  withGHCiLib lbi && getCustomFlag "x-separate-cbits" pkgDesc
+  withGHCiLib lbi && getCustomFlag xSeparateCbits pkgDesc
 
 mkGHCiFixLibPkgId :: PackageDescription -> PackageIdentifier
 mkGHCiFixLibPkgId pkgDesc =
@@ -227,7 +237,7 @@ regWithQt pkg@PackageDescription { library = Just lib } lbi _ flags = do
             I.extraGHCiLibraries instPkgInfo,
         -- Add directories to framework search path
         I.frameworkDirs =
-          words (getCustomStr "x-framework-dirs" pkg) ++
+          words (getCustomStr xFrameworkDirs pkg) ++
             I.frameworkDirs instPkgInfo}
   case flagToMaybe $ regGenPkgConf flags of
     Just regFile -> do
