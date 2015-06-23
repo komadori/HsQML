@@ -6,7 +6,6 @@ HsQMLAutoListModel::HsQMLAutoListModel(QObject* parent)
     : QAbstractListModel(parent)
     , mMode(ByIndex)
     , mEqualityTestValid(false)
-    , mIdentityTestValid(false)
     , mKeyFunctionValid(false)
     , mDefer(false)
     , mPending(false)
@@ -76,18 +75,6 @@ QJSValue HsQMLAutoListModel::equalityTest() const
     return mEqualityTest;
 }
 
-void HsQMLAutoListModel::setIdentityTest(const QJSValue& identityTest)
-{
-    mIdentityTest = identityTest;
-    mIdentityTestValid = identityTest.isCallable();
-    updateModel();
-}
-
-QJSValue HsQMLAutoListModel::identityTest() const
-{
-    return mIdentityTest;
-}
-
 void HsQMLAutoListModel::setKeyFunction(const QJSValue& keyFunction)
 {
     mKeyFunction = keyFunction;
@@ -107,66 +94,80 @@ void HsQMLAutoListModel::updateModel()
         return;
     }
 
-    typedef QMultiHash<QString, Element*> Dict;
-    Dict dict;
-    if (mMode == ByKey) {
-        for (int idx = mModel.size()-1; idx >= 0; --idx) {
-            Element& e = mModel[idx];
-            dict.insert(keyFunction(e.mValue), &e);
-            e.mIndex = idx;
-        }
+    switch (mMode) {
+    case ByIndex:
+        updateModelByIndex(); break;
+    case ByKey:
+        updateModelByKey(); break;
+    }
+}
+
+void HsQMLAutoListModel::updateModelByIndex()
+{
+    int srcLen = mSource.property("length").toInt();
+    int mdlLen = mModel.size();
+
+    // Notify views which elements have changed
+    for (int i=0; i<qMin(srcLen, mdlLen); i++) {
+        handleInequality(mSource.property(i), i);
     }
 
+    // Add or remove elements to/from the end of the list
+    if (srcLen > mdlLen) {
+        beginInsertRows(QModelIndex(), srcLen, mModel.size()-1);
+        for (int i=mdlLen; i<srcLen; i++) {
+            mModel.append(Element(mSource.property(i)));
+        }
+        endInsertRows();
+    }
+    else if (mdlLen > srcLen) {
+        beginRemoveRows(QModelIndex(), srcLen, mModel.size()-1);
+        mModel.erase(mModel.begin()+srcLen, mModel.end());
+        endRemoveRows();
+    }
+}
+
+void HsQMLAutoListModel::updateModelByKey()
+{
+    // Build a map of previous element indices
+    typedef QMultiHash<QString, Element*> Dict;
+    Dict dict;
+    for (int idx = mModel.size()-1; idx >= 0; --idx) {
+        Element& e = mModel[idx];
+        dict.insert(keyFunction(e.mValue), &e);
+        e.mIndex = idx;
+    }
+
+    // Rearrange and insert new elements
     int srcLen = mSource.property("length").toInt();
     for (int i=0; i<srcLen; i++) {
         QJSValue srcVal = mSource.property(i);
-        QString srcKey = mMode == ByKey ? keyFunction(srcVal) : "";
-        if (modeTest(srcVal, srcKey, i, i)) {
-            if (mMode == ByKey) {
-                Element* e = dict.take(srcKey);
-            }
-            handleInequality(srcVal, i);
-        }
-        else if (mMode == ByKey) {
-            Dict::iterator it = dict.find(srcKey);
-            if (it != dict.end()) {
-                const Element& e = **it;
-                Q_ASSERT(e.mIndex > i);
-                dict.erase(it);
+        QString srcKey = keyFunction(srcVal);
+
+        Dict::iterator it = dict.find(srcKey);
+        if (it != dict.end()) {
+            const Element& e = **it;
+            Q_ASSERT(e.mIndex >= i);
+            dict.erase(it);
+            if (e.mIndex > i) {
                 beginMoveRows(QModelIndex(), e.mIndex, e.mIndex,
                     QModelIndex(), i);
                 mModel.move(e.mIndex, i);
                 endMoveRows();
-                handleInequality(srcVal, i);
             }
-            else {
-                beginInsertRows(QModelIndex(), i, i);
-                mModel.insert(i, Element(srcVal));
-                endInsertRows();
-            }
-            for (int j=i; j<mModel.size(); j++) {
-                mModel[j].mIndex = j;
-            }
+            handleInequality(srcVal, i);
         }
         else {
-            bool matched = false;
-            for (int j=i+1; j<mModel.size(); j++) {
-                if (modeTest(srcVal, srcKey, i, j)) {
-                    beginRemoveRows(QModelIndex(), i, j-1);
-                    mModel.erase(mModel.begin()+i, mModel.begin()+j);
-                    endRemoveRows();
-                    handleInequality(srcVal, i);
-                    matched = true;
-                    break;
-                }
-            }
-            if (!matched) {
-                beginInsertRows(QModelIndex(), i, i);
-                mModel.insert(i, Element(srcVal));
-                endInsertRows();
-            }
+            beginInsertRows(QModelIndex(), i, i);
+            mModel.insert(i, Element(srcVal));
+            endInsertRows();
+        }
+        for (int j=i; j<mModel.size(); j++) {
+            mModel[j].mIndex = j;
         }
     }
+
+    // Remove excess elements from the end of the list
     if (mModel.size() > srcLen) {
         beginRemoveRows(QModelIndex(), srcLen, mModel.size()-1);
         mModel.erase(mModel.begin()+srcLen, mModel.end());
@@ -174,25 +175,10 @@ void HsQMLAutoListModel::updateModel()
     }
 }
 
-bool HsQMLAutoListModel::modeTest(
-    const QJSValue& a, const QString& aKey, int aIdx, int bIdx)
-{
-    if (bIdx >= mModel.size()) {
-        return false;
-    }
-    const QJSValue& b = mModel[bIdx].mValue;
-    switch (mMode) {
-    case ByIndex: default: return aIdx == bIdx;
-    case ByEquality: return equalityTest(a, b);
-    case ByIdentity: return identityTest(a, b);
-    case ByKey: return aKey == keyFunction(b);
-    }
-}
-
 void HsQMLAutoListModel::handleInequality(
     const QJSValue& a, int i)
 {
-    if ((mMode != ByEquality) && !equalityTest(a, mModel[i].mValue)) {
+    if (!equalityTest(a, mModel[i].mValue)) {
         mModel[i].mValue = a;
         QModelIndex idx = createIndex(i, 0);
         dataChanged(idx, idx);
@@ -209,19 +195,6 @@ bool HsQMLAutoListModel::equalityTest(const QJSValue& a, const QJSValue& b)
     }
     else {
         return a.equals(b);
-    }
-}
-
-bool HsQMLAutoListModel::identityTest(const QJSValue& a, const QJSValue& b)
-{
-    if (mIdentityTestValid) {
-        QJSValueList args;
-        args.append(a);
-        args.append(b);
-        return mIdentityTest.call(args).toBool();
-    }
-    else {
-        return a.strictlyEquals(b);
     }
 }
 

@@ -13,14 +13,11 @@ class HsQMLAutoListModel : public QAbstractListModel, public QQmlParserStatus
     Q_PROPERTY(Mode mode READ mode WRITE setMode)
     Q_PROPERTY(QJSValue source READ source WRITE setSource)
     Q_PROPERTY(QJSValue equalityTest READ equalityTest WRITE setEqualityTest)
-    Q_PROPERTY(QJSValue identityTest READ identityTest WRITE setIdentityTest)
     Q_PROPERTY(QJSValue keyFunction READ keyFunction WRITE setKeyFunction)
 
 public:
     enum Mode {
         ByIndex,
-        ByEquality,
-        ByIdentity,
         ByKey
     };
 
@@ -38,8 +35,6 @@ public:
     QJSValue source() const;
     void setEqualityTest(const QJSValue&);
     QJSValue equalityTest() const;
-    void setIdentityTest(const QJSValue&);
-    QJSValue identityTest() const;
     void setKeyFunction(const QJSValue&);
     QJSValue keyFunction() const;
 
@@ -51,6 +46,8 @@ private:
     };
 
     void updateModel();
+    void updateModelByIndex();
+    void updateModelByKey();
     bool modeTest(const QJSValue&, const QString&, int, int);
     void handleInequality(const QJSValue&, int);
     bool equalityTest(const QJSValue&, const QJSValue&);
