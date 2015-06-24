@@ -4,7 +4,7 @@
 
 HsQMLAutoListModel::HsQMLAutoListModel(QObject* parent)
     : QAbstractListModel(parent)
-    , mMode(ByIndex)
+    , mMode(ByReset)
     , mEqualityTestValid(false)
     , mKeyFunctionValid(false)
     , mDefer(false)
@@ -95,6 +95,8 @@ void HsQMLAutoListModel::updateModel()
     }
 
     switch (mMode) {
+    case ByReset:
+        updateModelByReset(); break;
     case ByIndex:
         updateModelByIndex(); break;
     case ByKey:
@@ -102,9 +104,22 @@ void HsQMLAutoListModel::updateModel()
     }
 }
 
+void HsQMLAutoListModel::updateModelByReset()
+{
+    int srcLen = sourceLength();
+
+    beginResetModel();
+    mModel.clear();
+    mModel.reserve(srcLen);
+    for (int i=0; i<srcLen; i++) {
+        mModel.append(Element(mSource.property(i)));
+    }
+    endResetModel();
+}
+
 void HsQMLAutoListModel::updateModelByIndex()
 {
-    int srcLen = mSource.property("length").toInt();
+    int srcLen = sourceLength();
     int mdlLen = mModel.size();
 
     // Notify views which elements have changed
@@ -114,6 +129,7 @@ void HsQMLAutoListModel::updateModelByIndex()
 
     // Add or remove elements to/from the end of the list
     if (srcLen > mdlLen) {
+        mModel.reserve(srcLen);
         beginInsertRows(QModelIndex(), srcLen, mModel.size()-1);
         for (int i=mdlLen; i<srcLen; i++) {
             mModel.append(Element(mSource.property(i)));
@@ -139,7 +155,8 @@ void HsQMLAutoListModel::updateModelByKey()
     }
 
     // Rearrange and insert new elements
-    int srcLen = mSource.property("length").toInt();
+    int srcLen = sourceLength();
+    mModel.reserve(srcLen);
     for (int i=0; i<srcLen; i++) {
         QJSValue srcVal = mSource.property(i);
         QString srcKey = keyFunction(srcVal);
@@ -173,6 +190,11 @@ void HsQMLAutoListModel::updateModelByKey()
         mModel.erase(mModel.begin()+srcLen, mModel.end());
         endRemoveRows();
     }
+}
+
+int HsQMLAutoListModel::sourceLength()
+{
+    return mSource.property("length").toInt();
 }
 
 void HsQMLAutoListModel::handleInequality(

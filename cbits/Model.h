@@ -17,6 +17,7 @@ class HsQMLAutoListModel : public QAbstractListModel, public QQmlParserStatus
 
 public:
     enum Mode {
+        ByReset,
         ByIndex,
         ByKey
     };
@@ -46,8 +47,10 @@ private:
     };
 
     void updateModel();
+    void updateModelByReset();
     void updateModelByIndex();
     void updateModelByKey();
+    int sourceLength();
     bool modeTest(const QJSValue&, const QString&, int, int);
     void handleInequality(const QJSValue&, int);
     bool equalityTest(const QJSValue&, const QJSValue&);
