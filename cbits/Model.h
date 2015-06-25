@@ -43,6 +43,7 @@ private:
     struct Element {
         Element(const QJSValue& value) : mValue(value), mIndex(0) {}
         QJSValue mValue;
+        QString mKey;
         int mIndex;
     };
 

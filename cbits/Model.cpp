@@ -145,33 +145,63 @@ void HsQMLAutoListModel::updateModelByIndex()
 
 void HsQMLAutoListModel::updateModelByKey()
 {
-    // Build a map of previous element indices
-    typedef QMultiHash<QString, Element*> Dict;
-    Dict dict;
+    int srcLen = sourceLength();
+
+    // Build a map of element key's highest indices in the new source
+    typedef QHash<QString, int> SrcDict;
+    SrcDict srcDict;
+    for (int i=0; i<srcLen; i++) {
+        QJSValue srcVal = mSource.property(i);
+        srcDict.insert(keyFunction(srcVal), i);
+    }
+
+    // Build a map of element key's previous indices in the old model
+    typedef QMultiHash<QString, Element*> ModelDict;
+    ModelDict modelDict;
     for (int idx = mModel.size()-1; idx >= 0; --idx) {
         Element& e = mModel[idx];
-        dict.insert(keyFunction(e.mValue), &e);
+        e.mKey = keyFunction(e.mValue);
         e.mIndex = idx;
+        modelDict.insert(e.mKey, &e);
     }
 
     // Rearrange and insert new elements
-    int srcLen = sourceLength();
     mModel.reserve(srcLen);
     for (int i=0; i<srcLen; i++) {
         QJSValue srcVal = mSource.property(i);
         QString srcKey = keyFunction(srcVal);
 
-        Dict::iterator it = dict.find(srcKey);
-        if (it != dict.end()) {
-            const Element& e = **it;
+        ModelDict::iterator it = modelDict.find(srcKey);
+        if (it != modelDict.end()) {
+            Element& e = **it;
             Q_ASSERT(e.mIndex >= i);
-            dict.erase(it);
+            modelDict.erase(it);
+
+            // Try removing elements before target if possible
+            while (e.mIndex > i) {
+                const Element& old = mModel[i];
+                SrcDict::iterator srcIt = srcDict.find(old.mKey);
+                if (srcIt != srcDict.end() && i <= srcIt.value()) {
+                    // Old element is still needed by the new source
+                    Q_ASSERT(i != srcIt.value());
+                    break;
+                }
+
+                beginRemoveRows(QModelIndex(), i, i);
+                mModel.removeAt(i);
+                endRemoveRows();
+                e.mIndex--;
+            }
+
+            // Move target element earlier in list if needed
             if (e.mIndex > i) {
                 beginMoveRows(QModelIndex(), e.mIndex, e.mIndex,
                     QModelIndex(), i);
                 mModel.move(e.mIndex, i);
                 endMoveRows();
             }
+
+            // Has value changed?
             handleInequality(srcVal, i);
         }
         else {
@@ -179,6 +209,8 @@ void HsQMLAutoListModel::updateModelByKey()
             mModel.insert(i, Element(srcVal));
             endInsertRows();
         }
+
+        // Renumber remaining old elements
         for (int j=i; j<mModel.size(); j++) {
             mModel[j].mIndex = j;
         }
