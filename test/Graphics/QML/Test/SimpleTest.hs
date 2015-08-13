@@ -152,7 +152,7 @@ instance TestAction SimpleProperties where
     actionRemote (SPSetObject v) n = setProp n "propObjectW" $ S.var v
     mockObjDef = [
         -- There are seperate properties for testing accessors and mutators
-        -- becasue QML produces spurious reads when writing.
+        -- because QML produces spurious reads when writing.
         defPropertyRO "propIntConst"
             (\m -> expectAction m $ \a -> case a of
                 SPGetIntConst v -> return $ Right v
