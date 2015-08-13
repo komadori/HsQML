@@ -2,6 +2,7 @@
 #define HSQML_MODEL_H
 
 #include <QtCore/QAbstractListModel>
+#include <QtCore/QVector>
 #include <QtQml/QJSValue>
 #include <QtQml/QQmlParserStatus>
 
@@ -19,7 +20,8 @@ public:
     enum Mode {
         ByReset,
         ByIndex,
-        ByKey
+        ByKey,
+        ByKeyNoReorder
     };
 
     HsQMLAutoListModel(QObject* = NULL);
@@ -41,19 +43,24 @@ public:
 
 private:
     struct Element {
-        Element(const QJSValue& value) : mValue(value), mIndex(0) {}
+        Element() {}
+        Element(const QJSValue& value) : mValue(value) {}
+        Element(const QJSValue& value, const QString& key)
+            : mValue(value), mKey(key) {}
         QJSValue mValue;
         QString mKey;
-        int mIndex;
     };
+    typedef QVector<Element> Model;
 
     void updateModel();
     void updateModelByReset();
     void updateModelByIndex();
-    void updateModelByKey();
+    void updateModelByKey(bool);
     int sourceLength();
+    int toOldIndex(int) const;
+    int fromOldIndex(int) const;
     bool modeTest(const QJSValue&, const QString&, int, int);
-    void handleInequality(const QJSValue&, int);
+    void handleInequality(const QJSValue&, Model&, int);
     bool equalityTest(const QJSValue&, const QJSValue&);
     bool identityTest(const QJSValue&, const QJSValue&);
     QString keyFunction(const QJSValue&);
@@ -66,10 +73,12 @@ private:
     bool mIdentityTestValid;
     QJSValue mKeyFunction;
     bool mKeyFunctionValid;
-    typedef QList<Element> Model;
-    Model mModel;
+    Model mOldModel;
+    Model mNewModel;
+    int mOldOffset;
     bool mDefer;
     bool mPending;
+    bool mRehash;
 };
 
 #endif //HSQML_MODEL_H

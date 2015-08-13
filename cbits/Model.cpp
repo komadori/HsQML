@@ -7,6 +7,7 @@ HsQMLAutoListModel::HsQMLAutoListModel(QObject* parent)
     , mMode(ByReset)
     , mEqualityTestValid(false)
     , mKeyFunctionValid(false)
+    , mOldOffset(0)
     , mDefer(false)
     , mPending(false)
 {
@@ -27,12 +28,15 @@ void HsQMLAutoListModel::componentComplete()
 
 int HsQMLAutoListModel::rowCount(const QModelIndex&) const
 {
-    return mModel.size();
+    return fromOldIndex(mOldModel.size());
 }
 
 QVariant HsQMLAutoListModel::data(const QModelIndex& index, int) const
 {
-    return mModel[index.row()].mValue.toVariant();
+    int i = index.row();
+    const Element& e =
+        i < mNewModel.size() ? mNewModel[i] : mOldModel[toOldIndex(i)];
+    return e.mValue.toVariant();
 }
 
 QHash<int, QByteArray> HsQMLAutoListModel::roleNames() const
@@ -67,7 +71,6 @@ void HsQMLAutoListModel::setEqualityTest(const QJSValue& equalityTest)
 {
     mEqualityTest = equalityTest;
     mEqualityTestValid = equalityTest.isCallable();
-    updateModel();
 }
 
 QJSValue HsQMLAutoListModel::equalityTest() const
@@ -79,7 +82,7 @@ void HsQMLAutoListModel::setKeyFunction(const QJSValue& keyFunction)
 {
     mKeyFunction = keyFunction;
     mKeyFunctionValid = keyFunction.isCallable();
-    updateModel();
+    mRehash = true;
 }
 
 QJSValue HsQMLAutoListModel::keyFunction() const
@@ -100,7 +103,9 @@ void HsQMLAutoListModel::updateModel()
     case ByIndex:
         updateModelByIndex(); break;
     case ByKey:
-        updateModelByKey(); break;
+        updateModelByKey(true); break;
+    case ByKeyNoReorder:
+        updateModelByKey(false); break;
     }
 }
 
@@ -109,117 +114,161 @@ void HsQMLAutoListModel::updateModelByReset()
     int srcLen = sourceLength();
 
     beginResetModel();
-    mModel.clear();
-    mModel.reserve(srcLen);
+    mOldModel.clear();
+    mOldModel.reserve(srcLen);
     for (int i=0; i<srcLen; i++) {
-        mModel.append(Element(mSource.property(i)));
+        mOldModel.append(Element(mSource.property(i)));
     }
     endResetModel();
+
+    // This mode doesn't maintain the hashes
+    mRehash = true;
 }
 
 void HsQMLAutoListModel::updateModelByIndex()
 {
     int srcLen = sourceLength();
-    int mdlLen = mModel.size();
+    int oldLen = mOldModel.size();
 
     // Notify views which elements have changed
-    for (int i=0; i<qMin(srcLen, mdlLen); i++) {
-        handleInequality(mSource.property(i), i);
+    for (int i=0; i<qMin(srcLen, oldLen); i++) {
+        handleInequality(mSource.property(i), mOldModel, i);
     }
 
     // Add or remove elements to/from the end of the list
-    if (srcLen > mdlLen) {
-        mModel.reserve(srcLen);
-        beginInsertRows(QModelIndex(), srcLen, mModel.size()-1);
-        for (int i=mdlLen; i<srcLen; i++) {
-            mModel.append(Element(mSource.property(i)));
+    if (srcLen > oldLen) {
+        mOldModel.reserve(srcLen);
+        beginInsertRows(QModelIndex(), srcLen, mOldModel.size()-1);
+        for (int i=oldLen; i<srcLen; i++) {
+            mOldModel.append(Element(mSource.property(i)));
         }
         endInsertRows();
     }
-    else if (mdlLen > srcLen) {
-        beginRemoveRows(QModelIndex(), srcLen, mModel.size()-1);
-        mModel.erase(mModel.begin()+srcLen, mModel.end());
+    else if (oldLen > srcLen) {
+        beginRemoveRows(QModelIndex(), srcLen, mOldModel.size()-1);
+        mOldModel.erase(mOldModel.begin()+srcLen, mOldModel.end());
         endRemoveRows();
     }
+
+    // This mode doesn't maintain the hashes
+    mRehash = true;
 }
 
-void HsQMLAutoListModel::updateModelByKey()
+void HsQMLAutoListModel::updateModelByKey(bool reorder)
 {
     int srcLen = sourceLength();
 
     // Build a map of element key's highest indices in the new source
     typedef QHash<QString, int> SrcDict;
     SrcDict srcDict;
-    for (int i=0; i<srcLen; i++) {
-        QJSValue srcVal = mSource.property(i);
-        srcDict.insert(keyFunction(srcVal), i);
+    if (reorder) {
+        for (int i=0; i<srcLen; i++) {
+            QJSValue srcVal = mSource.property(i);
+            srcDict.insert(keyFunction(srcVal), i);
+        }
     }
 
     // Build a map of element key's previous indices in the old model
-    typedef QMultiHash<QString, Element*> ModelDict;
+    typedef QMultiHash<QString, int> ModelDict;
     ModelDict modelDict;
-    for (int idx = mModel.size()-1; idx >= 0; --idx) {
-        Element& e = mModel[idx];
-        e.mKey = keyFunction(e.mValue);
-        e.mIndex = idx;
-        modelDict.insert(e.mKey, &e);
+    for (int idx = mOldModel.size()-1; idx >= 0; --idx) {
+        Element& e = mOldModel[idx];
+        if (mRehash) {
+            e.mKey = keyFunction(e.mValue);
+        }
+        modelDict.insert(e.mKey, idx);
     }
+    mRehash = false;
 
     // Rearrange and insert new elements
-    mModel.reserve(srcLen);
+    Q_ASSERT(!mNewModel.size() && !mOldOffset);
+    mNewModel.reserve(srcLen);
     for (int i=0; i<srcLen; i++) {
         QJSValue srcVal = mSource.property(i);
         QString srcKey = keyFunction(srcVal);
 
         ModelDict::iterator it = modelDict.find(srcKey);
         if (it != modelDict.end()) {
-            Element& e = **it;
-            Q_ASSERT(e.mIndex >= i);
+            const int elemIdx = *it;
+            Q_ASSERT(elemIdx >= mOldOffset);
+            Q_ASSERT(elemIdx < mOldModel.size());
             modelDict.erase(it);
 
-            // Try removing elements before target if possible
-            while (e.mIndex > i) {
-                const Element& old = mModel[i];
-                SrcDict::iterator srcIt = srcDict.find(old.mKey);
-                if (srcIt != srcDict.end() && i <= srcIt.value()) {
-                    // Old element is still needed by the new source
-                    Q_ASSERT(i != srcIt.value());
-                    break;
+            // Try removing elements before target
+            while (elemIdx > mOldOffset) {
+                const Element& nextElem = mOldModel[mOldOffset];
+
+                if (reorder) {
+                    // Check if element will be used later
+                    SrcDict::iterator srcIt = srcDict.find(nextElem.mKey);
+                    if (srcIt != srcDict.end()) {
+                        if (srcIt.value() >= i) {
+                            // Old element is still needed by the new source
+                            break;
+                        }
+                    }
+                }
+                else {
+                    // When not reordering, clean up state for removed elements
+                    // so that they can be reinserted later
+                    modelDict.erase(modelDict.find(nextElem.mKey));
                 }
 
                 beginRemoveRows(QModelIndex(), i, i);
-                mModel.removeAt(i);
+                mOldOffset++;
                 endRemoveRows();
-                e.mIndex--;
             }
 
             // Move target element earlier in list if needed
-            if (e.mIndex > i) {
-                beginMoveRows(QModelIndex(), e.mIndex, e.mIndex,
-                    QModelIndex(), i);
-                mModel.move(e.mIndex, i);
+            if (elemIdx > mOldOffset) {
+                Q_ASSERT(reorder);
+                int srcIdx = fromOldIndex(elemIdx);
+                beginMoveRows(QModelIndex(), srcIdx, srcIdx, QModelIndex(), i);
+                mNewModel.append(mOldModel[elemIdx]);
+                mOldModel.removeAt(elemIdx);
                 endMoveRows();
+
+                // Renumber remaining indices in the old model
+                for (ModelDict::iterator renumIt = modelDict.begin();
+                     renumIt != modelDict.end();) {
+                    ModelDict::iterator currIt = renumIt++;
+                    if (currIt.value() > elemIdx) {
+                        currIt.value()--;
+                    }
+                    else if (currIt.value() == elemIdx ||
+                             currIt.value() <= mOldOffset) {
+                        // Opportunistically clean up removed elements
+                        Q_ASSERT(reorder);
+                        modelDict.erase(currIt);
+                    }
+                }
+            }
+            else {
+                // Transfer element from old to new model
+                mNewModel.append(mOldModel[elemIdx]);
+                mOldOffset++;
             }
 
             // Has value changed?
-            handleInequality(srcVal, i);
+            handleInequality(srcVal, mNewModel, i);
+            Q_ASSERT(mNewModel.size() == i+1);
         }
         else {
             beginInsertRows(QModelIndex(), i, i);
-            mModel.insert(i, Element(srcVal));
+            mNewModel.append(Element(srcVal, srcKey));
             endInsertRows();
-        }
-
-        // Renumber remaining old elements
-        for (int j=i; j<mModel.size(); j++) {
-            mModel[j].mIndex = j;
         }
     }
 
-    // Remove excess elements from the end of the list
-    if (mModel.size() > srcLen) {
-        beginRemoveRows(QModelIndex(), srcLen, mModel.size()-1);
-        mModel.erase(mModel.begin()+srcLen, mModel.end());
+    // Move element to the old model, removing any excess elements from the end
+    bool excess = mOldOffset < mOldModel.size();
+    if (excess) {
+        beginRemoveRows(QModelIndex(), srcLen, rowCount(QModelIndex())-1);
+    }
+    mNewModel.swap(mOldModel);
+    mNewModel.clear();
+    mOldOffset = 0;
+    if (excess) {
         endRemoveRows();
     }
 }
@@ -229,11 +278,21 @@ int HsQMLAutoListModel::sourceLength()
     return mSource.property("length").toInt();
 }
 
-void HsQMLAutoListModel::handleInequality(
-    const QJSValue& a, int i)
+int HsQMLAutoListModel::toOldIndex(int i) const
 {
-    if (!equalityTest(a, mModel[i].mValue)) {
-        mModel[i].mValue = a;
+    return i - mNewModel.size() + mOldOffset;
+}
+
+int HsQMLAutoListModel::fromOldIndex(int i) const
+{
+    return i + mNewModel.size() - mOldOffset;
+}
+
+void HsQMLAutoListModel::handleInequality(
+    const QJSValue& a, Model& model, int i)
+{
+    if (!equalityTest(a, model[i].mValue)) {
+        model[i].mValue = a;
         QModelIndex idx = createIndex(i, 0);
         dataChanged(idx, idx);
     }
