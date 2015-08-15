@@ -7,7 +7,16 @@
 #include "Class.h"
 #include "Manager.h"
 
-static const char* cRefSrcNames[] = {"Hndl", "Weak", "Obj", "Event", "Var"};
+static const char* cRefSrcNames[] = {
+    "Hndl", "Weak", "Eng", "Var", "Obj", "Event"
+};
+
+static bool isStrongRef(HsQMLObjectProxy::RefSrc src)
+{
+    return src == HsQMLObjectProxy::Handle ||
+           src == HsQMLObjectProxy::Engine ||
+           src == HsQMLObjectProxy::Variant;
+}
 
 HsQMLObjectFinaliser::HsQMLObjectFinaliser(HsQMLObjFinaliserCb cb)
     : mFinaliseCb(cb)
@@ -87,7 +96,7 @@ void HsQMLObjectProxy::tryGCLock()
 {
     Q_ASSERT(gManager->isEventThread());
 
-    if (mObject && mHndlCount.loadAcquire() > 0 && !mObject->isGCLocked()) {
+    if (mObject && mStrongCount.loadAcquire() > 0 && !mObject->isGCLocked()) {
         mObject->setGCLock();
 
         HSQML_LOG(5,
@@ -100,7 +109,7 @@ void HsQMLObjectProxy::removeGCLock()
 {
     Q_ASSERT(gManager->isEventThread());
 
-    if (mObject && mHndlCount.loadAcquire() == 0) {
+    if (mObject && mStrongCount.loadAcquire() == 0) {
         if (mObject->isGCLocked()) {
             mObject->clearGCLock();
 
@@ -154,17 +163,17 @@ void HsQMLObjectProxy::ref(RefSrc src)
         count ? "Ref" : "New", mKlass->name(),
         mSerial, cRefSrcNames[src], count+1));
 
-    if (src == Handle || src == Variant) {
-        mHndlCount.fetchAndAddOrdered(1);
+    if (isStrongRef(src)) {
+        mStrongCount.fetchAndAddOrdered(1);
     }
 }
 
 void HsQMLObjectProxy::deref(RefSrc src)
 {
     // Remove JavaScript GC lock when there are no strong handles
-    if (src == Handle || src == Variant) {
-        int hndlCount = mHndlCount.fetchAndAddOrdered(-1);
-        if (hndlCount == 1 && mObject) {
+    if (isStrongRef(src)) {
+        int strongCount = mStrongCount.fetchAndAddOrdered(-1);
+        if (strongCount == 1 && mObject) {
             if (src == Handle) {
                 // Handles can be dereferenced from any thread. The event will
                 // remove the lock if there are still no handles by the time

@@ -44,7 +44,8 @@ private:
     Q_SLOT void componentStatus(QQmlComponent::Status);
     QQmlEngine mEngine;
     QQmlComponent mComponent;
-    QList<QObject*> mObjects;
+    QList<HsQMLObjectProxy*> mGlobals;
+    QList<QObject*> mResources;
     HsQMLTrivialCb mStopCb;
 };
 

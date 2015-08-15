@@ -45,7 +45,7 @@ public:
     void addFinaliser(const HsQMLObjectFinaliser::Ref&);
     void runFinalisers();
     HsQMLEngine* engine() const;
-    enum RefSrc {Handle, WeakHandle, Object, Event, Variant};
+    enum RefSrc {Handle, WeakHandle, Engine, Variant, Object, Event};
     void ref(RefSrc);
     void deref(RefSrc);
 
@@ -57,7 +57,7 @@ private:
     int mSerial;
     HsQMLObject* volatile mObject;
     QAtomicInt mRefCount;
-    QAtomicInt mHndlCount;
+    QAtomicInt mStrongCount;
     QMutex mFinaliseMutex;
     typedef QVarLengthArray<HsQMLObjectFinaliser::Ref, 1> Finalisers;
     Finalisers mFinalisers;

@@ -19,9 +19,10 @@ HsQMLEngine::HsQMLEngine(const HsQMLEngineConfig& config)
 
     // Obtain, re-parent, and set QML global object
     if (config.contextObject) {
-        QObject* ctx = config.contextObject->object(this);
-        mEngine.rootContext()->setContextObject(ctx);
-        mObjects << ctx;
+        HsQMLObjectProxy* ctxProxy = config.contextObject;
+        ctxProxy->ref(HsQMLObjectProxy::Engine);
+        mGlobals << ctxProxy;
+        mEngine.rootContext()->setContextObject(ctxProxy->object(this));
     }
 
     // Engine settings
@@ -40,8 +41,13 @@ HsQMLEngine::~HsQMLEngine()
     mStopCb();
     gManager->freeFun(reinterpret_cast<HsFunPtr>(mStopCb));
 
-    // Delete owned objects
-    qDeleteAll(mObjects);
+    // Release globals
+    Q_FOREACH(HsQMLObjectProxy* proxy, mGlobals) {
+        proxy->deref(HsQMLObjectProxy::Engine);
+    }
+
+    // Delete other owned resources
+    qDeleteAll(mResources);
 }
 
 bool HsQMLEngine::eventFilter(QObject* obj, QEvent* ev)
@@ -62,12 +68,12 @@ void HsQMLEngine::componentStatus(QQmlComponent::Status status)
     switch (status) {
     case QQmlComponent::Ready: {
         QObject* obj = mComponent.create();
-        mObjects << obj;
+        mResources << obj;
         QQuickWindow* win = qobject_cast<QQuickWindow*>(obj);
         QQuickItem* item = qobject_cast<QQuickItem*>(obj);
         if (item) {
             win = new QQuickWindow();
-            mObjects << win;
+            mResources << win;
             item->setParentItem(win->contentItem());
             int width = item->width();
             int height = item->height();
