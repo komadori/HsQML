@@ -9,6 +9,7 @@
 #endif
 
 #include "Canvas.h"
+#include "Class.h"
 #include "Manager.h"
 #include "Model.h"
 #include "Object.h"
@@ -358,6 +359,16 @@ void HsQMLManager::postObjectEvent(HsQMLObjectEvent* ev)
     QCoreApplication::postEvent(mApp, ev);
 }
 
+void HsQMLManager::zombifyClass(HsQMLClass* clazz)
+{
+    if (mApp) {
+        mZombieClasses << clazz;
+    }
+    else {
+        delete clazz;
+    }
+}
+
 HsQMLManager::EventLoopStatus HsQMLManager::shutdown()
 {
     QMutexLocker locker(&mLock);
@@ -400,7 +411,10 @@ HsQMLManagerApp::HsQMLManagerApp()
 }
 
 HsQMLManagerApp::~HsQMLManagerApp()
-{}
+{
+    qDeleteAll(gManager->mZombieClasses);
+    gManager->mZombieClasses.clear();
+}
 
 void HsQMLManagerApp::customEvent(QEvent* ev)
 {

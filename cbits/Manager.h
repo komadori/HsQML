@@ -18,6 +18,7 @@
 #define HSQML_LOG(ll, msg) if (gManager->checkLogLevel(ll)) gManager->log(msg)
 
 class HsQMLManagerApp;
+class HsQMLClass;
 class HsQMLObjectEvent;
 
 class HsQMLManager
@@ -59,6 +60,7 @@ public:
     void setActiveEngine(HsQMLEngine*);
     HsQMLEngine* activeEngine();
     void postObjectEvent(HsQMLObjectEvent*);
+    void zombifyClass(HsQMLClass*);
     EventLoopStatus shutdown();
 
 private:
@@ -74,6 +76,7 @@ private:
     QVector<QByteArray> mArgs;
     QVector<char*> mArgsPtrs;
     QSet<const QObject*> mObjectSet;
+    QVector<HsQMLClass*> mZombieClasses;
     const QVariant::Handler* mOriginalHandler;
     HsQMLManagerApp* mApp;
     QMutex mLock;

@@ -21,6 +21,7 @@ public:
     const HsQMLUniformFunc* methods();
     const HsQMLUniformFunc* properties();
     const QMetaObject* metaObj();
+    void destroy();
     enum RefSrc {Handle, ObjProxy};
     void ref(RefSrc);
     void deref(RefSrc);

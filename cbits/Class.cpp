@@ -63,22 +63,7 @@ HsQMLClass::HsQMLClass(
 }
 
 HsQMLClass::~HsQMLClass()
-{
-    for (int i=0; i<mMethodCount; i++) {
-        gManager->freeFun((HsFunPtr)mMethods[i]);
-    }
-    for (unsigned int i=0; i<2*mPropertyCount; i++) {
-        if (mProperties[i]) {
-            gManager->freeFun((HsFunPtr)mProperties[i]);
-        }
-    }
-    gManager->freeStable(mHsTypeRep);
-    std::free(mMetaData);
-    std::free(mMethods);
-    std::free(mProperties);
-
-    gManager->updateCounter(HsQMLManager::ClassCount, -1);
-}
+{}
 
 const char* HsQMLClass::name()
 {
@@ -133,8 +118,37 @@ void HsQMLClass::deref(RefSrc src)
         count > 1 ? "Deref" : "Delete", name(), cRefSrcNames[src], count));
 
     if (count == 1) {
-        delete this;
+        destroy();
     }
+}
+
+void HsQMLClass::destroy()
+{
+    for (int i=0; i<mMethodCount; i++) {
+        gManager->freeFun((HsFunPtr)mMethods[i]);
+        mMethods[i] = NULL;
+    }
+    for (unsigned int i=0; i<2*mPropertyCount; i++) {
+        if (mProperties[i]) {
+            gManager->freeFun((HsFunPtr)mProperties[i]);
+            mProperties[i] = NULL;
+        }
+    }
+    gManager->freeStable(mHsTypeRep);
+    mHsTypeRep = NULL;
+    std::free(mMetaData);
+    mMetaData = NULL;
+    std::free(mMethods);
+    mMethods = NULL;
+    std::free(mProperties);
+    mProperties = NULL;
+
+    gManager->updateCounter(HsQMLManager::ClassCount, -1);
+
+    // Qt internally retains pointers to QMetaObjects it has encountered
+    // without any mechanism for unregistering them. Hence, classes can't be
+    // deleted prior to shutdown.
+    gManager->zombifyClass(this);
 }
 
 extern "C" int hsqml_get_next_class_id()
