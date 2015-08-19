@@ -23,8 +23,10 @@ module Graphics.QML.Engine (
   -- * Event Loop
   RunQML(),
   runEventLoop,
+  runEventLoopNoArgs,
   requireEventLoop,
   setQtArgs,
+  getQtArgs,
   shutdownQt,
   EventLoopException(),
 
@@ -46,6 +48,7 @@ import Control.Concurrent
 import Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Maybe
 import qualified Data.Text as T
 import Data.List
 import Data.Traversable
@@ -53,6 +56,7 @@ import Data.Typeable
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
+import System.Environment (getProgName, getArgs, withProgName, withArgs)
 import System.FilePath (FilePath, isAbsolute, splitDirectories, pathSeparators)
 
 -- | Holds parameters for configuring a QML runtime engine.
@@ -155,8 +159,25 @@ instance MonadIO RunQML where
 -- can be started again, but only on the same operating system thread as
 -- before. If the event loop fails to start then an 'EventLoopException' will
 -- be thrown.
+--
+-- If the event loop is entered for the first time then the currently set
+-- runtime command line arguments will be passed to Qt. Hence, while calling
+-- back to the supplied function, attempts to read the runtime command line
+-- arguments using the System.Environment module will only return those
+-- arguments not already consumed by Qt (per 'getQtArgs').
 runEventLoop :: RunQML a -> IO a
-runEventLoop (RunQML runFn) = tryRunInBoundThread $ do
+runEventLoop (RunQML runFn) = do
+    prog <- getProgName
+    args <- getArgs
+    setQtArgs prog args
+    runEventLoopNoArgs . RunQML $ do
+        (prog', args') <- getQtArgsIO
+        withProgName prog' $ withArgs args' runFn
+
+-- | Enters the Qt event loop in the same manner as 'runEventLoop', but does
+-- not perform any processing related to command line arguments.
+runEventLoopNoArgs :: RunQML a -> IO a
+runEventLoopNoArgs (RunQML runFn) = tryRunInBoundThread $ do
     hsqmlInit
     finishVar <- newEmptyMVar
     let startCb = void $ forkIO $ do
@@ -200,16 +221,26 @@ requireEventLoop (RunQML runFn) = do
 -- True if successful. This must be called before the first time the Qt event
 -- loop is entered otherwise it will have no effect and return False. By
 -- default Qt receives no arguments and the program name is set to "HsQML".
---
--- Note that unless HsQML was configured with the EnableQmlDebugging flag set
--- to false, Qt will accept arguments to enable the QML debugging service and
--- hence you may wish to exercise caution over passing untrusted input through
--- this interface.
 setQtArgs :: String -> [String] -> IO Bool
 setQtArgs prog args = do
     hsqmlInit
     withManyArray0 mWithCVal (map T.pack (prog:args)) nullPtr
         (hsqmlSetArgs . castPtr)
+
+-- | Gets the program name and any command line arguments remaining from an
+-- earlier call to 'setQtArgs' once Qt has removed any it understands, leaving
+-- only application specific arguments.
+getQtArgs :: RunQML (String, [String])
+getQtArgs = RunQML getQtArgsIO
+
+getQtArgsIO :: IO (String, [String])
+getQtArgsIO = do
+    argc <- hsqmlGetArgsCount
+    withManyArray0 mWithCVal (replicate argc $ T.pack "") nullPtr $ \argv -> do
+        hsqmlGetArgs $ castPtr argv
+        argvs <- peekArray0 nullPtr argv
+        Just (arg0:args) <- runMaybeT $ mapM (fmap T.unpack . mFromCVal) argvs
+        return (arg0, args)
 
 -- | Shuts down and frees resources used by the Qt framework, preventing
 -- further use of the event loop. The framework is initialised when

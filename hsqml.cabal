@@ -43,7 +43,7 @@ Flag UseExitHook
 Flag EnableQmlDebugging
     Description:
         Allow the QML debug server to be enabled via Qt arguments.
-    Default: True
+    Default: False
 
 Library
     Default-language: Haskell2010

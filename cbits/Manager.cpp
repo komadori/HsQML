@@ -480,6 +480,21 @@ extern "C" int hsqml_set_args(
     return gManager->setArgs(argsList);
 }
 
+extern "C" int hsqml_get_args_count()
+{
+    return gManager->argsPtrs().size();
+}
+
+extern "C" void hsqml_get_args(HsQMLStringHandle** args)
+{
+    int argc = gManager->argsPtrs().size();
+    char** argv = gManager->argsPtrs().data();
+    for (int i=0; i<argc; i++) {
+        QString* string = reinterpret_cast<QString*>(args[i]);
+        *string = QString::fromLocal8Bit(argv[i]);
+    }
+}
+
 extern "C" HsQMLEventLoopStatus hsqml_evloop_run(
     HsQMLTrivialCb startCb,
     HsQMLTrivialCb jobsCb,

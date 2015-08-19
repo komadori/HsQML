@@ -36,6 +36,14 @@ hsqmlInit = hsqmlInit_ hsFreeFunPtr hsFreeStablePtr
   {id `Ptr HsQMLStringHandle'} ->
   `Bool' toBool #}
 
+{#fun unsafe hsqml_get_args_count as ^
+  {} ->
+  `Int' fromIntegral #}
+
+{#fun unsafe hsqml_get_args as ^
+  {id `Ptr HsQMLStringHandle'} ->
+  `()' #}
+
 type TrivialCb = IO ()
 
 foreign import ccall "wrapper"  

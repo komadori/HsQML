@@ -192,6 +192,10 @@ extern void hsqml_object_add_finaliser(
 /* Global */
 extern int hsqml_set_args(HsQMLStringHandle**);
 
+extern int hsqml_get_args_count();
+
+extern void hsqml_get_args(HsQMLStringHandle**);
+
 extern void hsqml_set_debug_loglevel(int);
 
 /* Engine */
