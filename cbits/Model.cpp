@@ -208,15 +208,11 @@ void HsQMLAutoListModel::updateModelByKey(bool reorder)
                         }
                     }
                 }
-                else {
-                    // When not reordering, clean up state for removed elements
-                    // so that they can be reinserted later
-                    modelDict.erase(modelDict.find(nextElem.mKey));
-                }
 
                 beginRemoveRows(QModelIndex(), i, i);
                 mOldOffset++;
                 endRemoveRows();
+                modelDict.erase(modelDict.find(nextElem.mKey));
             }
 
             // Move target element earlier in list if needed
@@ -232,14 +228,9 @@ void HsQMLAutoListModel::updateModelByKey(bool reorder)
                 for (ModelDict::iterator renumIt = modelDict.begin();
                      renumIt != modelDict.end();) {
                     ModelDict::iterator currIt = renumIt++;
+                    Q_ASSERT(currIt.value() >= mOldOffset);
                     if (currIt.value() > elemIdx) {
                         currIt.value()--;
-                    }
-                    else if (currIt.value() == elemIdx ||
-                             currIt.value() <= mOldOffset) {
-                        // Opportunistically clean up removed elements
-                        Q_ASSERT(reorder);
-                        modelDict.erase(currIt);
                     }
                 }
             }
