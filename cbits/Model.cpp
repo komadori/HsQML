@@ -144,7 +144,7 @@ void HsQMLAutoListModel::updateModelByIndex()
         HSQML_LOG(3, QString().sprintf(
             "AutoListModel.ByIndex: Inserted %d extra elements at %d.",
             srcLen - oldLen, oldLen));
-        beginInsertRows(QModelIndex(), srcLen, mOldModel.size()-1);
+        beginInsertRows(QModelIndex(), oldLen, srcLen-1);
         for (int i=oldLen; i<srcLen; i++) {
             mOldModel.append(Element(mSource.property(i)));
         }
@@ -154,7 +154,7 @@ void HsQMLAutoListModel::updateModelByIndex()
         HSQML_LOG(3, QString().sprintf(
             "AutoListModel.ByIndex: Removed %d excess elements at %d.",
             oldLen - srcLen, srcLen));
-        beginRemoveRows(QModelIndex(), srcLen, mOldModel.size()-1);
+        beginRemoveRows(QModelIndex(), srcLen, oldLen-1);
         mOldModel.erase(mOldModel.begin()+srcLen, mOldModel.end());
         endRemoveRows();
     }
