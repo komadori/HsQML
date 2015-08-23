@@ -60,6 +60,7 @@ Library
         Graphics.QML.Canvas
         Graphics.QML.Engine
         Graphics.QML.Marshal
+        Graphics.QML.Model
         Graphics.QML.Objects
         Graphics.QML.Objects.ParamNames
         Graphics.QML.Objects.Weak
