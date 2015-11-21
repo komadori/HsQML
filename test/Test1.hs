@@ -8,6 +8,7 @@ import Graphics.QML.Test.DataTest
 import Graphics.QML.Test.SimpleTest
 import Graphics.QML.Test.SignalTest
 import Graphics.QML.Test.MixedTest
+import Graphics.QML.Test.AutoListTest
 import Data.Proxy
 import System.Exit
 
@@ -38,7 +39,8 @@ main = do
         checkProperty 20 $ TestType (Proxy :: Proxy (DataTest [Bool])),
         checkProperty 20 $ TestType (Proxy :: Proxy (DataTest [Int32])),
         checkProperty 20 $ TestType (Proxy :: Proxy (DataTest [Double])),
-        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest [Text]))]
+        checkProperty 20 $ TestType (Proxy :: Proxy (DataTest [Text])),
+        checkProperty 100 $ TestType (Proxy :: Proxy AutoListTest)]
     if and rs
     then exitSuccess
     else exitFailure

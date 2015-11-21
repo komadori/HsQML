@@ -18,6 +18,7 @@ qmlPrelude :: String
 qmlPrelude = unlines [
     "import QtQuick 2.0",
     "import QtQuick.Window 2.0",
+    "import HsQML.Model 1.0",
     "Window {",
     "    id: page; visible: false;",
     "    Component.onCompleted: {",
