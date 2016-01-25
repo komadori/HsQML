@@ -1,7 +1,6 @@
 #ifndef HSQML_ENGINE_H
 #define HSQML_ENGINE_H
 
-#include <QtCore/QScopedPointer>
 #include <QtCore/QString>
 #include <QtCore/QStringList>
 #include <QtCore/QUrl>
