@@ -63,7 +63,7 @@ instance SignalKeyClass ObjectSignal where
 chainSignal :: Int -> [String] -> String -> String -> Prog
 chainSignal n args sig fn = S.makeCont args
     ((S.connect (S.var n `S.dot` sig) S.contVar) `mappend` 
-     (S.eval $ (S.var n) `S.dot` fn `S.call` []))
+     (S.eval $ (S.var n) `S.dot` fn `S.call` [])) `mappend`
     (S.disconnect (S.var n `S.dot` sig) S.callee)
 
 testSignal :: Int -> String -> String -> Expr -> Prog

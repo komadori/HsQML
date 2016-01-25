@@ -122,10 +122,10 @@ connect sig fn = eval $ sig `dot` "connect" `call` [fn]
 disconnect :: Expr -> Expr -> Prog
 disconnect sig fn = eval $ sig `dot` "disconnect" `call` [fn]
 
-makeCont :: [String] -> Prog -> Prog -> Prog
-makeCont args (Prog a1 b1) (Prog a2 b2) =
-    Prog (showString "var cont = function(" . farg . showString ") {\n" . a2)
-        (b2 . showString "};\n" . a1 . b1)
+makeCont :: [String] -> Prog -> Prog
+makeCont args (Prog a b) =
+    Prog (showString "var cont = function(" . farg . showString ") {\n")
+        (showString "};\n" . a . b)
     where farg = foldr1 (.) $ (id:) $ intersperse (showChar ',') $
                      map showString args
 
