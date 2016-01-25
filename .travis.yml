@@ -1,0 +1,59 @@
+language: c
+
+sudo: true
+
+matrix:
+  include:
+    - env: CABALVER=1.16 GHCVER=7.4.2
+      addons: {apt: {packages: [cabal-install-1.16,ghc-7.4.2,qtdeclarative5-dev,qt5-default], sources: [hvr-ghc,ubuntu-sdk-team]}}
+    - env: CABALVER=1.16 GHCVER=7.6.3
+      addons: {apt: {packages: [cabal-install-1.16,ghc-7.6.3,qtdeclarative5-dev,qt5-default], sources: [hvr-ghc,ubuntu-sdk-team]}}
+    - env: CABALVER=1.18 GHCVER=7.8.4
+      addons: {apt: {packages: [cabal-install-1.18,ghc-7.8.4,qtdeclarative5-dev,qt5-default], sources: [hvr-ghc,ubuntu-sdk-team]}}
+    - env: CABALVER=1.22 GHCVER=7.10.2
+      addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.2,qtdeclarative5-dev,qt5-default],sources: [hvr-ghc,ubuntu-sdk-team]}}
+    - env: CABALVER=head GHCVER=head
+      addons: {apt: {packages: [cabal-install-head,ghc-head,qtdeclarative5-dev,qt5-default],  sources: [hvr-ghc,ubuntu-sdk-team]}}
+
+  allow_failures:
+    - env: CABALVER=head GHCVER=head
+
+before_install:
+  - travis_retry sudo apt-get update -qq
+  - travis_retry sudo apt-get install -y c2hs qtdeclarative5-qtquick2-plugin qtdeclarative5-window-plugin 
+  - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
+
+install:
+  - cabal --version
+  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
+  - travis_retry cabal update
+  - travis_retry cabal install --only-dependencies --enable-tests --enable-benchmarks
+
+before_script:
+  - "export DISPLAY=:99.0"
+  - "sh -e /etc/init.d/xvfb start"
+  - sleep 3 # give xvfb some time to start
+
+# Here starts the actual work to be performed for the package under
+# test; any command which exits with a non-zero exit code causes the
+# build to fail.
+script:
+  - if [ -f configure.ac ]; then autoreconf -i; fi
+  # -v2 provides useful information for debugging
+  - cabal configure --enable-tests --enable-benchmarks -v2
+
+  # this builds all libraries and executables
+  # (including tests/benchmarks)
+  - cabal build
+
+  - cabal test
+  - cabal check
+
+  # tests that a source-distribution can be generated
+  - cabal sdist
+
+  # check that the generated source-distribution can be built & installed
+  - SRC_TGZ=$(cabal info . | awk '{print $2;exit}').tar.gz &&
+    (cd dist && cabal install --force-reinstalls "$SRC_TGZ")
+
+# EOF
