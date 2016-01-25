@@ -59,7 +59,11 @@ HsQMLAutoListModel::Mode HsQMLAutoListModel::mode() const
 
 void HsQMLAutoListModel::setSource(const QJSValue& source)
 {
+    bool change = !mSource.strictlyEquals(source);
     mSource = source;
+    if (change) {
+        sourceChanged();
+    }
     updateModel();
 }
 

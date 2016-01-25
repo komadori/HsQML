@@ -12,7 +12,7 @@ class HsQMLAutoListModel : public QAbstractListModel, public QQmlParserStatus
     Q_INTERFACES(QQmlParserStatus)
     Q_ENUMS(Mode)
     Q_PROPERTY(Mode mode READ mode WRITE setMode)
-    Q_PROPERTY(QJSValue source READ source WRITE setSource)
+    Q_PROPERTY(QJSValue source READ source WRITE setSource NOTIFY sourceChanged)
     Q_PROPERTY(QJSValue equalityTest READ equalityTest WRITE setEqualityTest)
     Q_PROPERTY(QJSValue keyFunction READ keyFunction WRITE setKeyFunction)
 
@@ -30,6 +30,7 @@ public:
     QVariant data(const QModelIndex&, int) const;
     QHash<int, QByteArray> roleNames() const;
 
+    Q_SIGNAL void sourceChanged();
     void classBegin();
     void componentComplete();
     void setMode(Mode);
