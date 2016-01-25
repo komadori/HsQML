@@ -68,7 +68,10 @@ void HsQMLEngine::componentStatus(QQmlComponent::Status status)
     switch (status) {
     case QQmlComponent::Ready: {
         QObject* obj = mComponent.create();
+        // Freeing the object causes memory corruption prior to Qt 5.2
+#if QT_VERSION >= 0x050200
         mResources << obj;
+#endif
         QQuickWindow* win = qobject_cast<QQuickWindow*>(obj);
         QQuickItem* item = qobject_cast<QQuickItem*>(obj);
         if (item) {
