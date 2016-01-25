@@ -240,7 +240,7 @@ void HsQMLAutoListModel::updateModelByKey(bool reorder)
                     srcIdx, i));
                 beginMoveRows(QModelIndex(), srcIdx, srcIdx, QModelIndex(), i);
                 mNewModel.append(mOldModel[elemIdx]);
-                mOldModel.removeAt(elemIdx);
+                mOldModel.remove(elemIdx);
                 endMoveRows();
 
                 // Renumber remaining indices in the old model
