@@ -14,6 +14,7 @@ import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 import Control.Applicative
 import Data.Monoid
+import Data.Proxy
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Typeable

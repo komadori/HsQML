@@ -51,7 +51,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
 import qualified Data.Text as T
 import Data.List
-import Data.Traversable
+import Data.Traversable (sequenceA)
 import Data.Typeable
 import Foreign.Marshal.Array
 import Foreign.Ptr
