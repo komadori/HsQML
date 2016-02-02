@@ -128,7 +128,7 @@ confWithQt :: (GenericPackageDescription, HookedBuildInfo) -> ConfigFlags ->
   IO LocalBuildInfo
 confWithQt (gpd,hbi) flags = do
   let verb = fromFlag $ configVerbosity flags
-  mocPath <- findProgramLocation verb "moc"
+  mocPath <- findMoc verb
   cppPath <- findProgramLocation verb "cpp"
   let mapLibBI = fmap . mapCondTree . mapBI $ substPaths mocPath cppPath
       gpd' = gpd {
@@ -249,16 +249,19 @@ buildGHCiFix verb pkgDesc lbi lib = do
 mocProgram :: Program
 mocProgram = Program {
   programName = "moc",
-  programFindLocation = adaptFindLoc $
-    \verb -> findProgramLocation verb "moc",
+  programFindLocation = adaptFindLoc findMoc,
   programFindVersion = \verb path -> do
     (oLine,eLine,_) <- rawSystemStdErr verb path ["-v"]
     return $
-      (findSubseq (stripPrefix "(Qt ") eLine `mplus`
-       findSubseq (stripPrefix "moc ") oLine) >>=
+      msum (map (\(p,l) -> findSubseq (stripPrefix p) l)
+        [("(Qt ",eLine), ("moc-qt5 ",oLine), ("moc ",oLine)]) >>=
       simpleParse . takeWhile (\c -> isDigit c || c == '.'),
   programPostConf = noPostConf
 }
+
+findMoc :: Verbosity -> IO (Maybe FilePath)
+findMoc verb =
+    fmap msum $ mapM (findProgramLocation verb) ["moc-qt5", "moc"]
 
 qtVersionRange :: VersionRange
 qtVersionRange = intersectVersionRanges
