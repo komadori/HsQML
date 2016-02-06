@@ -199,12 +199,20 @@ extern void hsqml_get_args(HsQMLStringHandle**);
 extern void hsqml_set_debug_loglevel(int);
 
 /* Engine */
-extern void hsqml_create_engine(
+typedef char HsQMLEngineHandle;
+
+extern HsQMLEngineHandle* hsqml_create_engine(
     HsQMLObjectHandle*,
     HsQMLStringHandle*,
     HsQMLStringHandle**,
     HsQMLStringHandle**,
     HsQMLTrivialCb stopCb);
+
+extern void hsqml_kill_engine(
+    HsQMLEngineHandle*);
+
+extern void hsqml_finalise_engine_handle(
+    HsQMLEngineHandle*);
 
 /* Canvas */
 typedef char HsQMLGLDelegateHandle;

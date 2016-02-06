@@ -10,6 +10,7 @@
 
 #include "Canvas.h"
 #include "Class.h"
+#include "Engine.h"
 #include "Manager.h"
 #include "Model.h"
 #include "Object.h"
@@ -25,9 +26,11 @@ static const char* cCounterNames[] = {
     "ClassCounter",
     "ObjectCounter",
     "QObjectCounter",
+    "EngineCounter",
     "VariantCounter",
     "ClassSerial",
-    "ObjectSerial"
+    "ObjectSerial",
+    "EngineSerial",
 };
 
 // This definition overrides a symbol in the GHC RTS
@@ -336,13 +339,6 @@ void HsQMLManager::notifyJobs()
     }
 }
 
-void HsQMLManager::createEngine(const HsQMLEngineConfig& config)
-{
-    Q_ASSERT (mApp);
-    QMetaObject::invokeMethod(
-        mApp, "createEngine", Q_ARG(HsQMLEngineConfig, config));
-}
-
 void HsQMLManager::setActiveEngine(HsQMLEngine* engine)
 {
     Q_ASSERT(!mActiveEngine || !engine);
@@ -354,7 +350,7 @@ HsQMLEngine* HsQMLManager::activeEngine()
     return mActiveEngine;
 }
 
-void HsQMLManager::postObjectEvent(HsQMLObjectEvent* ev)
+void HsQMLManager::postAppEvent(QEvent* ev)
 {
     QCoreApplication::postEvent(mApp, ev);
 }
@@ -402,7 +398,6 @@ HsQMLManagerApp::HsQMLManagerApp()
     QVariantPrivate::registerHandler(0, &mHookedHandler);
 
     // Register custom types
-    qRegisterMetaType<HsQMLEngineConfig>("HsQMLEngineConfig");
     qmlRegisterType<HsQMLCanvas>("HsQML.Canvas", 1, 0, "HaskellCanvas");
     qmlRegisterType<HsQMLContextControl>(
         "HsQML.Canvas", 1, 0, "OpenGLContextControl");
@@ -437,6 +432,16 @@ void HsQMLManagerApp::customEvent(QEvent* ev)
     case HsQMLManagerApp::RemoveGCLockEvent: {
         static_cast<HsQMLObjectEvent*>(ev)->process();
         break;}
+    case HsQMLManagerApp::CreateEngineEvent: {
+        HsQMLEngineCreateEvent* create =
+            static_cast<HsQMLEngineCreateEvent*>(ev);
+        if (create->proxy()->dead()) {
+            create->stopCb();
+        }
+        else {
+            new HsQMLEngine(create, this);
+        }
+        break;}
     default: break;
     }
 }
@@ -445,12 +450,6 @@ void HsQMLManagerApp::timerEvent(QTimerEvent*)
 {
     Q_ASSERT(gManager->mYieldCb);
     gManager->mYieldCb();
-}
-
-void HsQMLManagerApp::createEngine(HsQMLEngineConfig config)
-{
-    HsQMLEngine* engine = new HsQMLEngine(config);
-    engine->setParent(this);
 }
 
 int HsQMLManagerApp::exec()

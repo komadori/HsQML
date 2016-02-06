@@ -5,6 +5,7 @@
 
 #include "Object.h"
 #include "Class.h"
+#include "Engine.h"
 #include "Manager.h"
 
 static const char* cRefSrcNames[] = {
@@ -178,7 +179,7 @@ void HsQMLObjectProxy::deref(RefSrc src)
                 // Handles can be dereferenced from any thread. The event will
                 // remove the lock if there are still no handles by the time
                 // it reaches the event loop.
-                gManager->postObjectEvent(new HsQMLObjectEvent(this));
+                gManager->postAppEvent(new HsQMLObjectEvent(this));
             }
             else {
                 removeGCLock();

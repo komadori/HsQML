@@ -13,13 +13,12 @@
 #include <QtWidgets/QApplication>
 
 #include "hsqml.h"
-#include "Engine.h"
 
 #define HSQML_LOG(ll, msg) if (gManager->checkLogLevel(ll)) gManager->log(msg)
 
 class HsQMLManagerApp;
 class HsQMLClass;
-class HsQMLObjectEvent;
+class HsQMLEngine;
 
 class HsQMLManager
 {
@@ -29,8 +28,10 @@ public:
         ObjectCount,
         QObjectCount,
         VariantCount,
+        EngineCount,
         ClassSerial,
         ObjectSerial,
+        EngineSerial,
         TotalCounters
     }; 
 
@@ -56,10 +57,9 @@ public:
     EventLoopStatus requireEventLoop();
     void releaseEventLoop();
     void notifyJobs();
-    void createEngine(const HsQMLEngineConfig&);
     void setActiveEngine(HsQMLEngine*);
     HsQMLEngine* activeEngine();
-    void postObjectEvent(HsQMLObjectEvent*);
+    void postAppEvent(QEvent*);
     void zombifyClass(HsQMLClass*);
     EventLoopStatus shutdown();
 
@@ -99,14 +99,14 @@ public:
     virtual ~HsQMLManagerApp();
     virtual void customEvent(QEvent*);
     virtual void timerEvent(QTimerEvent*);
-    Q_SLOT void createEngine(HsQMLEngineConfig);
     int exec();
 
     enum CustomEventIndicies {
         StartedLoopEventIndex,
         StopLoopEventIndex,
         PendingJobsEventIndex,
-        RemoveGCLockEventIndex
+        RemoveGCLockEventIndex,
+        CreateEngineEventIndex,
     };
 
     static const QEvent::Type StartedLoopEvent =
@@ -117,6 +117,8 @@ public:
         static_cast<QEvent::Type>(QEvent::User+PendingJobsEventIndex);
     static const QEvent::Type RemoveGCLockEvent =
         static_cast<QEvent::Type>(QEvent::User+RemoveGCLockEventIndex);
+    static const QEvent::Type CreateEngineEvent =
+        static_cast<QEvent::Type>(QEvent::User+CreateEngineEventIndex);
 
 private:
     Q_DISABLE_COPY(HsQMLManagerApp)

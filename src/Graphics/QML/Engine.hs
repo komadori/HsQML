@@ -19,6 +19,8 @@ module Graphics.QML.Engine (
   runEngineWith,
   runEngineAsync,
   runEngineLoop,
+  joinEngine,
+  killEngine,
 
   -- * Event Loop
   RunQML(),
@@ -82,22 +84,26 @@ defaultEngineConfig = EngineConfig {
 }
 
 -- | Represents a QML engine.
-data Engine = Engine
+data Engine = Engine HsQMLEngineHandle (MVar ())
 
-runEngineImpl :: EngineConfig -> IO () -> IO Engine
-runEngineImpl config stopCb = do
+-- | Starts a new QML engine using the supplied configuration and returns
+-- immediately without blocking.
+runEngineAsync :: EngineConfig -> RunQML Engine
+runEngineAsync config = RunQML $ do
     hsqmlInit
+    finishVar <- newEmptyMVar
     let obj = contextObject config
         DocumentPath res = initialDocument config
         impPaths = importPaths config
         plugPaths = pluginPaths config
-    hndl <- sequenceA $ fmap mToHndl obj
-    mWithCVal (T.pack res) $ \resPtr ->
+        stopCb = putMVar finishVar () 
+    ctxHndl <- sequenceA $ fmap mToHndl obj
+    engHndl <- mWithCVal (T.pack res) $ \resPtr ->
         withManyArray0 mWithCVal (map T.pack impPaths) nullPtr $ \impPtr ->
         withManyArray0 mWithCVal (map T.pack plugPaths) nullPtr $ \plugPtr ->
-            hsqmlCreateEngine hndl (HsQMLStringHandle $ castPtr resPtr)
+            hsqmlCreateEngine ctxHndl (HsQMLStringHandle $ castPtr resPtr)
                 (castPtr impPtr) (castPtr plugPtr) stopCb
-    return Engine
+    return $ Engine engHndl finishVar
 
 withMany :: (a -> (b -> m c) -> m c) -> [a] -> ([b] -> m c) -> m c
 withMany func as cont =
@@ -110,28 +116,28 @@ withManyArray0 :: Storable b =>
 withManyArray0 func as term cont =
     withMany func as $ \ptrs -> withArray0 term ptrs cont
 
--- | Starts a new QML engine using the supplied configuration and blocks until
--- the engine has terminated.
-runEngine :: EngineConfig -> RunQML ()
-runEngine config = runEngineWith config (const $ return ())
+-- | Waits for the specified Engine to terminate.
+joinEngine :: Engine -> IO ()
+joinEngine (Engine _ finishVar) = void $ readMVar finishVar
+
+-- | Kills the specified Engine asynchronously.
+killEngine :: Engine -> IO ()
+killEngine (Engine hndl _) = postJob $ hsqmlKillEngine hndl
 
 -- | Starts a new QML engine using the supplied configuration. The \'with\'
 -- function is executed once the engine has been started and after it returns
 -- this function blocks until the engine has terminated.
 runEngineWith :: EngineConfig -> (Engine -> RunQML a) -> RunQML a
-runEngineWith config with = RunQML $ do
-    finishVar <- newEmptyMVar
-    let stopCb = putMVar finishVar () 
-    eng <- runEngineImpl config stopCb
-    let (RunQML withIO) = with eng
-    ret <- withIO
-    void $ takeMVar finishVar
+runEngineWith config with = do
+    eng <- runEngineAsync config
+    ret <- with eng
+    RunQML $ joinEngine eng
     return ret
 
--- | Starts a new QML engine using the supplied configuration and returns
--- immediately without blocking.
-runEngineAsync :: EngineConfig -> RunQML Engine
-runEngineAsync config = RunQML $ runEngineImpl config (return ())
+-- | Starts a new QML engine using the supplied configuration and blocks until
+-- the engine has terminated.
+runEngine :: EngineConfig -> RunQML ()
+runEngine config = runEngineAsync config >>= (RunQML . joinEngine)
 
 -- | Conveniance function that both runs the event loop and starts a new QML
 -- engine. It blocks keeping the event loop running until the engine has

@@ -3,6 +3,7 @@
 #include <QtQml/QJSValue>
 
 #include "Manager.h"
+#include "Engine.h"
 
 /* String */
 extern "C" size_t hsqml_get_string_size()

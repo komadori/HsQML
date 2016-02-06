@@ -9,6 +9,7 @@ module Graphics.QML.Internal.BindCore where
 {#import Graphics.QML.Internal.BindObj #}
 
 import Foreign.C.Types
+import Foreign.ForeignPtr.Safe
 import Foreign.Marshal.Utils (toBool)
 import Foreign.Ptr
 
@@ -80,12 +81,26 @@ withMaybeTrivialCb Nothing = \cont -> cont nullFunPtr
   {} ->
   `HsQMLEventLoopStatus' cIntToEnum #}
 
+{#pointer *HsQMLEngineHandle as ^ foreign newtype #}
+
+foreign import ccall "hsqml.h &hsqml_finalise_engine_handle"
+  hsqmlFinaliseEngineHandlePtr :: FunPtr (Ptr (HsQMLEngineHandle) -> IO ())
+
+newEngineHandle :: Ptr HsQMLEngineHandle -> IO HsQMLEngineHandle
+newEngineHandle p = do
+  fp <- newForeignPtr hsqmlFinaliseEngineHandlePtr p
+  return $ HsQMLEngineHandle fp
+
 {#fun hsqml_create_engine as ^
   {withMaybeHsQMLObjectHandle* `Maybe HsQMLObjectHandle',
    id `HsQMLStringHandle',
    id `Ptr HsQMLStringHandle',
    id `Ptr HsQMLStringHandle',
    withTrivialCb* `TrivialCb'} ->
+  `HsQMLEngineHandle' newEngineHandle* #}
+
+{#fun hsqml_kill_engine as ^
+  {withHsQMLEngineHandle* `HsQMLEngineHandle'} ->
   `()' #}
 
 {#fun unsafe hsqml_set_debug_loglevel as ^

@@ -1,4 +1,5 @@
 #include "Canvas.h"
+#include "Engine.h"
 #include "Manager.h"
 
 #include <QtCore/qmath.h>
