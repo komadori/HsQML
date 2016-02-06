@@ -1,5 +1,22 @@
 HsQML - Release History
 
+release-0.3.4.0 - 2016.02.06
+
+  * Added AutoListModel component.
+  * Added functions for joining and killing engines.
+  * Added functions to manipulate Qt's command-line arguments.
+  * Added exception handler to callbacks.
+  * Relaxed Cabal dependency constraint on 'filepath', 'tagged', 'transformers',
+    and 'QuickCheck'.
+  * Changed runEngineLoop to pass through command line arguments by default.
+  * Fixed class at same address as deleted class causing inaccessible objects.
+  * Fixed memory corruption bug prior to Qt 5.2 with workaround.
+  * Fixed building with Fedora-style moc executable names (non-qtselect).
+  * Fixed missing strong reference on engine context objects.
+  * Fixed missing include breaking compilation with Qt 5.0.
+  * Fixed switch compiler warnings.
+  * Fixed imports to support older GHCs.
+
 release-0.3.3.0 - 2015.01.20
 
   * Added support for Cabal 1.22 API.
