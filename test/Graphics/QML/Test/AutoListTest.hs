@@ -13,6 +13,7 @@ import qualified Graphics.QML.Test.ScriptDSL as S
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 import Control.Applicative
+import Data.Int
 import Data.Monoid
 import Data.Proxy
 import Data.Text (Text)
@@ -37,7 +38,7 @@ data AutoListTest
     deriving (Eq, Show, Typeable)
 
 data AutoList
-    = SetSource [Int]
+    = SetSource [Int32]
     | SetMode Mode
     deriving (Eq, Show, Typeable)
 
