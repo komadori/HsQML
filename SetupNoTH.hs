@@ -29,6 +29,9 @@ setEnvShim _ _ = return ()
 -- 'LocalBuildInfo' record changed fields in Cabal 1.18
 extractCLBI :: LocalBuildInfo -> ComponentLocalBuildInfo
 extractCLBI x = getComponentLocalBuildInfo x CLibName
+-- 'ComponentLocalBuildInfo' record changed fields in Cabal 1.18
+getCompLibName :: ComponentLocalBuildInfo -> String -> String
+getCompLibName clbi _ = (\(LibraryName n) -> n) (head (componentLibraries clbi))
 -- 'programFindLocation' field changed signature in Cabal 1.18
 adaptFindLoc :: (Verbosity -> a) -> Verbosity -> ProgramSearchPath -> a
 adaptFindLoc f x _ = f x
@@ -173,15 +176,15 @@ mkGHCiFixLibRefName pkgDesc =
 buildGHCiFix ::
   Verbosity -> PackageDescription -> LocalBuildInfo -> Library -> IO ()
 buildGHCiFix verb pkgDesc lbi lib = do
-  let bDir = buildDir lbi
-      ms = map ModuleName.toFilePath $ libModules lib
+  let bDir   = buildDir lbi
+      ms     = map ModuleName.toFilePath $ libModules lib
       hsObjs = map ((bDir </>) . (<.> "o")) ms
+      clbi   = extractCLBI lbi
+      lname  = getCompLibName clbi $ ("HS" ++) $ display $ packageId pkgDesc
   stubObjs <- fmap catMaybes $
     mapM (findFileWithExtension ["o"] [bDir]) $ map (++ "_stub") ms
   (ld,_) <- requireProgram verb ldProgram (withPrograms lbi)
-  combineObjectFiles verb ld
-    (bDir </> (("HS" ++) $ display $ packageId pkgDesc) <.> "o")
-    (stubObjs ++ hsObjs)
+  combineObjectFiles verb ld (bDir </> lname <.> "o") (stubObjs ++ hsObjs)
   (ghc,_) <- requireProgram verb ghcProgram (withPrograms lbi)
   let bi = libBuildInfo lib
   runProgram verb ghc (

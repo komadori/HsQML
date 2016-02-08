@@ -33,6 +33,7 @@ $(let
     vnameE = VarE . mkName
     vnameP = VarP . mkName
     cnameE = ConE . mkName
+    cnameP n = ConP (mkName n)
     app2E f x y = AppE (AppE f x) y
     app3E f x y z = AppE (app2E f x y) z
     app4E f x y z u = AppE (app3E f x y z) u
@@ -49,6 +50,12 @@ $(let
             (vnameE "x") (cnameE "CLibName")
         else AppE (vnameE "fromJust") $ AppE (vnameE "libraryConfig")
             (vnameE "x")
+    -- 'ComponentLocalBuildInfo' record changed fields in Cabal 1.18
+    getCompLibName = if post118CabalAPI
+        then AppE (LamE [cnameP "LibraryName" [vnameP "n"]] (vnameE "n")) $
+            AppE (vnameE "head") $
+            AppE (vnameE "componentLibraries") (vnameE "clbi")
+        else vnameE "def"
     -- 'programFindLocation' field changed signature in Cabal 1.18
     adaptFindLoc = if post118CabalAPI
         then LamE [vnameP "f", vnameP "x", WildP] $
@@ -83,6 +90,8 @@ $(let
             Clause [] (NormalB setEnvShim) []],
         FunD (mkName "extractCLBI") [
             Clause [vnameP "x"] (NormalB extractCLBI) []],
+        FunD (mkName "getCompLibName") [
+            Clause [vnameP "clbi", vnameP "def"] (NormalB getCompLibName) []],
         FunD (mkName "adaptFindLoc") [
             Clause [] (NormalB adaptFindLoc) []],
         FunD (mkName "rawSystemStdErr") [
@@ -228,15 +237,15 @@ mkGHCiFixLibRefName pkgDesc =
 buildGHCiFix ::
   Verbosity -> PackageDescription -> LocalBuildInfo -> Library -> IO ()
 buildGHCiFix verb pkgDesc lbi lib = do
-  let bDir = buildDir lbi
-      ms = map ModuleName.toFilePath $ libModules lib
+  let bDir   = buildDir lbi
+      ms     = map ModuleName.toFilePath $ libModules lib
       hsObjs = map ((bDir </>) . (<.> "o")) ms
+      clbi   = extractCLBI lbi
+      lname  = getCompLibName clbi $ ("HS" ++) $ display $ packageId pkgDesc
   stubObjs <- fmap catMaybes $
     mapM (findFileWithExtension ["o"] [bDir]) $ map (++ "_stub") ms
   (ld,_) <- requireProgram verb ldProgram (withPrograms lbi)
-  combineObjectFiles verb ld
-    (bDir </> (("HS" ++) $ display $ packageId pkgDesc) <.> "o")
-    (stubObjs ++ hsObjs)
+  combineObjectFiles verb ld (bDir </> lname <.> "o") (stubObjs ++ hsObjs)
   (ghc,_) <- requireProgram verb ghcProgram (withPrograms lbi)
   let bi = libBuildInfo lib
   runProgram verb ghc (
