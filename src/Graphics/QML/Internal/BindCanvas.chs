@@ -9,7 +9,7 @@ module Graphics.QML.Internal.BindCanvas where
 import Foreign.C.Types
 import Foreign.Marshal.Utils
 import Foreign.Ptr
-import Foreign.ForeignPtr.Safe
+import Foreign.ForeignPtr
 import Foreign.Storable
 
 #include "hsqml.h"

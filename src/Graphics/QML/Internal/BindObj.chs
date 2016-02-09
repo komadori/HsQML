@@ -12,8 +12,8 @@ import Control.Monad (void)
 import Foreign.C.Types
 import Foreign.Marshal.Utils (fromBool, toBool)
 import Foreign.Ptr
-import Foreign.ForeignPtr.Safe
-import Foreign.ForeignPtr.Unsafe
+import Foreign.ForeignPtr
+import qualified Foreign.ForeignPtr.Unsafe as UnsafeFPtr 
 import Foreign.StablePtr
 
 #include "hsqml.h"
@@ -77,7 +77,7 @@ newObjectHandle p = do
 
 isNullObjectHandle :: HsQMLObjectHandle -> Bool
 isNullObjectHandle (HsQMLObjectHandle fp) =
-  nullPtr == unsafeForeignPtrToPtr fp
+  nullPtr == UnsafeFPtr.unsafeForeignPtrToPtr fp
 
 {#fun unsafe hsqml_create_object as ^
   {marshalStable* `a',

@@ -9,7 +9,7 @@ module Graphics.QML.Internal.BindCore where
 {#import Graphics.QML.Internal.BindObj #}
 
 import Foreign.C.Types
-import Foreign.ForeignPtr.Safe
+import Foreign.ForeignPtr
 import Foreign.Marshal.Utils (toBool)
 import Foreign.Ptr
 
