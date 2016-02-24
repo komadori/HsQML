@@ -1,6 +1,6 @@
 HsQML - Release History
 
-release-0.3.4.0 - 2016.02.06
+release-0.3.4.0 - 2016.02.24
 
   * Added AutoListModel component.
   * Added functions for joining and killing engines.
@@ -12,6 +12,7 @@ release-0.3.4.0 - 2016.02.06
   * Fixed class at same address as deleted class causing inaccessible objects.
   * Fixed memory corruption bug prior to Qt 5.2 with workaround.
   * Fixed building with Fedora-style moc executable names (non-qtselect).
+  * Fixed building GHCi objects with GHC 7.10.
   * Fixed missing strong reference on engine context objects.
   * Fixed missing include breaking compilation with Qt 5.0.
   * Fixed switch compiler warnings.
