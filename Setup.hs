@@ -30,6 +30,7 @@ $(let
     post4700BaseAPI = Info.compilerVersion >= Version [7,7] []
     post118CabalAPI = cabalVersion >= Version [1,17,0] []
     post122CabalAPI = cabalVersion >= Version [1,21,0] []
+    post124CabalAPI = cabalVersion >= Version [1,23,0] []
     vnameE = VarE . mkName
     vnameP = VarP . mkName
     cnameE = ConE . mkName
@@ -50,17 +51,27 @@ $(let
             (vnameE "x") (cnameE "CLibName")
         else AppE (vnameE "fromJust") $ AppE (vnameE "libraryConfig")
             (vnameE "x")
-    -- 'ComponentLocalBuildInfo' record changed fields in Cabal 1.18
-    getCompLibName = if post118CabalAPI
-        then AppE (LamE [cnameP "LibraryName" [vnameP "n"]] (vnameE "n")) $
-            AppE (vnameE "head") $
-            AppE (vnameE "componentLibraries") (vnameE "clbi")
-        else vnameE "def"
-    -- 'programFindLocation' field changed signature in Cabal 1.18
-    adaptFindLoc = if post118CabalAPI
-        then LamE [vnameP "f", vnameP "x", WildP] $
-            AppE (vnameE "f") (vnameE "x")
-        else vnameE "id"
+    -- 'ComponentLocalBuildInfo' record changed fields in Cabal 1.18 and 1.24
+    getCompLibName =
+        case () of
+          _ | post124CabalAPI -> vnameE "def"
+            | post118CabalAPI ->
+                AppE (LamE [cnameP "LibraryName" [vnameP "n"]] (vnameE "n")) $
+                AppE (vnameE "head") $
+                AppE (vnameE "componentLibraries") (vnameE "clbi")
+            | otherwise -> vnameE "def"
+    -- 'programFindLocation' field changed signature in Cabal 1.18 and 1.24
+    adaptFindLoc =
+        case () of
+          _ | post124CabalAPI ->
+                LamE [vnameP "f", vnameP "x", WildP] $
+                AppE (AppE (vnameE "fmap") (AppE (vnameE "fmap") (AppE
+                    (AppE (vnameE "flip") (cnameE "(,)")) (cnameE "[]")))) $
+                AppE (vnameE "f") (vnameE "x")
+            | post118CabalAPI ->
+                LamE [vnameP "f", vnameP "x", WildP] $
+                AppE (vnameE "f") (vnameE "x")
+            | otherwise -> vnameE "id"
     -- 'rawSystemStdInOut' function changed signature in Cabal 1.18
     rawSystemStdErr = if post118CabalAPI
         then app4E (app3E (vnameE "rawSystemStdInOut")
@@ -85,6 +96,10 @@ $(let
         else LamE [WildP] $ app3E (app4E (vnameE "generateRegistrationInfo")
             (vnameE "verb") (vnameE "pkg") (vnameE "lib") (vnameE "lbi"))
             (vnameE "clbi") (vnameE "inp") (vnameE "dir")
+    -- 'registerPackage' function changed signature in Cabal 1.24
+    regPkg = if post124CabalAPI
+        then LamE [vnameP "verb", vnameP "ipi", vnameP "pkgDesc", vnameP "lbi", vnameP "inplace", vnameP "pkgDb"] $ app3E (app3E (vnameE "registerPackage") (vnameE "verb") (AppE (vnameE "compiler") (vnameE "lbi")) (AppE (vnameE "withPrograms") (vnameE "lbi"))) (vnameE "inplace") (vnameE "pkgDb") (vnameE "ipi")
+        else vnameE "registerPackage"
     in return [
         FunD (mkName "setEnvShim") [
             Clause [] (NormalB setEnvShim) []],
@@ -102,7 +117,9 @@ $(let
         FunD (mkName "genRegInfo") [
             Clause [vnameP "verb", vnameP "pkg", vnameP "lib", vnameP "lbi",
                 vnameP "clbi", vnameP "inp", vnameP "dir"] (
-                    NormalB genRegInfo) []]])
+                    NormalB genRegInfo) []],
+        FunD (mkName "regPkg") [
+            Clause [] (NormalB regPkg) []]])
 
 main :: IO ()
 main = do
@@ -313,7 +330,7 @@ regWithQt pkg@PackageDescription { library = Just lib } lbi _ flags = do
     _ | fromFlag (regGenScript flags) ->
       die "Registration scripts are not implemented."
       | otherwise -> 
-      registerPackage verb instPkgInfo' pkg lbi inplace pkgDb
+      regPkg verb instPkgInfo' pkg lbi inplace pkgDb
 regWithQt pkgDesc _ _ flags =
   setupMessage (fromFlag $ regVerbosity flags) 
     "Package contains no library to register:" (packageId pkgDesc)
