@@ -89,6 +89,7 @@ Library
         cbits/Engine.h
         cbits/Manager.h
         cbits/Model.h
+    CC-options: --std=c++11
     X-separate-cbits: True
     Build-tools: c2hs
     if flag(ForceGHCiLib)

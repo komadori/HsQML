@@ -43,7 +43,8 @@ HsQMLClass::HsQMLClass(
         int offset = arrayOff-(i*sizeof(QByteArrayData))+start;
         QByteArrayData data = {
             Q_REFCOUNT_INITIALIZE_STATIC, size-1, 0, 0, offset};
-        new(&mMetaStrData[i*sizeof(QByteArrayData)]) QByteArrayData(data);
+        std::memcpy(&mMetaStrData[i*sizeof(QByteArrayData)],
+            &data, sizeof(QByteArrayData));
     }
     std::memcpy(&mMetaStrData[arrayOff], metaStrChar, strLength);
 
