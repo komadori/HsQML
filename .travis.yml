@@ -1,26 +1,27 @@
 language: c
 
-sudo: true
+sudo: required
+dist: trusty #
 
 matrix:
   include:
     - env: CABALVER=1.16 GHCVER=7.4.2
-      addons: {apt: {packages: [cabal-install-1.16,ghc-7.4.2,qtdeclarative5-dev,qt5-default], sources: [hvr-ghc,ubuntu-sdk-team]}}
+      addons: {apt: {packages: [cabal-install-1.16,ghc-7.4.2,c2hs,qt5-default,qtdeclarative5-dev,qtdeclarative5-qtquick2-plugin,qtdeclarative5-window-plugin], sources: [hvr-ghc]}}
     - env: CABALVER=1.16 GHCVER=7.6.3
-      addons: {apt: {packages: [cabal-install-1.16,ghc-7.6.3,qtdeclarative5-dev,qt5-default], sources: [hvr-ghc,ubuntu-sdk-team]}}
+      addons: {apt: {packages: [cabal-install-1.16,ghc-7.6.3,c2hs,qt5-default,qtdeclarative5-dev,qtdeclarative5-qtquick2-plugin,qtdeclarative5-window-plugin], sources: [hvr-ghc]}}
     - env: CABALVER=1.18 GHCVER=7.8.4
-      addons: {apt: {packages: [cabal-install-1.18,ghc-7.8.4,qtdeclarative5-dev,qt5-default], sources: [hvr-ghc,ubuntu-sdk-team]}}
-    - env: CABALVER=1.22 GHCVER=7.10.2
-      addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.2,qtdeclarative5-dev,qt5-default],sources: [hvr-ghc,ubuntu-sdk-team]}}
+      addons: {apt: {packages: [cabal-install-1.18,ghc-7.8.4,c2hs,qt5-default,qtdeclarative5-dev,qtdeclarative5-qtquick2-plugin,qtdeclarative5-window-plugin], sources: [hvr-ghc]}}
+    - env: CABALVER=1.22 GHCVER=7.10.3
+      addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3,c2hs,qt5-default,qtdeclarative5-dev,qtdeclarative5-qtquick2-plugin,qtdeclarative5-window-plugin],sources: [hvr-ghc]}}
+    - env: CABALVER=1.24 GHCVER=8.0.1
+      addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.1,c2hs,qt5-default,qtdeclarative5-dev,qtdeclarative5-qtquick2-plugin,qtdeclarative5-window-plugin],  sources: [hvr-ghc]}}
     - env: CABALVER=head GHCVER=head
-      addons: {apt: {packages: [cabal-install-head,ghc-head,qtdeclarative5-dev,qt5-default],  sources: [hvr-ghc,ubuntu-sdk-team]}}
+      addons: {apt: {packages: [cabal-install-head,ghc-head,c2hs,qt5-default,qtdeclarative5-dev,qtdeclarative5-qtquick2-plugin,qtdeclarative5-window-plugin],  sources: [hvr-ghc]}}
 
   allow_failures:
     - env: CABALVER=head GHCVER=head
 
 before_install:
-  - travis_retry sudo apt-get update -qq
-  - travis_retry sudo apt-get install -y c2hs qtdeclarative5-qtquick2-plugin qtdeclarative5-window-plugin 
   - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
 
 install:
@@ -38,7 +39,6 @@ before_script:
 # test; any command which exits with a non-zero exit code causes the
 # build to fail.
 script:
-  - if [ -f configure.ac ]; then autoreconf -i; fi
   # -v2 provides useful information for debugging
   - cabal configure --enable-tests --enable-benchmarks -v2
 
