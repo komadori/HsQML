@@ -98,7 +98,12 @@ $(let
             (vnameE "clbi") (vnameE "inp") (vnameE "dir")
     -- 'registerPackage' function changed signature in Cabal 1.24
     regPkg = if post124CabalAPI
-        then LamE [vnameP "verb", vnameP "ipi", vnameP "pkgDesc", vnameP "lbi", vnameP "inplace", vnameP "pkgDb"] $ app3E (app3E (vnameE "registerPackage") (vnameE "verb") (AppE (vnameE "compiler") (vnameE "lbi")) (AppE (vnameE "withPrograms") (vnameE "lbi"))) (vnameE "inplace") (vnameE "pkgDb") (vnameE "ipi")
+        then LamE [vnameP "verb", vnameP "ipi", vnameP "pkgDesc", vnameP "lbi",
+                vnameP "inplace", vnameP "pkgDb"] $
+            app3E (app3E (vnameE "registerPackage") (vnameE "verb")
+                (AppE (vnameE "compiler") (vnameE "lbi"))
+                (AppE (vnameE "withPrograms") (vnameE "lbi")))
+                (vnameE "inplace") (vnameE "pkgDb") (vnameE "ipi")
         else vnameE "registerPackage"
     in return [
         FunD (mkName "setEnvShim") [
