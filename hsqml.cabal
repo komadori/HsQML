@@ -110,7 +110,8 @@ Library
         if os(darwin) && !flag(UsePkgConfig)
             Frameworks: QtCore QtGui QtWidgets QtQml QtQuick
             CC-options: -F /QT_ROOT/lib
-            GHC-options: -framework-path /QT_ROOT/lib
+            GHC-options: -hide-option-framework-path /QT_ROOT/lib
+            GHC-shared-options: -hide-option-framework-path /QT_ROOT/lib
             X-framework-dirs: /QT_ROOT/lib
         else
             Pkgconfig-depends:
@@ -136,7 +137,7 @@ Test-Suite hsqml-test1
         hsqml      == 0.3.*
     if os(darwin) && !flag(UsePkgConfig)
         -- Library not registered yet
-        GHC-options: -framework-path /QT_ROOT/lib
+        GHC-options: -hide-option-framework-path /QT_ROOT/lib
     if flag(ThreadedTestSuite)
         GHC-options: -threaded
 

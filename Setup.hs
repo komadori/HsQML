@@ -188,14 +188,10 @@ mapCondTree f (CondNode val cnstr cs) =
 substPaths :: Maybe FilePath -> Maybe FilePath -> BuildInfo -> BuildInfo
 substPaths mocPath cppPath build =
   let toRoot = takeDirectory . takeDirectory . fromMaybe ""
-      substPath = replace "/QT_ROOT" (toRoot mocPath) .
-        replace "/SYS_ROOT" (toRoot cppPath)
-  in build {ccOptions = map substPath $ ccOptions build,
-            ldOptions = map substPath $ ldOptions build,
-            extraLibDirs = map substPath $ extraLibDirs build,
-            includeDirs = map substPath $ includeDirs build,
-            options = mapSnd (map substPath) $ options build,
-            customFieldsBI = mapSnd substPath $ customFieldsBI build}
+  in read .
+     replace "/QT_ROOT" (toRoot mocPath) .
+     replace "/SYS_ROOT" (toRoot cppPath) .
+     replace "hide-option-" "" $ show build
 
 buildWithQt ::
   PackageDescription -> LocalBuildInfo -> UserHooks -> BuildFlags -> IO ()
