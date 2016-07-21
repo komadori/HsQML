@@ -1,5 +1,5 @@
 Name:               hsqml
-Version:            0.3.4.0
+Version:            0.3.4.1
 Cabal-version:      >= 1.14
 Build-type:         Custom
 License:            BSD3
@@ -9,7 +9,6 @@ Author:             Robin KAY
 Maintainer:         komadori@gekkou.co.uk
 Stability:          experimental
 Homepage:           http://www.gekkou.co.uk/software/hsqml/
-Bug-reports:        http://trac.gekkou.co.uk/hsqml/
 Category:           Graphics, GUI
 Synopsis:           Haskell binding for Qt Quick
 Extra-source-files:

@@ -1,5 +1,11 @@
 HsQML - Release History
 
+release-0.3.4.1 - 2016.07.21
+
+  * Added support for Cabal 1.24 API.
+  * Fixed linking shared builds against MacOS frameworks (needs Cabal 1.24+).
+  * Fixed building with Qt 5.7.
+
 release-0.3.4.0 - 2016.02.24
 
   * Added AutoListModel component.
