@@ -42,6 +42,8 @@ noPostConf _ c = return c
 -- 'generateRegistrationInfo' function will change signature in Cabal 1.22
 genRegInfo verb pkg lib lbi clbi inp dir _ =
     generateRegistrationInfo verb pkg lib lbi clbi inp dir
+-- 'registerPackage' function will change signature in Cabal 1.24
+regPkg = registerPackage
 
 main :: IO ()
 main = do
@@ -109,15 +111,12 @@ mapCondTree f (CondNode val cnstr cs) =
 
 substPaths :: Maybe FilePath -> Maybe FilePath -> BuildInfo -> BuildInfo
 substPaths mocPath cppPath build =
-  let toRoot = takeDirectory . takeDirectory . fromMaybe ""
-      substPath = replace "/QT_ROOT" (toRoot mocPath) .
-        replace "/SYS_ROOT" (toRoot cppPath)
-  in build {ccOptions = map substPath $ ccOptions build,
-            ldOptions = map substPath $ ldOptions build,
-            extraLibDirs = map substPath $ extraLibDirs build,
-            includeDirs = map substPath $ includeDirs build,
-            options = mapSnd (map substPath) $ options build,
-            customFieldsBI = mapSnd substPath $ customFieldsBI build}
+  let escapeStr = init . tail . show
+      toRoot = escapeStr . takeDirectory . takeDirectory . fromMaybe ""
+  in read .
+     replace "/QT_ROOT" (toRoot mocPath) .
+     replace "/SYS_ROOT" (toRoot cppPath) .
+     replace "-hide-option-" "-" $ show build
 
 buildWithQt ::
   PackageDescription -> LocalBuildInfo -> UserHooks -> BuildFlags -> IO ()
@@ -252,7 +251,7 @@ regWithQt pkg@PackageDescription { library = Just lib } lbi _ flags = do
     _ | fromFlag (regGenScript flags) ->
       die "Registration scripts are not implemented."
       | otherwise -> 
-      registerPackage verb instPkgInfo' pkg lbi inplace pkgDb
+      regPkg verb instPkgInfo' pkg lbi inplace pkgDb
 regWithQt pkgDesc _ _ flags =
   setupMessage (fromFlag $ regVerbosity flags) 
     "Package contains no library to register:" (packageId pkgDesc)
