@@ -10,7 +10,7 @@ module Graphics.QML.Internal.BindCore where
 
 import Foreign.C.Types
 import Foreign.ForeignPtr
-import Foreign.Marshal.Utils (toBool)
+import Foreign.Marshal.Utils (fromBool, toBool)
 import Foreign.Ptr
 
 #include <HsFFI.h>
@@ -44,6 +44,17 @@ hsqmlInit = hsqmlInit_ hsFreeFunPtr hsFreeStablePtr
 {#fun unsafe hsqml_get_args as ^
   {id `Ptr HsQMLStringHandle'} ->
   `()' #}
+
+{#enum HsQMLGlobalFlag as ^ {underscoreToCase} #}
+
+{#fun unsafe hsqml_set_flag as ^
+  {enumToCInt `HsQMLGlobalFlag',
+   fromBool `Bool'} ->
+  `Bool' toBool #}
+
+{#fun unsafe hsqml_get_flag as ^
+  {enumToCInt `HsQMLGlobalFlag'} ->
+  `Bool' toBool #}
 
 type TrivialCb = IO ()
 

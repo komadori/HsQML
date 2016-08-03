@@ -196,6 +196,14 @@ extern int hsqml_get_args_count();
 
 extern void hsqml_get_args(HsQMLStringHandle**);
 
+typedef enum {
+    HSQML_GFLAG_SHARE_OPENGL_CONTEXTS,
+} HsQMLGlobalFlag;
+
+extern int hsqml_set_flag(HsQMLGlobalFlag, int);
+
+extern int hsqml_get_flag(HsQMLGlobalFlag);
+
 extern void hsqml_set_debug_loglevel(int);
 
 /* Engine */

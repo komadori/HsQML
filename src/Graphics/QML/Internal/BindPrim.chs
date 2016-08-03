@@ -17,6 +17,9 @@ import System.IO.Unsafe
 cIntToEnum :: Enum a => CInt -> a
 cIntToEnum = toEnum . fromIntegral
 
+enumToCInt :: Enum a => a -> CInt
+enumToCInt = fromIntegral . fromEnum
+
 --
 -- String
 --

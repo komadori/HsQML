@@ -159,6 +159,33 @@ QVector<char*>& HsQMLManager::argsPtrs()
     return mArgsPtrs;
 }
 
+bool HsQMLManager::setFlag(HsQMLGlobalFlag flag, bool value)
+{
+    if (mApp || mShutdown) {
+        return false;
+    }
+
+    switch (flag) {
+#if QT_VERSION >= 0x050400
+    case HSQML_GFLAG_SHARE_OPENGL_CONTEXTS:
+        QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts, value);
+        return true;
+#endif
+    }
+    return false;
+}
+
+bool HsQMLManager::getFlag(HsQMLGlobalFlag flag)
+{
+    switch (flag) {
+#if QT_VERSION >= 0x050400
+    case HSQML_GFLAG_SHARE_OPENGL_CONTEXTS:
+        return QCoreApplication::testAttribute(Qt::AA_ShareOpenGLContexts);
+#endif
+    }
+    return false;
+}
+
 void HsQMLManager::registerObject(const QObject* obj)
 {
     mObjectSet.insert(obj);
@@ -492,6 +519,16 @@ extern "C" void hsqml_get_args(HsQMLStringHandle** args)
         QString* string = reinterpret_cast<QString*>(args[i]);
         *string = QString::fromLocal8Bit(argv[i]);
     }
+}
+
+extern "C" int hsqml_set_flag(HsQMLGlobalFlag flag, int value)
+{
+    return gManager->setFlag(flag, value);
+}
+
+extern "C" int hsqml_get_flag(HsQMLGlobalFlag flag)
+{
+    return gManager->getFlag(flag);
 }
 
 extern "C" HsQMLEventLoopStatus hsqml_evloop_run(

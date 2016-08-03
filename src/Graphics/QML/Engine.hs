@@ -29,6 +29,10 @@ module Graphics.QML.Engine (
   requireEventLoop,
   setQtArgs,
   getQtArgs,
+  QtFlag(
+    QtShareOpenGLContexts),
+  setQtFlag,
+  getQtFlag,
   shutdownQt,
   EventLoopException(),
 
@@ -247,6 +251,29 @@ getQtArgsIO = do
         argvs <- peekArray0 nullPtr argv
         Just (arg0:args) <- runMaybeT $ mapM (fmap T.unpack . mFromCVal) argvs
         return (arg0, args)
+
+-- | Represents a Qt application flag.
+data QtFlag
+    -- | Enables resource sharing between OpenGL contexts. This must be set in
+    -- order to use QtWebEngine. 
+    = QtShareOpenGLContexts
+    deriving Show
+
+internalFlag :: QtFlag -> HsQMLGlobalFlag
+internalFlag QtShareOpenGLContexts = HsqmlGflagShareOpenglContexts
+
+-- | Sets or clears one of the application flags used by Qt and returns True
+-- if successful. If the flag or flag value is not supported then it will
+-- return False. Setting flags once the Qt event loop is entered is
+-- unsupported and will also cause this function to return False.
+setQtFlag :: QtFlag -> Bool -> IO Bool
+setQtFlag flag val = do
+    hsqmlInit
+    hsqmlSetFlag (internalFlag flag) val
+
+-- | Gets the state of one of the application flags used by Qt.
+getQtFlag :: QtFlag -> RunQML Bool
+getQtFlag = RunQML . hsqmlGetFlag . internalFlag
 
 -- | Shuts down and frees resources used by the Qt framework, preventing
 -- further use of the event loop. The framework is initialised when

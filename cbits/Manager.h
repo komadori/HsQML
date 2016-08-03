@@ -46,6 +46,8 @@ public:
     void freeStable(HsStablePtr);
     bool setArgs(const QStringList&);
     QVector<char*>& argsPtrs();
+    bool setFlag(HsQMLGlobalFlag, bool);
+    bool getFlag(HsQMLGlobalFlag);
     void registerObject(const QObject*);
     void unregisterObject(const QObject*);
     void hookedConstruct(QVariant::Private*, const void*);
