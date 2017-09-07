@@ -54,7 +54,9 @@ $(let
     -- 'ComponentLocalBuildInfo' record changed fields in Cabal 1.18 and 1.24
     getCompLibName =
         case () of
-          _ | post124CabalAPI -> vnameE "def"
+          _ | post124CabalAPI ->
+                AppE (vnameE "getHSLibraryName") $
+                AppE (vnameE "componentUnitId") (vnameE "clbi")
             | post118CabalAPI ->
                 AppE (LamE [cnameP "LibraryName" [vnameP "n"]] (vnameE "n")) $
                 AppE (vnameE "head") $
