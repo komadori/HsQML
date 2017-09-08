@@ -2,6 +2,7 @@
 
 module Graphics.QML.Test.ScriptDSL where
 
+import Data.Bits
 import Data.Char
 import Data.Int
 import Data.List
@@ -47,12 +48,17 @@ instance Literal Text where
             foldr (.) id . map f $ T.unpack txt) . showChar '"')
         where f '\"' = showString "\\\""
               f '\\' = showString "\\\\"
-              f c | ord c < 32 = hexEsc c
-                  | ord c > 127 = hexEsc c
-                  | otherwise  = showChar c
+              f c | ord c < 32     = hexEsc c
+                  | ord c > 0xffff = surEsc c
+                  | ord c > 127    = hexEsc c
+                  | otherwise      = showChar c
               hexEsc c = let h = showHex (ord c)
                          in showString "\\u" .  showString (
                                 replicate (4 - (length $ h "")) '0') . h
+              surEsc c = let v = ord c - 0x10000
+                             hi = chr $ (v `shiftR` 10) + 0xD800
+                             lo = chr $ (v .&. 0x3ff) + 0xDC00
+                         in hexEsc hi . hexEsc lo
 
 instance Literal a => Literal (Maybe a) where
     literal Nothing = Expr $ showString "null"
