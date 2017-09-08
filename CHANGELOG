@@ -1,5 +1,12 @@
 HsQML - Release History
 
+release-0.3.5.0 - 2017.09.08
+
+  * Added facility for setting Qt application flags.
+  * Fixed building GHCi objects with Cabal 1.24.
+  * Relaxed Cabal constraint on 'QuickCheck' and fixed test suite.
+  * Relaxed Cabal constraint on 'directory'.
+
 release-0.3.4.1 - 2016.07.21
 
   * Added support for Cabal 1.24 API.
