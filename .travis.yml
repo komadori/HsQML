@@ -5,16 +5,16 @@ dist: trusty #
 
 matrix:
   include:
-    - env: CABALVER=1.16 GHCVER=7.4.2
-      addons: {apt: {packages: [cabal-install-1.16,ghc-7.4.2,c2hs,qt5-default,qtdeclarative5-dev,qtdeclarative5-qtquick2-plugin,qtdeclarative5-window-plugin], sources: [hvr-ghc]}}
-    - env: CABALVER=1.16 GHCVER=7.6.3
-      addons: {apt: {packages: [cabal-install-1.16,ghc-7.6.3,c2hs,qt5-default,qtdeclarative5-dev,qtdeclarative5-qtquick2-plugin,qtdeclarative5-window-plugin], sources: [hvr-ghc]}}
-    - env: CABALVER=1.18 GHCVER=7.8.4
-      addons: {apt: {packages: [cabal-install-1.18,ghc-7.8.4,c2hs,qt5-default,qtdeclarative5-dev,qtdeclarative5-qtquick2-plugin,qtdeclarative5-window-plugin], sources: [hvr-ghc]}}
-    - env: CABALVER=1.22 GHCVER=7.10.3
-      addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3,c2hs,qt5-default,qtdeclarative5-dev,qtdeclarative5-qtquick2-plugin,qtdeclarative5-window-plugin],sources: [hvr-ghc]}}
+    - env: CABALVER=1.24 GHCVER=7.8.4
+      addons: {apt: {packages: [cabal-install-1.24,ghc-7.8.4,c2hs,qt5-default,qtdeclarative5-dev,qtdeclarative5-qtquick2-plugin,qtdeclarative5-window-plugin], sources: [hvr-ghc]}}
+    - env: CABALVER=1.24 GHCVER=7.10.3
+      addons: {apt: {packages: [cabal-install-1.24,ghc-7.10.3,c2hs,qt5-default,qtdeclarative5-dev,qtdeclarative5-qtquick2-plugin,qtdeclarative5-window-plugin],sources: [hvr-ghc]}}
     - env: CABALVER=1.24 GHCVER=8.0.1
       addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.1,c2hs,qt5-default,qtdeclarative5-dev,qtdeclarative5-qtquick2-plugin,qtdeclarative5-window-plugin],  sources: [hvr-ghc]}}
+    - env: CABALVER=2.0 GHCVER=8.2.2
+      addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2,c2hs,qt5-default,qtdeclarative5-dev,qtdeclarative5-qtquick2-plugin,qtdeclarative5-window-plugin],  sources: [hvr-ghc]}}
+    - env: CABALVER=2.2 GHCVER=8.4.1
+      addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.1,c2hs,qt5-default,qtdeclarative5-dev,qtdeclarative5-qtquick2-plugin,qtdeclarative5-window-plugin],  sources: [hvr-ghc]}}
     - env: CABALVER=head GHCVER=head
       addons: {apt: {packages: [cabal-install-head,ghc-head,c2hs,qt5-default,qtdeclarative5-dev,qtdeclarative5-qtquick2-plugin,qtdeclarative5-window-plugin],  sources: [hvr-ghc]}}
 
