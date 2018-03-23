@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE CPP, FlexibleInstances #-}
 
 module Graphics.QML.Test.ScriptDSL where
 
@@ -7,6 +7,9 @@ import Data.Char
 import Data.Int
 import Data.List
 import Data.Monoid
+#if MIN_VERSION_base(4,11,0)
+import Data.Semigroup
+#endif
 import Data.Text (Text)
 import qualified Data.Text as T
 import Numeric
@@ -15,9 +18,17 @@ data Expr = Global | Expr {unExpr :: ShowS}
 
 data Prog = Prog ShowS ShowS
 
+#if MIN_VERSION_base(4,11,0)
+instance Semigroup Prog where
+    (Prog a1 b1) <> (Prog a2 b2) = Prog (a1 . a2) (b2 . b1)
+
+instance Monoid Prog where
+    mempty = Prog id id
+#else
 instance Monoid Prog where
     mempty = Prog id id
     mappend (Prog a1 b1) (Prog a2 b2) = Prog (a1 . a2) (b2 . b1)
+#endif
 
 showProg :: Prog -> ShowS
 showProg (Prog a b) = a . b
