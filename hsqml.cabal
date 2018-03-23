@@ -141,6 +141,17 @@ Test-Suite hsqml-test1
         tagged     >= 0.4 && < 0.9,
         QuickCheck >= 2.4 && < 2.11,
         hsqml
+    Other-modules:
+        Graphics.QML.Test.AutoListTest
+        Graphics.QML.Test.DataTest
+        Graphics.QML.Test.Framework
+        Graphics.QML.Test.Harness
+        Graphics.QML.Test.MayGen
+        Graphics.QML.Test.MixedTest
+        Graphics.QML.Test.ScriptDSL
+        Graphics.QML.Test.SignalTest
+        Graphics.QML.Test.SimpleTest
+        Graphics.QML.Test.TestObject
     if os(darwin) && !flag(UsePkgConfig)
         -- Library not registered yet
         GHC-options: -hide-option-framework-path /QT_ROOT/lib
