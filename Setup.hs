@@ -197,7 +197,7 @@ copyWithQt pkgDesc lbi hooks flags = do
   let verb = fromFlag $ copyVerbosity flags
       dest = fromFlag $ copyDest flags
       bDir = buildDir lbi
-      libDir = libdir $ absoluteInstallDirs pkgDesc lbi dest
+      libDir = dynlibdir $ absoluteInstallDirs pkgDesc lbi dest
       file = mkGHCiFixLibName pkgDesc
   when (needsGHCiFix pkgDesc lbi) $
     installOrdinaryFile verb (bDir </> file) (libDir </> file)
