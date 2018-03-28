@@ -1,5 +1,13 @@
 HsQML - Release History
 
+release-0.3.5.1 - 2018.03.28
+
+  * Fixed building with Semigroup/Monoid changes in base 4.11 (GHC 8.4.1).
+  * Fixed crash if setDebugLogLevel called before other functions.
+  * Fixed GHCi cbits library install location.
+  * Changed Setup script to use Cabal 2 API only.
+  * Relaxed Cabal constraint on 'QuickCheck'.
+
 release-0.3.5.0 - 2017.09.08
 
   * Added facility for setting Qt application flags.

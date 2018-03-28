@@ -1,10 +1,10 @@
 Name:               hsqml
-Version:            0.3.5.0
+Version:            0.3.5.1
 Cabal-version:      >= 1.24
 Build-type:         Custom
 License:            BSD3
 License-file:       LICENSE
-Copyright:          (c) 2010-2017 Robin KAY
+Copyright:          (c) 2010-2018 Robin KAY
 Author:             Robin KAY
 Maintainer:         komadori@gekkou.co.uk
 Stability:          experimental
