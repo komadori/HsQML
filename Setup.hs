@@ -197,10 +197,12 @@ copyWithQt pkgDesc lbi hooks flags = do
   let verb = fromFlag $ copyVerbosity flags
       dest = fromFlag $ copyDest flags
       bDir = buildDir lbi
-      libDir = dynlibdir $ absoluteInstallDirs pkgDesc lbi dest
+      instDirs = absoluteInstallDirs pkgDesc lbi dest
       file = mkGHCiFixLibName pkgDesc
-  when (needsGHCiFix pkgDesc lbi) $
-    installOrdinaryFile verb (bDir </> file) (libDir </> file)
+  when (needsGHCiFix pkgDesc lbi) $ do
+    installOrdinaryFile verb (bDir </> file) (dynlibdir instDirs </> file)
+    -- Stack looks in the non-dyn lib directory
+    installOrdinaryFile verb (bDir </> file) (libdir instDirs </> file)
 
 regWithQt :: 
   PackageDescription -> LocalBuildInfo -> UserHooks -> RegisterFlags -> IO ()
