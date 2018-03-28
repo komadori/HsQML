@@ -11,12 +11,19 @@ clone_folder: "c:\\stack"
 environment:
   global:
     STACK_ROOT: "c:\\sr"
+  matrix:
+    - RESOLVER: lts-11.2
+    - RESOLVER: lts-9.21
+    - RESOLVER: lts-6.35
 
 test_script:
-- 'echo resolver: lts-11.1 >stack.yaml'
+- 'echo resolver: %RESOLVER% >stack.yaml'
+- 'echo allow-newer: true >>stack.yaml'
 - 'echo packages: >>stack.yaml'
 - 'echo - . >>stack.yaml'
-- stack setup > nul
+- stack setup --install-cabal 2.0.1.1 > nul
 # The ugly echo "" hack is to avoid complaints about 0 being an invalid file
 # descriptor
 - echo "" | stack --no-terminal test --jobs 1
+# Check that GHCi can load the libraries
+- 'echo do {Graphics.QML.Debug.setDebugLogLevel 0; putStrLn "OK"} | stack exec -- ghci | grep OK'
