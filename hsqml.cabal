@@ -1,6 +1,6 @@
 Name:               hsqml
 Version:            0.3.5.0
-Cabal-version:      >= 1.14
+Cabal-version:      >= 1.24
 Build-type:         Custom
 License:            BSD3
 License-file:       LICENSE
