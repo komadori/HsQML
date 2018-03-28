@@ -56,4 +56,7 @@ script:
   - SRC_TGZ=$(cabal info . | awk '{print $2;exit}').tar.gz &&
     (cd dist && cabal install --force-reinstalls "$SRC_TGZ")
 
+  # check that GHCi can load the libraries
+  - echo 'do {Graphics.QML.Debug.setDebugLogLevel 0; putStrLn "OK"}' | ghci | grep OK
+
 # EOF
